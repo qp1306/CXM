@@ -86,3 +86,13 @@ test('tool count selection exists in Tools and uses revision-protected AutoSave'
   assert.match(settings, /expected_revision:snapshot.revision/);
   assert.match(settings, /Saved count could not be verified/);
 });
+
+test('overview tool count and summary have legible blue-highlight styling',()=>{
+  const fs=require('node:fs');
+  const html=fs.readFileSync(require('node:path').join(__dirname,'../web/index.html'),'utf8');
+  assert.match(html, /\.tool-count-control label\{font-size:16px;font-weight:700;color:#a8d7ff\}/);
+  assert.match(html, /#cxmToolSummary\{font-size:15px;/);
+  assert.match(html, /background:#20334b;border:1px solid #42698f/);
+  assert.match(html, /\.tool-count-control select\{[^}]*font-size:17px/);
+  assert.match(html, /CXM starter <span>v0\.3\.3<\/span>/);
+});
