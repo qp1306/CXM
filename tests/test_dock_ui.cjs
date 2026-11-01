@@ -30,7 +30,7 @@ test('V0.4 cannot issue motion or falsely verify hardware pickup',()=>{
   assert.match(html,/button class="btn" disabled title="Requires safe Klipper macros">Approach dock/);
   assert.match(html,/button class="btn" disabled title="Requires physical pickup sensor testing">Test pickup/);
   assert.match(html,/Saved positions are provisional/);
-  assert.match(dock,/not verified or active in Klipper/);
+  assert.match(dock,/NOT verified in Klipper/);
 });
  
 test('accept button remains disabled for blank, invalid or unchanged drafts',()=>{

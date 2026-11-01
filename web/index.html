@@ -4,7 +4,7 @@
 .tool-overview-meta{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 16px}.tool-overview-meta span{font-size:11px;color:#aebbc9;border:1px solid #343c47;background:#242832;border-radius:6px;padding:7px 10px}.tool-card[data-profile-state="inactive"]{opacity:.65}.tool-card[data-profile-state="unconfigured"] .dock-label{color:#e1bc78}.tool-card[data-profile-state="configured"] .dock-label{color:#a9d7ba}.tool-card .tool-row b{font-variant-numeric:tabular-nums}.tool-card .tool-buttons .btn:disabled{opacity:.34}
 
 .dock-top{margin-bottom:16px}.dock-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.dock-toolbar label{font-size:15px;font-weight:700;color:#b9dfff}.dock-toolbar select,.dock-inputs input{color:#e5ecf6;background:#161d28;border:1px solid #45576b;border-radius:7px;padding:9px 12px;font-size:14px}.dock-toolbar select{min-width:90px}.dock-status{font-size:12px;color:#e7c17c;background:#342c22;padding:7px 10px;border-radius:6px}.dock-top .muted{margin:12px 0}.dock-safety{font-size:11px;color:#b8c7d9}.dock-columns{display:grid;grid-template-columns:minmax(0,1.14fr) minmax(0,1fr);gap:16px}.dock-steps{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}.dock-steps span{border:1px solid #3d4a5b;color:#a3b5c9;background:#222c39;border-radius:6px;padding:6px 10px;font-size:11px}.dock-steps span.future{border-style:dashed;color:#8c96a7;background:#1c2028}.dock-inputs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:20px 0}.dock-inputs label{display:flex;flex-direction:column;gap:7px;color:#a4c6e7;font-size:12px}.dock-inputs input{min-width:0;width:100%;font-variant-numeric:tabular-nums}.dock-adjust{background:#242a34;border:1px solid #36465b;padding:12px;border-radius:9px}.dock-adjust strong{font-size:12px;color:#c4d6e8}.dock-adjust .buttons{margin:12px 0 4px}.dock-checks{margin:18px 0}.dock-checks>div{display:flex;justify-content:space-between;gap:9px;padding:11px 0;border-bottom:1px solid #333b47;font-size:12px;color:#b8c4d2}.dock-checks strong{color:#deba80;text-align:right}.dock-warning{border-left:3px solid #b9975d;background:#2e2924;padding:12px;color:#e2cda4;font-size:12px;line-height:1.6}.dock-bottom{margin-top:16px}.dock-bottom h3{margin-bottom:8px}@media(max-width:850px){.dock-columns{grid-template-columns:1fr}}@media(max-width:520px){.dock-inputs{grid-template-columns:1fr}}
-</style></head>
+#cxmDockAccept:disabled{background:#293442!important;color:#8b9eaf!important;border-color:#3b4857!important;opacity:.60;cursor:not-allowed}</style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
 <header class="topbar"><div class="brand"><div class="brand-mark">C<span>X</span>M</div><div><strong>Control Centre</strong><small>Single extruder · multi-hotend</small></div></div><div class="top-actions"><span id="connection" class="status-indicator"><i></i><span>Connecting to Moonraker</span></span><span id="saveStatus" class="mini-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg> Config sync: not connected</span></div></header>
@@ -252,7 +252,7 @@ loadPrinterStatus();loadUpdateStatus();
 // Refresh status only (not Git remote) periodically. The explicit Check button refreshes GitHub.
 setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-panel="updates"]:not([hidden])'))loadUpdateStatus();}},15000);
 </script>
-<script src="cxm-tool-cards.js?v=0.4.0" defer></script>
-<script src="cxm-settings.js?v=0.4.0" defer></script>
-<script src="cxm-dock.js?v=0.4.0" defer></script>
+<script src="cxm-tool-cards.js?v=0.4.1" defer></script>
+<script src="cxm-settings.js?v=0.4.1" defer></script>
+<script src="cxm-dock.js?v=0.4.1" defer></script>
 </body></html>
