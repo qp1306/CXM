@@ -1,4 +1,4 @@
-/* CXM V0.2 settings editor; API served from loopback Python through Nginx. */
+/* CXM V0.3 settings editor; API served from loopback Python through Nginx. */
 (() => {
   'use strict';
   const endpoint = '/cxm/api/v1';
@@ -34,19 +34,7 @@
     }).join('');
   }
   function toolCards() {
-    if (!snapshot) return;
-    const tools = document.querySelectorAll('.tool-card');
-    snapshot.config.tools.forEach((t,n) => {
-      const card = tools[n];
-      if (!card) return;
-      const label = card.querySelector('.dock-label');
-      if (label) label.textContent=!t.enabled?'Disabled':[t.dock_x,t.dock_y,t.dock_z].some(v=>v==null)?'Enabled · not calibrated':'Coordinates · unverified';
-      const rows = card.querySelectorAll('.tool-row b');
-      const fmt = (v) => v == null?'—':Number(v).toFixed(3);
-      if(rows[0])rows[0].textContent=[t.dock_x,t.dock_y,t.dock_z].map(fmt).join(' / ');
-      if(rows[1])rows[1].textContent=[t.offset_x,t.offset_y,t.offset_z].map(fmt).join(' / ');
-      // Real temperatures are still unknown; don't fabricate them.
-    });
+    if (window.CXMToolCards) window.CXMToolCards.render(snapshot);
   }
   async function getJSON(url) {
     const r=await fetch(url,{cache:'no-store',credentials:'same-origin'});
@@ -69,6 +57,7 @@
       status('AutoSave ready · disk only');
     } catch(e) {
       snapshot=null;
+      toolCards(); // Clear stale saved values if the config backend becomes unreachable.
       root.innerHTML=`<div class="notice error">Configuration backend not available: ${escape(e.message)}. Install CXM V0.2 backend once using the Python bootstrap in GitHub's README. No settings have been changed.</div>`;
       status('Config backend offline',true);
     }
@@ -141,5 +130,19 @@
       });
     } catch(e) {panel.textContent='Cannot read backups: '+e.message;}
   }
+  window.addEventListener('cxm-edit-tool', event => {
+    const n=event.detail?.tool;
+    if (!snapshot || !Number.isInteger(n) || n<0 || n>=snapshot.config.tools.length) return;
+    tool=n;
+    document.querySelector('[data-tab="settings"]')?.click();
+    render();
+    root.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+  // Refresh displayed saved values after returning to Tools. Avoid overwriting
+  // a currently edited Settings form or interrupting a disk write.
+  document.querySelector('[data-tab="tools"]')?.addEventListener('click', () => {if(!saving)load();});
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState==='visible' && !saving && !document.querySelector('[data-panel="tools"]').hidden) load();
+  });
   load();
 })();
