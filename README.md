@@ -1,37 +1,60 @@
 # CXM Control Centre
 
-Version 0.1 — clean Klipper + Moonraker + Mainsail installation foundation.
+**CXM V0.2.0 development release** — GitHub-driven updater plus a protected central configuration manager.
 
-Designed for the CXChanger single-extruder / multiple-hotend printer. This release installs only a dark read-only dashboard and a GitHub updater. It does not modify printer.cfg, add Klipper macros, or control tool motion.
+CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## First install on the printer
+## Already installed V0.1.x? Upgrade to V0.2
 
-Run these commands over SSH on a machine with an ordinary Mainsail nginx installation. The first installation command is **dry-run only**:
+1. Open CXM Control Centre at `http://YOUR-PRINTER-IP/cxm/` and use **Updates → Check for Updates → Install CXM Update**.
+2. Do the **one-time** backend/bootstrap setup over SSH, with a read-only preflight first:
 
-~~~bash
+```bash
+python3 ~/CXM/scripts/cxm_config_install.py
+python3 ~/CXM/scripts/cxm_config_install.py --apply
+```
+
+3. Reopen `http://YOUR-PRINTER-IP/cxm/`, select **Settings**. It should load the 12 tool profiles and AutoSave controls. No Klipper restart is required.
+
+The installer will create `~/printer_data/config/CXM_variables.cfg` only if it does not exist, and **will not overwrite existing calibration**. It installs a `cxm-config.service` bound to `127.0.0.1:8765` and updates the existing CXM Nginx snippet to proxy `/cxm/api/`. Nginx and the CXM service reload; the original `printer.cfg`, Klipper macros and Moonraker updater remain untouched.
+
+**This is an additional one-time install step**, not part of Moonraker's basic Git pull. After setup, new webpage code updates through the existing CXM Update button. The Python service monitors its source files and restarts itself through systemd when those files change, without restarting Klipper.
+
+## V0.2 AutoSave and data safety
+
+- Central file: `~/printer_data/config/CXM_variables.cfg`, which stays outside `~/CXM` so Git updates cannot overwrite it.
+- 12 tool profiles: enabled, dock XYZ, relative XYZ offsets and dock/approach speeds.
+- Global values: configured tool count, safe Y and X docking adjustment.
+- A field change in **Settings** triggers server-side range/type checks, optimistic revision checking and an **atomic disk write**. No Save button is required.
+- Each accepted change first saves a timestamped backup to `~/printer_data/config/cxm_backups/`. Restore a prior backup from Settings; restoring also backs up the current file.
+- Invalid values, conflicting edits and unverified printer states fail safely.
+- The GUI also displays the saved coordinates and offsets on the tool cards. Unmeasured dock values remain blank; no invented calibration.
+
+**Important — not active in Klipper yet:** V0.2 saves to disk but does not include `CXM_variables.cfg` in `printer.cfg`, send `SET_GCODE_VARIABLE`, or move any printer hardware. Klipper will continue to show its MCU error on a hardware-free development machine. Live macro integration is a separate milestone. Do not use these stored values to enable unattended toolchanges.
+
+## Security and future Klipper updates
+
+The Python configuration API listens only on loopback. Nginx restricts the new `/cxm/api/` route to private LAN ranges, while the server requires same-origin JSON requests and restricts writes to an explicit parameter schema. **Do not expose CXM or Moonraker directly to the public internet.** This is not a substitute for securing the local network or for user authentication.
+
+The source code updater remains `[update_manager CXM]` through Moonraker's native git_repo type. Normal saved calibration values are independent of software updates. Custom Klipper Python modules are not required.
+
+## Tests
+
+```bash
+python3 -m unittest discover -s tests -v
+node --check web/cxm-settings.js
+node --test tests/test_web_update_safety.cjs
+```
+
+## Initial V0.1 installation (new printer)
+
+```bash
 curl -fLsS https://raw.githubusercontent.com/qp1306/CXM/main/scripts/cxm_manager.py -o /tmp/cxm_manager.py
 python3 /tmp/cxm_manager.py install
 python3 /tmp/cxm_manager.py install --apply
 python3 /tmp/cxm_manager.py verify
-~~~
+```
 
-Then visit `http://YOUR-PRINTER-IP/cxm/`, open **Updates**, and click **Check for Updates**.
+Then follow the V0.2 backend step above. The initial installer is dry-run by default.
 
-**Important:** The installer assumes the common Mainsail nginx site at `/etc/nginx/sites-available/mainsail`, Moonraker at `~/printer_data/config/moonraker.conf`, and a clean checkout at `~/CXM`. If your setup differs, use `--config-dir`, `--nginx-site` and/or `--path`. The script refuses unfamiliar nginx layouts rather than guessing.
-
-## Updates
-
-The CXM page uses Moonraker's documented `/machine/update/refresh`, `/machine/update/status` and `/machine/update/upgrade` endpoints, scoped only to the CXM updater. Future commits to `main` can be checked and installed through the page. Updates require confirmation and the printer must be idle.
-
-The initial Moonraker updater uses `channel: dev` to track main commits. Web-only updates do not restart Klipper. Future macro changes may require a carefully controlled Klipper reload; do not interpret an updater's successful Git pull as proof macros are loaded.
-
-## Safety and data
-
-- This is a development starter; not verified on the user's actual printer yet.
-- Tool cards display placeholders, not real attached-tool status.
-- Actual dock calibration and AutoSave will be implemented and tested separately.
-- Future live configuration and calibration data go in the printer data/config directory, not the Git checkout, so Moonraker can update a clean repository.
-- Avoid exposing the Moonraker API to the public internet.
-- The installer requires `--apply` for writes and backs up files it changes.
-
-Source: https://moonraker.readthedocs.io/en/latest/external_api/update_manager/
+Repository: https://github.com/qp1306/CXM
