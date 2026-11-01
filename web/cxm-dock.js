@@ -1,4 +1,4 @@
-/* CXM V0.4 — dock coordinate editor; all movement and sensor actions absent. */
+/* CXM V0.4.1 — dock coordinate editor; all movement and sensor actions absent. */
 (() => {
   'use strict';
   const root = document.querySelector('[data-panel="calibration"]');
@@ -29,10 +29,27 @@
     return xyz;
   }
   function current() { return snapshot?.config?.tools?.[selected]; }
+  // Match the backend's dock coordinate bounds. Backend validation remains
+  // authoritative; this only prevents invalid or incomplete UI submissions.
+  const limits = {x:[-50,600],y:[-50,600],z:[-20,600]};
+  function validDraft() {
+    if (!snapshot || busy || !dirty || !current()) return false;
+    try {
+      const xyz=readDraft();
+      return axis.every(name=>xyz[name]>=limits[name][0] && xyz[name]<=limits[name][1])
+        && axis.some(name=>xyz[name]!==current()['dock_'+name]);
+    } catch { return false; }
+  }
+  function updateActions() {
+    get('cxmDockAccept').disabled=!validDraft();
+  }
   function markDraft() {
     if (!snapshot || busy) return;
     dirty = true;
-    report('Draft edited. Not saved until you accept all three coordinates. No motion will occur.');
+    updateActions();
+    report(validDraft()
+      ? 'Valid XYZ draft ready. Accept all three coordinates to AutoSave; no motion will occur.'
+      : 'Enter complete X/Y/Z coordinates within X/Y −50…600 mm and Z −20…600 mm before saving.', !validDraft());
   }
   function fill() {
     const tool = current();
@@ -48,7 +65,7 @@
       ? 'T'+selected+' saved dock XYZ: '+axis.map(name => nice(tool['dock_'+name])).join(' / ')+
         ' mm · source: CXM_variables.cfg · not active in Klipper'
       : 'No enabled tool selected. Enable the tool in Settings to create a dock position.';
-    get('cxmDockAccept').disabled = !tool || busy;
+    updateActions(); // Never enable Save for empty or unchanged coordinates.
   }
   function render() {
     const select = get('cxmDockTool');
@@ -83,6 +100,7 @@
   }
   async function load() {
     if (busy) return;
+    if (dirty && !window.confirm('Discard unsaved dock XYZ draft and reload the saved coordinates?')) return;
     try {
       snapshot = await getJSON('/config');
       render();
@@ -93,7 +111,10 @@
     }
   }
   async function accept() {
-    if (!snapshot || busy || !current()) return;
+    if (!validDraft()) {
+      report('Complete and validate all three XYZ coordinates before accepting.',true);
+      return;
+    }
     let xyz;
     try { xyz = readDraft(); }
     catch (e) { report(e.message,true); return; }
@@ -103,6 +124,7 @@
     save.disabled = true;
     get('cxmDockTool').disabled = true;
     report('Validating and saving all three axes atomically…');
+    let verified=false;
     try {
       const reply = await postJSON('/dock',{tool:selected,xyz,expected_revision:snapshot.revision});
       if (!reply.saved) throw new Error('The service did not confirm the save');
@@ -112,21 +134,31 @@
         throw new Error('Disk verification did not match the requested coordinates');
       snapshot = fresh;
       dirty = false;
-      fill(); // Show the freshly verified saved values, not stale draft status.
+      verified=true;
       window.dispatchEvent(new Event('cxm-dock-saved'));
-      report('T'+selected+' dock XYZ AutoSaved together · backup created if changed · not verified or active in Klipper.');
     } catch (e) {
       report('Save not verified: '+e.message+'. Review the current values before retrying.',true);
       // Keep the draft on screen if an operation fails. Use Refresh to reconcile.
     } finally {
       busy = false;
-      get('cxmDockTool').disabled = false;
-      save.disabled = !current();
+      get('cxmDockTool').disabled = !snapshot || !configured(snapshot.config).length;
+      if (verified) {
+        fill(); // Re-enable inputs after the request and show the saved values.
+        report('T'+selected+' dock XYZ saved and verified on disk · backup created if changed · NOT verified in Klipper.');
+      } else {
+        // On failure, retain the user's draft and make its inputs editable.
+        for (const name of axis) get('cxmDock'+name.toUpperCase()).disabled=!current();
+        updateActions();
+      }
     }
   }
   get('cxmDockRefresh').addEventListener('click',load);
   get('cxmDockTool').addEventListener('change',e => {
     if (busy) return;
+    if (dirty && !window.confirm('Discard unsaved dock XYZ draft and switch hotends?')) {
+      e.currentTarget.value=String(selected);
+      return;
+    }
     selected=Number(e.currentTarget.value);
     fill();
     report('T'+selected+' selected. All draft edits are local until accepted.');
@@ -151,12 +183,16 @@
     document.querySelector('[data-tab="settings"]')?.click();
     setTimeout(()=>get('cxmHistory')?.click(),250);
   });
-  document.querySelector('[data-tab="calibration"]')?.addEventListener('click',load);
+  document.querySelector('[data-tab="calibration"]')?.addEventListener('click',()=>{
+    if (!dirty) load(); // Preserve unsaved drafts when switching tabs.
+  });
   window.addEventListener('cxm-calibrate-tool',event=>{
     const n=event.detail?.tool;
     if (!Number.isInteger(n)||n<0||n>=12) return;
-    selected=n;
+    if (dirty && n!==selected && !window.confirm('Discard unsaved dock XYZ draft and switch hotends?')) return;
+    if (n!==selected) { selected=n; dirty=false; }
     document.querySelector('[data-tab="calibration"]')?.click();
+    if (snapshot) render();
   });
   load();
 })();

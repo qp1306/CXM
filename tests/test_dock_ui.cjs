@@ -13,7 +13,7 @@ test('dock wizard loads and includes required user controls',()=>{
                    'cxmDockFeedback']) {
     assert.match(html,new RegExp('id="'+id+'"'));
   }
-  assert.match(html,/cxm-dock\.js\?v=0\.4\.0/);
+  assert.match(html,/cxm-dock\.js\?v=0\.4\.1/);
   assert.match(html,/data-panel="calibration"/);
   assert.match(cards,/data-cxm-calibrate/);
 });
@@ -23,7 +23,7 @@ test('dock coordinates require three axes, deliberate approval and server valida
   assert.match(dock,/window\.confirm\(/);
   assert.match(dock,/postJSON\('\/dock',\{tool:selected,xyz,expected_revision:snapshot\.revision\}\)/);
   assert.match(dock,/stored\['dock_'\+name\] === xyz\[name\]/);
-  assert.match(dock,/fill\(\); \/\/ Show the freshly verified saved values/);
+  assert.match(dock,/fill\(\); \/\/ Re-enable inputs after the request and show the saved values/);
 });
 test('V0.4 cannot issue motion or falsely verify hardware pickup',()=>{
   assert.doesNotMatch(dock,/\/printer\/gcode\/script|\/printer\/gcode\/help|postJSON\('\/printer\//);
@@ -31,4 +31,17 @@ test('V0.4 cannot issue motion or falsely verify hardware pickup',()=>{
   assert.match(html,/button class="btn" disabled title="Requires physical pickup sensor testing">Test pickup/);
   assert.match(html,/Saved positions are provisional/);
   assert.match(dock,/not verified or active in Klipper/);
+});
+ 
+test('accept button remains disabled for blank, invalid or unchanged drafts',()=>{
+  assert.match(dock,/function validDraft\(\)/);
+  assert.match(dock,/if \(!snapshot \|\| busy \|\| !dirty \|\| !current\(\)\) return false/);
+  assert.match(dock,/get\('cxmDockAccept'\)\.disabled=!validDraft\(\)/);
+  assert.match(dock,/if \(!validDraft\(\)\)/);
+  assert.match(dock,/function updateActions\(\)/);
+});
+test('successful save re-enables coordinate fields; failed save retains draft',()=>{
+  assert.match(dock,/busy = false;[\s\S]*?if \(verified\) \{[\s\S]*?fill\(\)/);
+  assert.match(dock,/for \(const name of axis\) get\('cxmDock'\+name\.toUpperCase\(\)\)\.disabled=!current\(\)/);
+  assert.match(dock,/Discard unsaved dock XYZ draft and switch hotends/);
 });
