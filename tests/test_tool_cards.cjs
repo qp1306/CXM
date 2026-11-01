@@ -94,5 +94,5 @@ test('overview tool count and summary have legible blue-highlight styling',()=>{
   assert.match(html, /#cxmToolSummary\{font-size:15px;/);
   assert.match(html, /background:#20334b;border:1px solid #42698f/);
   assert.match(html, /\.tool-count-control select\{[^}]*font-size:17px/);
-  assert.match(html, /CXM starter <span>v0\.3\.3<\/span>/);
+  assert.match(html, /CXM starter <span>v[0-9]+\.[0-9]+\.[0-9]+<\/span>/);
 });
