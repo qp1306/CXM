@@ -173,6 +173,8 @@
       });
     } catch(e) {panel.textContent='Cannot read backups: '+e.message;}
   }
+  document.querySelector('[data-tab="settings"]')?.addEventListener('click',()=>{if(!saving)load();});
+  window.addEventListener('cxm-dock-saved',()=>{if(!saving)load();});
   window.addEventListener('cxm-edit-tool', event => {
     const n=event.detail?.tool;
     if (!snapshot || !Number.isInteger(n) || n<0 || n>=snapshot.config.tools.length) return;

@@ -32,7 +32,7 @@
         + row('Temperature','— (not connected)')
         + '<div class="tool-buttons"><button class="btn primary" disabled title="Pickup unavailable until verified CXM macros are installed">Pick up</button>'
         + edit
-        + '<button class="btn" disabled title="Guided calibration not installed">Calibrate</button></div>'
+        + (present ? '<button class="btn" data-cxm-calibrate="' + n + '" title="Open dock coordinate editor">Calibrate</button>' : '<button class="btn" disabled title="Tool not enabled">Calibrate</button>') + '</div>'
     };
   }
   function render(snapshot) {
@@ -57,6 +57,10 @@
       const edit=element.querySelector('[data-cxm-edit]');
       if(edit)edit.addEventListener('click',() => {
         if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('cxm-edit-tool',{detail:{tool:n}}));
+      });
+      const calibrate=element.querySelector('[data-cxm-calibrate]');
+      if(calibrate)calibrate.addEventListener('click',() => {
+        if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent('cxm-calibrate-tool',{detail:{tool:n}}));
       });
     });
     const summary=document.getElementById('cxmToolSummary');
