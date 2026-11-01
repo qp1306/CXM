@@ -25,8 +25,8 @@ def printer_safe():
             # Klipper failures have unknown machine state and fail closed.
             message = info.get('state_message', '')
             return info['state'] == 'error' and bool(
-                re.search(r"^mcu\\s+['\\\"]mcu['\\\"]:\\s*Unable to connect(?:\\s|$)", message, re.I)
-                or re.search(r"option\\s+['\\\"]?serial['\\\"]?\\s+in\\s+section\\s+['\\\"]?mcu['\\\"]?\\s+must\\s+be\\s+specified", message, re.I)
+                re.search(r"""^mcu\s+['"]mcu['"]:\s*Unable to connect(?:\s|$)""", message, re.I)
+                or re.search(r"""option\s+['"]?serial['"]?\s+in\s+section\s+['"]?mcu['"]?\s+must\s+be\s+specified""", message, re.I)
             )
         with urllib.request.urlopen('http://127.0.0.1:7125/printer/objects/list', timeout=2) as r:
             objects = json.load(r)['result']['objects']

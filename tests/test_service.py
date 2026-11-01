@@ -10,7 +10,7 @@ from unittest.mock import patch
 from http.server import ThreadingHTTPServer
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server'))
 from cxm_config import Store
-from cxm_service import Handler
+from cxm_service import Handler, printer_safe
 
 class TestAPI(unittest.TestCase):
     def setUp(self):
@@ -66,6 +66,23 @@ class TestAPI(unittest.TestCase):
                 self.call('/v1/dock',{'tool':0,'xyz':{'x':1,'y':2,'z':3},
                                       'expected_revision':saved['revision']},headers)
         self.assertEqual(error.exception.code,409)
+
+    def test_only_expected_primary_mcu_error_is_dev_safe(self):
+        import io
+        def response(state, message):
+            result={'result':{'state':state,'state_message':message}}
+            return io.BytesIO(json.dumps(result).encode())
+        with patch('cxm_service.urllib.request.urlopen',return_value=response(
+            'error',"mcu 'mcu': Unable to connect\nError configuring printer")):
+            self.assertTrue(printer_safe())
+        with patch('cxm_service.urllib.request.urlopen',return_value=response(
+            'error',"Option 'serial' in section 'mcu' must be specified")):
+            self.assertTrue(printer_safe())
+        for state, msg in [('error',"mcu 'toolboard1': Unable to connect"),
+                           ('shutdown',"mcu 'mcu': Unable to connect"),
+                           ('error','MCU lost steps'),('startup','printer starting')]:
+            with patch('cxm_service.urllib.request.urlopen',return_value=response(state,msg)):
+                self.assertFalse(printer_safe())
     def test_unknown_printer_state_blocks(self):
         current=self.call('/v1/config')
         headers={'Content-Type':'application/json','Origin':f'http://127.0.0.1:{self.port}',
