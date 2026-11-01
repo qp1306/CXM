@@ -44,8 +44,13 @@
     let enabled=0, savedDock=0;
     cards.forEach((element,n) => {
       const t=tools[n];
-      if(t && n<count && t.enabled) enabled++;
-      if(t && n<count && t.enabled && [t.dock_x,t.dock_y,t.dock_z].every(v=>v!=null)) savedDock++;
+      // Hide any tool beyond the configured count or explicitly disabled.
+      // All 12 profiles remain available via Settings for future expansion.
+      const visible=!!t && n<count && t.enabled===true;
+      element.hidden=!visible;
+      if(visible) enabled++;
+      if(visible && [t.dock_x,t.dock_y,t.dock_z].every(v=>v!=null)) savedDock++;
+      if(!visible) return;
       const result=card(t,n,count);
       element.dataset.profileState=result.state;
       element.innerHTML=result.html;
@@ -56,8 +61,12 @@
     });
     const summary=document.getElementById('cxmToolSummary');
     if(summary)summary.textContent=config ?
-      enabled+' enabled / '+count+' in use · '+savedDock+' with saved dock XYZ'
+      enabled+' shown / '+count+' configured · '+savedDock+' with saved dock XYZ'
       : 'Configuration unavailable';
+    const toolsStat=document.getElementById('cxmActiveTools');
+    if(toolsStat)toolsStat.textContent=config ? enabled+' active' : 'Unavailable';
+    const noTools=document.getElementById('cxmNoTools');
+    if(noTools)noTools.hidden=!(config && enabled===0);
     const safe=document.getElementById('cxmSafeY');
     if(safe)safe.textContent='Safe Y: '+(config ? format(config.globals.safe_y)+' mm' : '—');
     const adjust=document.getElementById('cxmXAdjust');

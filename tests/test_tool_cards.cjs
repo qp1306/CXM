@@ -43,3 +43,35 @@ test('every card is constructed from the supplied configuration, not fixed T0 va
   assert.match(b.html,/94\.000/);
   assert.notEqual(a.html,b.html);
 });
+
+test('overview hides unused tools but retains all 12 editable profiles in Settings',()=>{
+  const nodes=Array.from({length:12},()=>({
+    hidden:false,dataset:{},innerHTML:'',querySelector(){return null;}
+  }));
+  const el={
+    cxmToolSummary:{textContent:''},cxmActiveTools:{textContent:''},
+    cxmSafeY:{textContent:''},cxmXAdjust:{textContent:''},
+    cxmNoTools:{hidden:true}
+  };
+  const previous=global.document;
+  global.document={
+    querySelectorAll:()=>nodes,
+    getElementById:id=>el[id]||null
+  };
+  try{
+    const profiles=Array.from({length:12},()=>make());
+    profiles[3].enabled=false; // T3 is unused even inside the count
+    cards.render({config:{globals:{tool_count:6,safe_y:125,x_docking_adjust:3},tools:profiles}});
+    assert.deepEqual(nodes.map((x,i)=>x.hidden?null:i).filter(x=>x!=null),[0,1,2,4,5]);
+    assert.match(el.cxmToolSummary.textContent,/5 shown \/ 6 configured/);
+    assert.equal(el.cxmActiveTools.textContent,'5 active');
+    profiles[3].enabled=true;
+    cards.render({config:{globals:{tool_count:8,safe_y:125,x_docking_adjust:3},tools:profiles}});
+    assert.deepEqual(nodes.map((x,i)=>x.hidden?null:i).filter(x=>x!=null),[0,1,2,3,4,5,6,7]);
+    assert.equal(el.cxmActiveTools.textContent,'8 active');
+    for(const profile of profiles) profile.enabled=false;
+    cards.render({config:{globals:{tool_count:6,safe_y:125,x_docking_adjust:3},tools:profiles}});
+    assert.equal(nodes.filter(x=>!x.hidden).length,0);
+    assert.equal(el.cxmNoTools.hidden,false);
+  }finally{if(previous===undefined)delete global.document;else global.document=previous;}
+});
