@@ -192,7 +192,7 @@
     if (dirty && n!==selected && !window.confirm('Discard unsaved dock XYZ draft and switch hotends?')) return;
     if (n!==selected) { selected=n; dirty=false; }
     document.querySelector('[data-tab="calibration"]')?.click();
-    if (snapshot) render();
+    if (snapshot && !dirty) render(); // Preserve same-tool unsaved draft.
   });
   load();
 })();
