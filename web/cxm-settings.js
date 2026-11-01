@@ -40,7 +40,7 @@
       const card = tools[n];
       if (!card) return;
       const label = card.querySelector('.dock-label');
-      if (label) label.textContent=t.enabled?'Configured (unverified)':'Disabled';
+      if (label) label.textContent=!t.enabled?'Disabled':[t.dock_x,t.dock_y,t.dock_z].some(v=>v==null)?'Enabled · not calibrated':'Coordinates · unverified';
       const rows = card.querySelectorAll('.tool-row b');
       const fmt = (v) => v == null?'—':Number(v).toFixed(3);
       if(rows[0])rows[0].textContent=[t.dock_x,t.dock_y,t.dock_z].map(fmt).join(' / ');
