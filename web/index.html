@@ -155,7 +155,7 @@ function validForInstall() {
   // All other Klipper errors fail closed; printer controls are always disabled.
   if (currentUpdate.busy || currentUpdate.is_valid === false || currentUpdate.is_dirty) return false;
   const info=currentUpdate.repo;
-  if (!info || info.warnings?.length || info.is_valid !== true) return false;
+  if (!info || info.warnings?.length || info.is_valid !== true || info.is_dirty === true) return false;
   return hasUpdate(info);
 }
 function updateButtons() { $('checkUpdates').disabled=busy; $('installUpdate').disabled=!validForInstall(); }
