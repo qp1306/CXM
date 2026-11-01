@@ -1,10 +1,14 @@
 # CXM Control Centre
 
-**CXM V0.2.0 development release** — GitHub-driven updater plus a protected central configuration manager.
+**CXM V0.3.0 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.1.x? Upgrade to V0.2
+## Already installed V0.2? Upgrade to V0.3
+
+Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. **No new terminal installation or Klipper restart is required.** T0–T11 cards show values from the existing `CXM_variables.cfg`: enabled state, saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
+
+## Already installed V0.1.x? Install the V0.2 backend first
 
 1. Open CXM Control Centre at `http://YOUR-PRINTER-IP/cxm/` and use **Updates → Check for Updates → Install CXM Update**.
 2. Do the **one-time** backend/bootstrap setup over SSH, with a read-only preflight first:
@@ -20,7 +24,7 @@ The installer will create `~/printer_data/config/CXM_variables.cfg` only if it d
 
 **This is an additional one-time install step**, not part of Moonraker's basic Git pull. After setup, new webpage code updates through the existing CXM Update button. The Python service monitors its source files and restarts itself through systemd when those files change, without restarting Klipper.
 
-## V0.2 AutoSave and data safety
+## V0.2–V0.3 AutoSave and data safety
 
 - Central file: `~/printer_data/config/CXM_variables.cfg`, which stays outside `~/CXM` so Git updates cannot overwrite it.
 - 12 tool profiles: enabled, dock XYZ, relative XYZ offsets and dock/approach speeds.
@@ -28,7 +32,7 @@ The installer will create `~/printer_data/config/CXM_variables.cfg` only if it d
 - A field change in **Settings** triggers server-side range/type checks, optimistic revision checking and an **atomic disk write**. No Save button is required.
 - Each accepted change first saves a timestamped backup to `~/printer_data/config/cxm_backups/`. Restore a prior backup from Settings; restoring also backs up the current file.
 - Invalid values, conflicting edits and unverified printer states fail safely.
-- The GUI also displays the saved coordinates and offsets on the tool cards. Unmeasured dock values remain blank; no invented calibration.
+- The V0.3 overview displays the saved XYZ coordinates, offsets and speeds on all 12 tool cards, with explicit unverified/missing/disabled states. Unmeasured dock values remain blank; no invented calibration or temperatures.
 
 **Important — not active in Klipper yet:** V0.2 saves to disk but does not include `CXM_variables.cfg` in `printer.cfg`, send `SET_GCODE_VARIABLE`, or move any printer hardware. Klipper will continue to show its MCU error on a hardware-free development machine. Live macro integration is a separate milestone. Do not use these stored values to enable unattended toolchanges.
 
@@ -43,7 +47,8 @@ The source code updater remains `[update_manager CXM]` through Moonraker's nativ
 ```bash
 python3 -m unittest discover -s tests -v
 node --check web/cxm-settings.js
-node --test tests/test_web_update_safety.cjs
+node --check web/cxm-tool-cards.js
+node --test tests/test_web_update_safety.cjs tests/test_tool_cards.cjs
 ```
 
 ## Initial V0.1 installation (new printer)
