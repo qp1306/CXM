@@ -41,6 +41,40 @@ class TestStore(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.store.set_value(1,'dock_x',200,old)
         self.assertEqual(len(self.store.history()),1)
+    def test_all_axis_dock_save_single_commit_and_rollback(self):
+        rev=self.store.read()['revision']
+        old=self.store.read()['config']['tools'][0].copy()
+        saved=self.store.save_dock(0, {'x':172.00625,'y':175.00625,'z':291.5}, rev)
+        self.assertTrue(saved['saved'])
+        self.assertFalse(saved['verified_pickup'])
+        self.assertFalse(saved['active_in_klipper'])
+        tool=self.store.read()['config']['tools'][0]
+        self.assertEqual([tool[k] for k in ('dock_x','dock_y','dock_z')],[172.00625,175.00625,291.5])
+        self.assertEqual(len(self.store.history()),1)
+        self.store.rollback(saved['backup'],saved['revision'])
+        self.assertEqual(self.store.read()['config']['tools'][0],old)
+    def test_dock_validation_does_not_change_disk(self):
+        rev=self.store.read()['revision']
+        for xyz in ({'x':25,'y':25}, {'x':25,'y':25,'z':None},
+                    {'x':25,'y':float('nan'),'z':30}, {'x':700,'y':25,'z':30},
+                    {'x':25,'y':25,'z':30,'extra':10}):
+            with self.assertRaises(ValueError):
+                self.store.save_dock(0,xyz,rev)
+        self.assertEqual(len(self.store.history()),0)
+        self.assertEqual(self.store.read()['revision'],rev)
+        self.store.set_value('global','tool_count',3,rev)
+        rev=self.store.read()['revision']
+        with self.assertRaises(ValueError):
+            self.store.save_dock(4,{'x':3,'y':4,'z':5},rev)
+        with self.assertRaises(RuntimeError):
+            self.store.save_dock(0,{'x':3,'y':4,'z':5},'0'*64)
+        self.assertEqual(len(self.store.history()),1)
+    def test_dock_partial_write_failure_is_not_accepted(self):
+        initial=self.store.read()
+        with mock.patch('cxm_config.os.replace',side_effect=OSError('disk failure')):
+            with self.assertRaises(OSError):
+                self.store.save_dock(0,{'x':3,'y':4,'z':5},initial['revision'])
+        self.assertEqual(initial,self.store.read())
     def test_no_nan_or_out_of_range(self):
         rev=self.store.read()['revision']
         for field,value in [('dock_x',float('nan')),('dock_x',float('inf')),('dock_x',1000),('offset_z',100),('enabled',1)]:

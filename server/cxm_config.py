@@ -191,6 +191,39 @@ class Store:
             if new == old:
                 return {'saved': True, 'unchanged': True, 'revision': self._hash(old), 'active_in_klipper': False}
             return self._commit(old, new)
+    def save_dock(self, tool, xyz, expected_revision):
+        """Save all three provisional dock coordinates as ONE validated commit.
+
+        A partly entered dock must never overwrite the previous complete dock.
+        'saved' is not 'calibrated' or 'active in Klipper'.
+        """
+        if type(tool) is not int or not 0 <= tool < TOOL_MAX:
+            raise ValueError('Invalid tool index')
+        if type(xyz) is not dict or set(xyz) != {'x','y','z'}:
+            raise ValueError('Exactly X, Y, and Z are required')
+        if type(expected_revision) is not str or not re.fullmatch(r'[0-9a-f]{64}', expected_revision):
+            raise ValueError('Valid expected revision required')
+        values = {
+            'dock_x': check_value('dock_x', xyz['x'], FIELDS['dock_x']),
+            'dock_y': check_value('dock_y', xyz['y'], FIELDS['dock_y']),
+            'dock_z': check_value('dock_z', xyz['z'], FIELDS['dock_z']),
+        }
+        with self.lock.open('a+') as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            data, old = self._current()
+            if self._hash(old) != expected_revision:
+                raise RuntimeError('Configuration changed; reload before saving dock')
+            if tool >= data['globals']['tool_count'] or not data['tools'][tool]['enabled']:
+                raise ValueError('Tool is not enabled within configured tool count')
+            data = copy.deepcopy(data)
+            data['tools'][tool].update(values)
+            new = render(data)
+            if new == old:
+                return {'saved': True, 'unchanged': True, 'revision': self._hash(old),
+                        'active_in_klipper': False, 'verified_pickup': False}
+            result = self._commit(old, new)
+            result['verified_pickup'] = False
+            return result
     def rollback(self, name, expected_revision):
         if not isinstance(name, str) or not re.fullmatch(r'\d{8}T\d{12}Z-[0-9a-f]{12}\.cfg', name):
             raise ValueError('Invalid backup ID')

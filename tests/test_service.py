@@ -44,6 +44,28 @@ class TestAPI(unittest.TestCase):
         self.assertNotEqual(current['revision'],updated['revision'])
         self.assertFalse(updated['active_in_klipper'])
         self.assertEqual(self.call('/v1/config')['config']['tools'][0]['dock_x'],172.55)
+    def test_all_axis_dock_endpoint_and_validation(self):
+        current=self.call('/v1/config')
+        headers={'Content-Type':'application/json','Origin':f'http://127.0.0.1:{self.port}',
+                 'X-Requested-With':'CXM'}
+        body={'tool':0,'xyz':{'x':172.5,'y':175.0,'z':291.5},
+              'expected_revision':current['revision']}
+        with patch('cxm_service.printer_safe',return_value=True):
+            saved=self.call('/v1/dock',body,headers)
+        self.assertTrue(saved['saved'])
+        self.assertFalse(saved['verified_pickup'])
+        self.assertFalse(saved['active_in_klipper'])
+        self.assertEqual(len(self.store.history()),1)
+        self.assertEqual(self.call('/v1/config')['config']['tools'][0]['dock_y'],175)
+        with patch('cxm_service.printer_safe',return_value=True):
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                self.call('/v1/dock',body,headers)
+        self.assertEqual(error.exception.code,409)
+        with patch('cxm_service.printer_safe',return_value=False):
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                self.call('/v1/dock',{'tool':0,'xyz':{'x':1,'y':2,'z':3},
+                                      'expected_revision':saved['revision']},headers)
+        self.assertEqual(error.exception.code,409)
     def test_unknown_printer_state_blocks(self):
         current=self.call('/v1/config')
         headers={'Content-Type':'application/json','Origin':f'http://127.0.0.1:{self.port}',

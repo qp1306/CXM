@@ -4,6 +4,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import os
+import re
 import threading
 import time
 import urllib.error
@@ -19,8 +20,14 @@ def printer_safe():
         with urllib.request.urlopen('http://127.0.0.1:7125/printer/info', timeout=2) as r:
             info = json.load(r)['result']
         if info['state'] != 'ready':
-            # Klipper cannot execute motion when halted/not configured.
-            return True
+            # Only the two explicitly recognised, primary-MCU startup failures
+            # are safe for this hardware-free development instance. Other
+            # Klipper failures have unknown machine state and fail closed.
+            message = info.get('state_message', '')
+            return info['state'] == 'error' and bool(
+                re.search(r"^mcu\\s+['\\\"]mcu['\\\"]:\\s*Unable to connect(?:\\s|$)", message, re.I)
+                or re.search(r"option\\s+['\\\"]?serial['\\\"]?\\s+in\\s+section\\s+['\\\"]?mcu['\\\"]?\\s+must\\s+be\\s+specified", message, re.I)
+            )
         with urllib.request.urlopen('http://127.0.0.1:7125/printer/objects/list', timeout=2) as r:
             objects = json.load(r)['result']['objects']
         query = ['idle_timeout']
@@ -38,7 +45,7 @@ def printer_safe():
         return False
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = 'CXMConfig/0.2'
+    server_version = 'CXMConfig/0.4'
     def output(self, code, obj):
         payload=json.dumps(obj, allow_nan=False).encode('utf-8')
         self.send_response(code)
@@ -55,7 +62,7 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/v1/history':
                 self.output(200,{'backups':self.server.store.history()})
             elif self.path == '/v1/health':
-                self.output(200,{'ok':True,'version':'0.2.0','loopback_only':True})
+                self.output(200,{'ok':True,'version':'0.4.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
         except (OSError, ValueError, SyntaxError) as e:
@@ -79,7 +86,7 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/setting','/v1/rollback'):
+            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock'):
                 self.output(404,{'error':'Not found'})
                 return
             if not printer_safe():
@@ -89,6 +96,10 @@ class Handler(BaseHTTPRequestHandler):
                 if set(body) != {'tool','key','value','expected_revision'}:
                     raise ValueError('Unexpected setting parameters')
                 result=self.server.store.set_value(**body)
+            elif self.path=='/v1/dock':
+                if set(body) != {'tool','xyz','expected_revision'}:
+                    raise ValueError('Unexpected dock parameters')
+                result=self.server.store.save_dock(**body)
             else:
                 if set(body) != {'name','expected_revision'}:
                     raise ValueError('Unexpected rollback parameters')
