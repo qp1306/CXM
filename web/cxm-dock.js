@@ -112,6 +112,7 @@
         throw new Error('Disk verification did not match the requested coordinates');
       snapshot = fresh;
       dirty = false;
+      fill(); // Show the freshly verified saved values, not stale draft status.
       window.dispatchEvent(new Event('cxm-dock-saved'));
       report('T'+selected+' dock XYZ AutoSaved together · backup created if changed · not verified or active in Klipper.');
     } catch (e) {

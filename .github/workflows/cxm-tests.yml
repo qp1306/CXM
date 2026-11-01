@@ -16,5 +16,7 @@ jobs:
         run: node --check web/cxm-settings.js
       - name: Tool card JavaScript syntax
         run: node --check web/cxm-tool-cards.js
-      - name: Updater and tool overview regression tests
-        run: node --test tests/test_web_update_safety.cjs tests/test_tool_cards.cjs
+      - name: Dock editor JavaScript syntax
+        run: node --check web/cxm-dock.js
+      - name: Updater, overview, and dock regression tests
+        run: node --test tests/test_web_update_safety.cjs tests/test_tool_cards.cjs tests/test_dock_ui.cjs
