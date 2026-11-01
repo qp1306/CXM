@@ -3,6 +3,9 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import os
+import threading
+import time
 import urllib.error
 import urllib.request
 from cxm_config import Store
@@ -108,7 +111,21 @@ def main():
         raise RuntimeError('Initialise configuration using installer before starting service')
     server=ThreadingHTTPServer(('127.0.0.1',a.port),Handler)
     server.store=store
+    # GitHub updates modify repository files but should not need an SSH step.
+    # systemd Restart=always relaunches the new Python code after a source change.
+    watched=[Path(__file__),Path(__file__).with_name('cxm_config.py')]
+    before=[p.stat().st_mtime_ns for p in watched]
+    def monitor_updates():
+        while True:
+            time.sleep(3)
+            try:
+                if [p.stat().st_mtime_ns for p in watched] != before:
+                    os._exit(1)
+            except OSError:
+                os._exit(1)
+    threading.Thread(target=monitor_updates,daemon=True).start()
     print('CXM config backend ready at 127.0.0.1:',a.port,flush=True)
     server.serve_forever()
 if __name__=='__main__':
     main()
+
