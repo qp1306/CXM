@@ -1,4 +1,4 @@
-/* CXM V0.3 settings editor; API served from loopback Python through Nginx. */
+/* CXM V0.3.2 settings editor; API served from loopback Python through Nginx. */
 (() => {
   'use strict';
   const endpoint = '/cxm/api/v1';
@@ -35,6 +35,11 @@
   }
   function toolCards() {
     if (window.CXMToolCards) window.CXMToolCards.render(snapshot);
+    const countSelect=document.getElementById('cxmCountSelect');
+    if(countSelect) {
+      countSelect.disabled=!snapshot || saving;
+      if(snapshot) countSelect.value=String(snapshot.config.globals.tool_count);
+    }
   }
   async function getJSON(url) {
     const r=await fetch(url,{cache:'no-store',credentials:'same-origin'});
@@ -79,6 +84,44 @@
     root.querySelector('#cxmHistory').addEventListener('click',showHistory);
     root.querySelectorAll('[data-cxm]').forEach(input=>input.addEventListener('change',()=>saveField(input)));
   }
+  // Count controls the maximum configured tool number, but never silently
+  // overrides manually disabled profiles.
+  async function saveToolCount(input) {
+    const prior=snapshot?.config?.globals?.tool_count;
+    const next=Number(input.value);
+    if(!snapshot || saving || !Number.isInteger(next) || next<1 || next>12) {
+      if(prior!=null)input.value=String(prior);
+      return;
+    }
+    if(next===prior)return;
+    saving=true;
+    input.disabled=true;
+    status('Saving hotend count…');
+    try {
+      const result=await postJSON('/setting',{tool:'global',key:'tool_count',value:next,expected_revision:snapshot.revision});
+      if(!result.saved)throw new Error('The configuration service did not confirm the save.');
+      const latest=await getJSON(endpoint+'/config');
+      if(latest.config?.globals?.tool_count!==next)throw new Error('Saved count could not be verified.');
+      snapshot=latest;
+      render();toolCards();
+      const disabled=[];
+      for(let i=0;i<next;i++)if(snapshot.config.tools[i]?.enabled!==true)disabled.push('T'+i);
+      const hint=document.getElementById('cxmCountHint');
+      if(hint)hint.textContent=disabled.length
+        ? 'Disabled within count: '+disabled.join(', ')+' · enable in Settings'
+        : 'All tool slots within the count are enabled';
+      status('AutoSaved '+next+' tool slots · disk only');
+    }catch(e) {
+      status('Tool count not verified: '+e.message,true);
+      window.alert('CXM could not verify the tool count: '+e.message);
+      await loadAfterSave();
+    }finally {
+      saving=false;
+      input.disabled=!snapshot;
+      if(snapshot)input.value=String(snapshot.config.globals.tool_count);
+    }
+  }
+  document.getElementById('cxmCountSelect')?.addEventListener('change',e=>saveToolCount(e.currentTarget));
   async function saveField(input) {
     if(!snapshot||saving)return;
     const key=input.dataset.key;

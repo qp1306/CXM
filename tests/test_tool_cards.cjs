@@ -75,3 +75,14 @@ test('overview hides unused tools but retains all 12 editable profiles in Settin
     assert.equal(el.cxmNoTools.hidden,false);
   }finally{if(previous===undefined)delete global.document;else global.document=previous;}
 });
+
+test('tool count selection exists in Tools and uses revision-protected AutoSave',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
+  const settings=fs.readFileSync(path.join(__dirname,'../web/cxm-settings.js'),'utf8');
+  assert.match(html, /id="cxmCountSelect"/);
+  assert.match(html, /<option value="12">12<\/option>/);
+  assert.match(settings, /key:'tool_count',value:next/);
+  assert.match(settings, /expected_revision:snapshot.revision/);
+  assert.match(settings, /Saved count could not be verified/);
+});

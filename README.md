@@ -1,12 +1,12 @@
 # CXM Control Centre
 
-**CXM V0.3.1 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
+**CXM V0.3.2 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.2 or V0.3? Upgrade to V0.3.1
+## Already installed V0.2 or V0.3? Upgrade to V0.3.2
 
-Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. **No new terminal installation or Klipper restart is required.** The Tools page shows **only enabled hotends within the configured tool count**; other profiles remain accessible in Settings. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
+Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. **No new terminal installation or Klipper restart is required.** The Tools page has a **Hotends in use (1–12)** selector which AutoSaves the global tool count. It shows **only enabled hotends within that configured count**; other profiles remain accessible in Settings. Increasing the count does not override an individually disabled hotend — enable its profile separately under Settings. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
 
 ## Already installed V0.1.x? Install the V0.2 backend first
 
