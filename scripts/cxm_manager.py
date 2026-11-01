@@ -19,14 +19,25 @@ def run(*args):
                           text=True, timeout=90).stdout.strip()
 
 def save(path, content, privileged=False):
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as f:
-        f.write(content)
+    """Write config atomically on its own filesystem; sudo install copies nginx snippets.
+
+    A temp file under /tmp cannot be atomically renamed into a different mount,
+    including a bind-mounted printer_data/config directory (errno.EXDEV).
+    """
+    target = Path(path)
+    temp_dir = None if privileged else target.parent
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=temp_dir,
+        prefix=f".{target.name}.cxm-", delete=False
+    ) as f:
         temp = f.name
+        f.write(content)
+        f.flush()
+        os.fsync(f.fileno())
     try:
         if privileged:
-            run("sudo", "install", "-m", "644", temp, path)
+            run("sudo", "install", "-m", "644", temp, target)
         else:
-            target = Path(path)
             mode = target.stat().st_mode & 0o777 if target.exists() else 0o644
             os.chmod(temp, mode)
             os.replace(temp, target)
@@ -112,6 +123,11 @@ def main():
         return 0
     if not root.exists():
         run("git", "clone", "--branch", "main", "--single-branch", URL, root)
+    else:
+        # The first attempt may have cloned CXM before failing on a config write.
+        # Move a clean existing clone forward without discarding local edits.
+        repository_check(root)
+        run("git", "-C", root, "pull", "--ff-only", "origin", "main")
     repository_check(root)
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backups = []
