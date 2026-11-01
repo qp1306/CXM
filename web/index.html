@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111318"><title>CXM Control Centre</title><style>:root{color-scheme:dark;--bg:#121419;--surface:#1d2027;--surface2:#222630;--stroke:#333842;--text:#e8ebf0;--muted:#939ba9;--blue:#5a98eb;--green:#5bb989;--gold:#e1b66f;--red:#df7d7d}*{box-sizing:border-box}html{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}body{margin:0}.app-shell{min-height:100vh}.topbar{height:74px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #2c303a;padding:0 clamp(18px,4vw,54px);background:#17191f}.brand,.top-actions{display:flex;align-items:center;gap:16px}.brand-mark{font-weight:850;font-size:23px;letter-spacing:.055em;line-height:1;background:#242d37;border:1px solid #354558;padding:11px 10px;border-radius:12px}.brand-mark span{color:#68a4f4}.brand strong{display:block;font-size:15px}.brand small{display:block;color:var(--muted);font-size:11px;margin-top:3px}.status-indicator{font-size:12px;color:#b2bac6;display:flex;align-items:center;gap:7px}.status-indicator i{width:8px;height:8px;border-radius:50%;background:#69727f;display:block}.status-indicator.good i{background:#53bb83}.status-indicator.bad i{background:#d67676}.mini-pill,.nav-tag,.count-pill,.coming{border:1px solid #343c47;color:#b8c1cf;padding:7px 11px;border-radius:8px;font-size:11px;font-weight:650;background:#242832;white-space:nowrap}.mini-pill{display:flex;gap:6px;align-items:center}.mini-pill svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2}main{max-width:1550px;margin:0 auto;padding:35px clamp(18px,4vw,54px) 70px}.page-heading,.section-title{display:flex;justify-content:space-between;align-items:center;gap:15px}.eyebrow{font-size:10px;font-weight:750;letter-spacing:.19em;color:#75a9ec}.page-heading h1{font-size:28px;letter-spacing:-.04em;margin:8px 0}.page-heading p,.section-title p,.empty-panel p{font-size:13px;color:var(--muted);margin:0;line-height:1.65}.nav-tag span{color:var(--blue)}.tabs{display:flex;align-items:center;gap:8px;margin:29px 0 22px;border-bottom:1px solid #313740;overflow-x:auto;scrollbar-width:thin}.tab{position:relative;background:none;border:0;border-bottom:2px solid transparent;color:#9fa8b6;font:inherit;font-size:13px;font-weight:550;white-space:nowrap;padding:13px 15px;cursor:pointer}.tab:hover{color:white}.tab.active{color:#77b0ff;border-color:#6aabfc;background:linear-gradient(180deg,transparent,#26314644)}.new-dot{display:inline-block;background:#70bc8b;width:6px;height:6px;border-radius:50%;margin-left:3px}.printer-strip{display:grid;grid-template-columns:repeat(5,1fr);background:#1d2026;border:1px solid #323741;border-radius:11px;margin:0 0 17px}.stat{padding:15px 19px;border-right:1px solid #323741}.stat:last-child{border-right:0}.stat-label{display:block;font-size:10px;font-weight:800;color:#7f8999;letter-spacing:.12em;margin-bottom:6px}.stat strong{font-size:13px;font-weight:620}.notice{color:#b5c2d7;background:#1a2535;border:1px solid #314660;border-radius:9px;padding:12px 15px;font-size:12px;margin:0 0 29px;line-height:1.5}.notice.error{border-color:#774544;background:#341e23;color:#f0c9c9}.notice.success{border-color:#315f4b;background:#1a3028;color:#b4e6ca}.section-title{margin:25px 0 17px}.section-title h2{font-size:17px;margin:0 0 5px}.tool-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:15px}.tool-card,.panel,.empty-panel{border:1px solid #353a45;background:var(--surface);border-radius:10px}.tool-card{padding:18px;min-width:0}.tool-header{display:flex;justify-content:space-between;align-items:center}.tool-header strong{font-size:18px}.dock-label{color:#a4acb9;font-size:10px;background:#292e37;border:1px solid #39414b;border-radius:5px;padding:4px 7px}.tool-sub{color:var(--muted);font-size:11px;margin:5px 0 16px}.tool-row{border-top:1px solid #303540;padding:11px 0 0;margin-top:9px;display:flex;justify-content:space-between;gap:10px;font-size:12px}.tool-row span{color:var(--muted)}.tool-row b{color:#b9c2cf;font-weight:650;text-align:right}.tool-buttons{display:flex;gap:8px;margin-top:16px}.btn{font-family:inherit;border:1px solid #4a5970;border-radius:7px;padding:10px 13px;font-size:12px;font-weight:700;color:#ebf3ff;background:#323d51;cursor:pointer;white-space:nowrap}.btn.primary{background:#376ea9;border-color:#508ac8}.btn.success{background:#2b7b5e;border-color:#39936e}.btn:disabled{opacity:.43;cursor:not-allowed}.btn:not(:disabled):hover{filter:brightness(1.13)}.btn:focus-visible,.tab:focus-visible{outline:2px solid #79b9ff;outline-offset:2px}.tool-buttons .btn{flex:1}.footer-note,.helper,.muted{color:var(--muted);font-size:12px;line-height:1.6}.footer-note{margin-top:16px}.empty-panel{text-align:center;max-width:680px;margin:48px auto;padding:62px 35px}.empty-panel h2{margin:9px 0 11px}.empty-panel p{margin-bottom:24px}.panel-icon{font-size:34px;color:#7fa6d6}.update-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,1fr);gap:16px}.panel{padding:22px}.panel-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:19px}.panel h3{font-size:15px;margin:0 0 20px}.panel-heading h3{margin:0}.panel-label{font-size:11px;color:var(--muted)}.kv{display:flex;justify-content:space-between;align-items:center;gap:16px;border-bottom:1px solid #313640;padding:12px 0;font-size:12px}.kv:last-of-type{border:0}.kv span{color:#9fa9b7}.kv strong{font-weight:650;word-break:break-word;text-align:right}.buttons{display:flex;flex-wrap:wrap;gap:9px;margin:22px 0 10px}.checkitem{display:flex;align-items:start;gap:11px;margin:17px 0}.checkitem>span{color:#71d3a0;font-weight:900}.checkitem strong{display:block;font-size:12px;margin-bottom:3px}.checkitem small{color:var(--muted);font-size:11px;line-height:1.5}.warning{margin-top:20px;padding:12px;border-left:3px solid var(--gold);font-size:11px;color:#dbbd87;background:#322c21;line-height:1.65}.log-panel{margin-top:16px}.log-panel .panel-heading{margin-bottom:6px}pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:#a9bbc9;white-space:pre-wrap;line-height:1.7;max-height:190px;overflow-y:auto;margin:0}footer{border-top:1px solid #2c3039;color:#78818e;text-align:center;padding:24px;font-size:11px}@media(max-width:1120px){.tool-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:820px){.tool-grid{grid-template-columns:repeat(2,1fr)}.printer-strip{grid-template-columns:repeat(3,1fr)}.stat{border-bottom:1px solid #313740}.update-layout{grid-template-columns:1fr}.top-actions .mini-pill{display:none}}@media(max-width:540px){main{padding-top:22px}.topbar{height:65px}.brand strong{font-size:13px}.brand small{font-size:10px}.page-heading h1{font-size:24px}.page-heading .nav-tag{display:none}.printer-strip{grid-template-columns:repeat(2,1fr)}.stat{padding:12px}.stat:last-child{grid-column:span 2}.tool-grid{grid-template-columns:1fr}.panel{padding:17px}.top-actions .status-indicator{font-size:10px}.tool-buttons{margin-top:12px}}
+</style></head>
+<body><div style="background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif">Layout preview only — connect through your printer at /cxm/ for real Moonraker updates.</div>
+<div class="app-shell">
+<header class="topbar"><div class="brand"><div class="brand-mark">C<span>X</span>M</div><div><strong>Control Centre</strong><small>Single extruder · multi-hotend</small></div></div><div class="top-actions"><span id="connection" class="status-indicator"><i></i><span>Connecting to Moonraker</span></span><span id="saveStatus" class="mini-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg> Config sync: not connected</span></div></header>
+<main>
+<div class="page-heading"><div><div class="eyebrow">CXM / OVERVIEW</div><h1>Tool management</h1><p>One place for tools, calibration and updates. Live values appear when connected.</p></div><div class="nav-tag">CXM starter <span>v0.1</span></div></div>
+<nav class="tabs" aria-label="CXM pages"><button class="tab active" data-tab="tools">Tools</button><button class="tab" data-tab="calibration">Dock Calibration</button><button class="tab" data-tab="offsets">XYZ Offsets</button><button class="tab" data-tab="tests">Testing</button><button class="tab" data-tab="updates">Updates <span id="updateDot" class="new-dot" hidden></span></button><button class="tab" data-tab="settings">Settings</button></nav>
+<section class="printer-strip" aria-label="Printer status"><div class="stat"><span class="stat-label">KLIPPER</span><strong id="klipperStatus">Unknown</strong></div><div class="stat"><span class="stat-label">HOMING</span><strong id="homing">—</strong></div><div class="stat"><span class="stat-label">PRINT STATE</span><strong id="printStatus">—</strong></div><div class="stat"><span class="stat-label">ACTIVE HOTEND</span><strong id="activeTool">Not connected</strong></div><div class="stat"><span class="stat-label">TOOLS</span><strong>Up to 12</strong></div></section>
+<div id="message" class="notice" role="status" aria-live="polite">This is the V0.1 update-focused starter. Printer controls are intentionally disabled until connected to verified CXM macros.</div>
+<section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><span class="count-pill">T0–T11 architecture</span></div><div class="tool-grid" id="toolGrid"></div><div class="footer-note">No toolchange commands are enabled in this starter release. We will connect the verified CXM macros in the next version.</div></section>
+<section data-panel="calibration" hidden><div class="empty-panel"><div class="panel-icon">⌖</div><h2>Dock calibration</h2><p>Guided approach, fine jog, repeated pickup tests and AutoSave will go here. We will reuse the working CXM dock-calibration macros rather than replacing them.</p><span class="coming">Planned for later release</span></div></section>
+<section data-panel="offsets" hidden><div class="empty-panel"><div class="panel-icon">≡</div><h2>XYZ offsets</h2><p>Tool-relative X/Y/Z measurements and approved values from CXM_variables.cfg will appear here, with live apply and rollback.</p><span class="coming">Planned for later release</span></div></section>
+<section data-panel="tests" hidden><div class="empty-panel"><div class="panel-icon">✓</div><h2>Toolchange testing</h2><p>Controlled pickup and dropoff, filament switch transitions, safe speeds, and test history will appear here.</p><span class="coming">Planned for later release</span></div></section>
+<section data-panel="updates" hidden><div class="section-title"><div><h2>GitHub updates</h2><p>Updates for CXM only — not Klipper, Moonraker or system packages.</p></div><span id="updateBadge" class="mini-pill">Not checked</span></div><div class="update-layout"><article class="panel"><div class="panel-heading"><h3>Current installation</h3><span class="panel-label">Moonraker Update Manager</span></div><div class="kv"><span>Repository</span><strong id="repo">Not configured</strong></div><div class="kv"><span>Installed version</span><strong id="installedVersion">—</strong></div><div class="kv"><span>Available version</span><strong id="remoteVersion">—</strong></div><div class="kv"><span>Channel</span><strong id="channel">—</strong></div><div class="kv"><span>Update status</span><strong id="updateState">Not checked</strong></div><div class="buttons"><button class="btn primary" id="checkUpdates">↻ &nbsp; Check for Updates</button><button class="btn success" id="installUpdate" disabled>Install CXM Update</button></div><div class="helper">Checking is read-only. Installing requires your confirmation and is blocked while printing or paused.</div></article><aside class="panel sidebar-panel"><h3>Built for safe updates</h3><div class="checkitem"><span>✓</span><div><strong>CXM updates only</strong><small>Never performs a full system update.</small></div></div><div class="checkitem"><span>✓</span><div><strong>Protected calibration data</strong><small>Keep CXM_variables.cfg outside the Git working tree.</small></div></div><div class="checkitem"><span>✓</span><div><strong>Minimal Klipper restarts</strong><small>Web-only updates do not automatically restart Klipper.</small></div></div><div class="checkitem"><span>✓</span><div><strong>Validation first</strong><small>Dirty or invalid Git repositories cannot be updated here.</small></div></div><p class="warning">Macro code updates may need a separate, deliberate Klipper reload while idle. A successful download does not guarantee newly edited macros are loaded.</p></aside></div><div class="panel log-panel"><div class="panel-heading"><h3>Activity</h3><span id="lastChecked" class="muted">No checks yet</span></div><pre id="activityLog" aria-live="polite">Ready to check CXM updates.</pre></div></section>
+<section data-panel="settings" hidden><div class="section-title"><div><h2>Settings</h2><p>Read-only in this starter version</p></div></div><div class="panel"><h3>Configuration architecture</h3><p class="muted">CXM_variables.cfg will contain the accepted CXM operating values. It will not be kept inside the updateable Git repository. Runtime updates and AutoSave come after the configuration manager passes testing.</p><div class="kv"><span>Printer URL</span><strong id="baseUrl">Same-origin Moonraker</strong></div><div class="kv"><span>CXM updater identifier</span><strong>CXM</strong></div><div class="kv"><span>Software channel</span><strong>dev (initial development)</strong></div></div></section>
+</main><footer>CXM Control Centre · Starter V0.1 · UI based on the approved ToolConfig-style layout · No unverified machine controls</footer></div>
+<script>/* CXM Control Centre V0.1 — real Moonraker update API, no fake printer actions. */
+'use strict';
+const UPDATER = 'CXM';
+const $ = id => document.getElementById(id);
+let currentUpdate = null;
+let printingState = null;
+let busy = false;
+let lastRepoCheck = false;
+const toolGrid = $('toolGrid');
+for (let n = 0; n < 12; n++) {
+  const card = document.createElement('article');
+  card.className = 'tool-card';
+  // Static placeholders, deliberately no fabricated hardware values or tool actions.
+  card.innerHTML = `<div class="tool-header"><strong>T${n}</strong><span class="dock-label">Unconfigured</span></div><div class="tool-sub">Hotend ${n}${n===0?' · reference':''}</div><div class="tool-row"><span>Dock XYZ</span><b>— / — / —</b></div><div class="tool-row"><span>Tool offsets XYZ</span><b>— / — / —</b></div><div class="tool-row"><span>Temperature</span><b>— °C</b></div><div class="tool-buttons"><button class="btn primary" disabled title="Future: pickup via tested CXM macros">Pick up</button><button class="btn" disabled title="Future: calibration wizard">Calibrate</button></div>`;
+  toolGrid.append(card);
+}
+const tabs = [...document.querySelectorAll('[data-tab]')];
+function selectTab(tab) {
+  for (const el of tabs) { el.classList.toggle('active', el.dataset.tab === tab); el.setAttribute('aria-selected', el.dataset.tab === tab ? 'true' : 'false'); }
+  for (const p of document.querySelectorAll('[data-panel]')) p.hidden = p.dataset.panel !== tab;
+  if (tab === 'updates' && !lastRepoCheck) loadUpdateStatus();
+}
+tabs.forEach(el => el.addEventListener('click', () => selectTab(el.dataset.tab)));
+const qs = new URLSearchParams(location.search);
+if (qs.get('tab') === 'updates') selectTab('updates');
+const text = (id, value) => { $(id).textContent = String(value); };
+function alertMessage(message, style='') { const el=$('message'); el.textContent=message; el.className='notice'+(style?' '+style:''); }
+function log(message) { const t = new Date().toLocaleTimeString(); const pre=$('activityLog'); pre.textContent = `[${t}] ${message}\n` + pre.textContent.slice(0,10000); }
+async function api(path, options={}) {
+  // Relative origin: only same-origin Moonraker access, no tokens in localStorage or URL.
+  const resp = await fetch(path, {credentials:'same-origin', cache:'no-store', ...options});
+  let data;
+  try { data = await resp.json(); } catch { throw new Error(`Invalid response from Moonraker (HTTP ${resp.status})`); }
+  if (!resp.ok || data.error) throw new Error(data.error?.message || data.error || `HTTP ${resp.status}`);
+  return data.result ?? data;
+}
+async function postApi(path, payload) { return api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); }
+function setConnection(ok, msg) { const e=$('connection'); e.classList.toggle('good',ok); e.classList.toggle('bad',!ok); e.querySelector('span').textContent=msg; }
+async function loadPrinterStatus() {
+  try {
+    const d=await api('/printer/objects/query?print_stats&toolhead');
+    const s=d.status || {};
+    const klipperReady=!!s.toolhead;
+    printingState = s.print_stats?.state ?? null;
+    text('klipperStatus', klipperReady?'Connected':'Unavailable');
+    text('homing',(s.toolhead?.homed_axes || 'Not homed').toUpperCase());
+    text('printStatus',printingState || 'Unknown');
+    setConnection(klipperReady,klipperReady?'Moonraker connected':'Klipper unavailable');
+  } catch(e) { printingState=null; setConnection(false,'Moonraker offline'); text('klipperStatus','Unavailable'); text('homing','—'); text('printStatus','Unknown'); }
+  updateButtons();
+}
+function hasUpdate(info) {
+  if (!info) return false;
+  return !!((typeof info.commits_behind_count==='number' && info.commits_behind_count>0) ||
+    (info.remote_hash && info.current_hash && info.remote_hash !== info.current_hash && info.remote_hash !== 'unknown') ||
+    (info.version && info.remote_version && info.version !== info.remote_version));
+}
+function validForInstall() {
+  if (!currentUpdate || busy || !lastRepoCheck || !printingState) return false;
+  if (!['standby','complete','cancelled','error'].includes(printingState)) return false;
+  if (currentUpdate.busy || currentUpdate.is_valid === false || currentUpdate.is_dirty) return false;
+  const info=currentUpdate.repo;
+  if (!info || info.warnings?.length || info.is_valid !== true) return false;
+  return hasUpdate(info);
+}
+function updateButtons() { $('checkUpdates').disabled=busy; $('installUpdate').disabled=!validForInstall(); }
+function renderUpdate(data) {
+  const info=data?.version_info?.[UPDATER];
+  currentUpdate={...data,repo:info||null};lastRepoCheck=true;
+  text('repo',info?.owner && info?.repo_name ? `${info.owner}/${info.repo_name}` : (info?.remote_url || 'Not configured'));
+  text('installedVersion',info?.version||info?.full_version_string||'—');
+  text('remoteVersion',info?.remote_version||'—');
+  text('channel',info?.channel||'—');
+  const invalid=info && (info.is_valid===false || info.is_dirty===true || (info.warnings||[]).length>0);
+  let status = !info?'CXM updater not configured':data.busy?'Update in progress':invalid?'Repository invalid / dirty':hasUpdate(info)?'Update available':'No confirmed updates';
+  text('updateState',status);text('updateBadge',status);
+  $('updateDot').hidden=!hasUpdate(info);
+  if (!info) alertMessage('CXM is not yet registered with Moonraker Update Manager. Run the CXM installer after creating and publishing the GitHub repository.');
+  else if(invalid) alertMessage('CXM update is blocked: Git repository is dirty or invalid. Inspect the installer / Moonraker logs before recovery.','error');
+  else if(hasUpdate(info)) alertMessage('A CXM update is available. The Install button activates only when the printer is confirmed idle and Git validation passes.','success');
+  updateButtons();
+}
+async function loadUpdateStatus() {
+  try { const data=await api('/machine/update/status'); renderUpdate(data); }
+  catch(e){lastRepoCheck=false;currentUpdate=null;log(`Cannot read update status: ${e.message}`);text('updateState','Connection error');text('updateBadge','Connection error');updateButtons();}
+}
+async function checkUpdates() {
+  if (busy) return;
+  busy=true;updateButtons();text('updateState','Checking GitHub…'); log('Refreshing CXM only through Moonraker.');
+  try {
+    await postApi('/machine/update/refresh',{name:UPDATER});
+    const data=await api('/machine/update/status');
+    renderUpdate(data);
+    const info=data.version_info?.[UPDATER];
+    if(!info) log('CXM has not been configured in moonraker.conf.');
+    else log(`Check complete: installed ${info.version||'unknown'}, remote ${info.remote_version||'unknown'}.`);
+    text('lastChecked',new Date().toLocaleString());
+  } catch(e) { log(`Update check failed: ${e.message}`); alertMessage(`Could not check CXM updates: ${e.message}`,'error'); }
+  finally { busy=false;updateButtons(); }
+}
+async function installUpdate() {
+  if(busy)return;
+  await loadPrinterStatus();await loadUpdateStatus();
+  if(!validForInstall()) {log('Update blocked: no valid update or printer is not confirmed idle.');alertMessage('Update blocked. CXM must have a valid pending update and the printer must be confirmed idle.','error');return;}
+  const info=currentUpdate.repo;
+  const target=info.remote_version||'new version';
+  if(!window.confirm(`Install CXM ${target}?\n\nPrinter must remain idle. This updates CXM only; it does not automatically restart Klipper. Continue?`)) return;
+  busy=true;updateButtons();log(`Requested CXM update to ${target} via Moonraker.`);text('updateState','Requesting update…');
+  try {
+    await postApi('/machine/update/upgrade',{name:UPDATER});
+    log('Moonraker accepted the update request. Waiting for version/status verification.');
+    alertMessage('CXM update request accepted. Re-check the installed version to confirm completion. Macro changes may require a deliberate Klipper reload while idle.','success');
+    // Do not claim success from an accepted asynchronous update request.
+    for(let i=0;i<6;i++) {await new Promise(resolve=>setTimeout(resolve,1800));try {const d=await api('/machine/update/status');renderUpdate(d);if(!d.busy && d.version_info?.[UPDATER]?.version===d.version_info?.[UPDATER]?.remote_version){log(`Moonraker now reports CXM ${d.version_info[UPDATER].version}.`);break;}}catch(e){log(`Waiting for service: ${e.message}`);}}
+  } catch(e) { log(`Update request failed: ${e.message}`);alertMessage(`CXM update failed: ${e.message}`,'error'); }
+  finally {busy=false;updateButtons();}
+}
+$('checkUpdates').addEventListener('click',checkUpdates);
+$('installUpdate').addEventListener('click',installUpdate);
+loadPrinterStatus();loadUpdateStatus();
+// Refresh status only (not Git remote) periodically. The explicit Check button refreshes GitHub.
+setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-panel="updates"]:not([hidden])'))loadUpdateStatus();}},15000);
+</script>
+</body></html>
