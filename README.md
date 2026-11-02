@@ -1,10 +1,10 @@
 # CXM Control Centre
 
-**CXM V0.7.1 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
+**CXM V0.7.2 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.2 or V0.3? Upgrade to V0.7.1
+## Already installed V0.2 or V0.3? Upgrade to V0.7.2
 
 Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. V0.5.1 retains a guided **Dock Calibration** tab. Select any enabled T0–T11, enter or nudge proposed X/Y/Z, then **Accept XYZ · AutoSave**. The three numbers are committed atomically with a backup and optimistic revision check. The tool-card Calibrate button now opens the editor, but **never initiates motion**. **No new terminal installation or Klipper restart is required.** The Tools page has a **Hotends in use (1–12)** selector which AutoSaves the global tool count. It shows **all selected hotend cards** from T0 up to the chosen count, including individually disabled profiles. Disabled tools are clearly labelled, remain protected from calibration commands and can be enabled deliberately in Settings. Reducing the count hides higher-numbered cards without modifying any of their saved calibration settings or Enabled flags. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
 
@@ -131,3 +131,7 @@ Important mechanical distinction: `dock_z` controls where a hotend parks/couples
 The proposed full calibration will: verify safe homing and T0 reference; measure hotend nozzle tips against the **same repeatable datum** with stable temperature and confirmed pickup; check physical sign, repeatability and undock/redock behaviour; then use an intentionally authorised, revision-checked AutoSave and runtime compensation path. Those operations are future work, **not implemented** in this release.
 
 **MCU-free acceptance test:** open the new **Z Calibration** tab, check T0 reference is NOT VERIFIED, select T10 in the coloured dropdown, confirm its saved Z number is not labelled measured, verify T0–T11 comparison for tool count 12 (and T0–T5 when count 6), and confirm both **Start Z calibration** and **Accept measured Z** buttons are disabled. This change is view-only: no service restart, `printer.cfg` modification, G-code, nozzle motion or saved-offset changes.
+
+## V0.7.2 — Dock Calibration workflow order
+
+Dock Calibration now displays **1 · Automatic XY dock measurement**, then **2 · Align dock position** and **3 · Test and verify**. The measurement status panel is full-width at the top, while alignment and verification remain side-by-side underneath. Measurements are still offline-only until the MCU, endstops and motor motion are validated. Aligning coordinates still requires accepted X, Y and a separately established dock Z; the existing saved draft editor, safety locks, backup and rollback are preserved. No changes to scripts, Python services, active Klipper configuration or hardware movements. The single-extruder/hotend system keeps Axiscope and the dedicated Z Calibration page unchanged.
