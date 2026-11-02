@@ -1,4 +1,4 @@
-/* CXM V0.5.2 settings editor; API served from loopback Python through Nginx. */
+/* CXM V0.6 settings editor; API served from loopback Python through Nginx. */
 (() => {
   'use strict';
   const endpoint = '/cxm/api/v1';
@@ -11,7 +11,7 @@
   const definitions = {
     global: [['tool_count', 'Configured tools', 1], ['safe_y', 'Safe Y position (mm)', 0.1],
              ['x_docking_adjust', 'X docking adjustment (mm)', 0.01]],
-    tool: [['enabled', 'Enabled', null], ['dock_x', 'Dock X (mm)', 0.001],
+    tool: [['maintenance_lockout', 'Maintenance lockout (block tool)', null], ['dock_x', 'Dock X (mm)', 0.001],
            ['dock_y', 'Dock Y (mm)', 0.001], ['dock_z', 'Dock Z (mm)', 0.001],
            ['offset_x', 'X offset (mm)', 0.001], ['offset_y', 'Y offset (mm)', 0.001],
            ['offset_z', 'Z offset (mm)', 0.001],
@@ -37,7 +37,7 @@
     if (window.CXMToolCards) window.CXMToolCards.render(snapshot);
     const countSelect=document.getElementById('cxmCountSelect');
     if(countSelect) {
-      countSelect.disabled=!snapshot || saving;
+      countSelect.disabled=!snapshot || saving || snapshot.migration_required===true;
       if(snapshot) countSelect.value=String(snapshot.config.globals.tool_count);
     }
     const hint=document.getElementById('cxmCountHint');
@@ -45,11 +45,11 @@
       if(!snapshot) hint.textContent='Saved tool count unavailable';
       else {
         const count=snapshot.config.globals.tool_count;
-        const disabled=Array.from({length:count},(_,n)=>n)
-          .filter(n=>snapshot.config.tools[n]?.enabled!==true);
-        hint.textContent=disabled.length
-          ? disabled.length+' selected hotend(s) disabled · enable them individually in Settings'
-          : 'All selected hotends are enabled';
+        const locked=Array.from({length:count},(_,n)=>n)
+          .filter(n=>snapshot.config.tools[n]?.maintenance_lockout===true);
+        hint.textContent=snapshot.migration_required?'Legacy config: explicit migration required before editing'
+          : locked.length?locked.length+' maintenance lockout(s) · inspect in Settings'
+          :'Selected tools are NOT READY until calibrated and verified';
       }
     }
   }
@@ -85,25 +85,47 @@
     if (tool>=count || tool<0) tool=0;
     root.innerHTML=`<div class="panel" style="margin-top:16px">
       <div class="panel-heading"><h3>CXM_variables.cfg</h3><span class="panel-label">AutoSave · backups · rollback</span></div>
-      <p class="muted">Every accepted field change is saved immediately. Values are persistent on disk, but are <b>not yet active in Klipper</b>. Dock coordinates are unverified until pickup testing is implemented.</p>
+      <p class="muted">Every accepted field change is saved immediately. Values are on disk, <b>not yet active in Klipper</b>. Verification flags are protected from manual editing.</p>
       <div style="margin-top:20px"><h3>Global settings</h3>${fields('global',cfg.globals)}</div>
-      <div style="margin-top:20px;display:flex;align-items:center;gap:14px"><h3 style="margin:0">Hotend settings</h3><select id="cxmToolChoice" style="padding:9px;border-radius:6px;background:#161b23;border:1px solid #465061;color:white">${cfg.tools.slice(0,count).map((profile,i)=>`<option value="${i}" ${tool===i?'selected':''}>T${i}${profile.enabled===true?'':' · disabled'}</option>`).join('')}</select></div>
+      <div style="margin-top:20px;display:flex;align-items:center;gap:14px"><h3 style="margin:0">Hotend settings</h3><select id="cxmToolChoice" style="padding:9px;border-radius:6px;background:#161b23;border:1px solid #465061;color:white">${cfg.tools.slice(0,count).map((profile,i)=>`<option value="${i}" ${tool===i?'selected':''}>T${i}${profile.maintenance_lockout===true?' · locked out':''}</option>`).join('')}</select></div>
       ${fields('tool',cfg.tools[tool])}
+      <p class="helper" id="cxmReadiness">Readiness requires hardware verification.</p>
+      <div class="cxm-migration-slot" id="cxmMigrateSlot"></div>
       <div class="buttons"><button id="cxmReload" class="btn">Refresh settings</button><button id="cxmHistory" class="btn">Backup history / rollback</button></div>
       <div id="cxmFeedback" class="helper">Revision: ${escape(snapshot.revision.slice(0,12))} · Saved on disk · Not active in Klipper</div>
       <div id="cxmBackups" hidden></div>
     </div>`;
     root.querySelector('#cxmToolChoice').addEventListener('change',e=>{tool=Number(e.target.value);render();});
+    const readiness=window.CXMToolState?.classify(cfg.tools[tool],tool,count,{migrationRequired:snapshot.migration_required});
+    root.querySelector('#cxmReadiness').textContent=
+      'Readiness: '+(readiness?.label||'NOT READY')+' — '+(readiness?.reason||'Unverified')+
+      '. Zero offsets are not proof of calibration.';
+    if(snapshot.migration_required){
+      const note=document.createElement('div');
+      note.className='cxm-migration-notice';
+      note.setAttribute('role','status');
+      const heading=document.createElement('strong');
+      heading.textContent='CONFIGURATION MIGRATION REQUIRED';
+      const explanation=document.createElement('p');
+      explanation.textContent='Legacy schema 1 is loaded read-only. The reviewed schema-2 migration preserves coordinates/speeds, backs up the original, and sets ALL verification flags to false. No motor movement or Klipper restart.';
+      const button=document.createElement('button');
+      button.id='cxmMigrate';button.className='btn';
+      button.textContent='Back up and migrate configuration';
+      button.addEventListener('click',migrate);
+      note.append(heading,explanation,button);
+      root.querySelector('#cxmMigrateSlot').append(note);
+      root.querySelectorAll('[data-cxm]').forEach(input=>input.disabled=true);
+    }
+    window.CXMToolPicker?.sync(root.querySelector('#cxmToolChoice'),cfg);
     root.querySelector('#cxmReload').addEventListener('click',load);
     root.querySelector('#cxmHistory').addEventListener('click',showHistory);
     root.querySelectorAll('[data-cxm]').forEach(input=>input.addEventListener('change',()=>saveField(input)));
   }
-  // Count controls the maximum configured tool number, but never silently
-  // overrides manually disabled profiles.
+  // Count selects a tool range; manual maintenance lockout is independent.
   async function saveToolCount(input) {
     const prior=snapshot?.config?.globals?.tool_count;
     const next=Number(input.value);
-    if(!snapshot || saving || !Number.isInteger(next) || next<1 || next>12) {
+    if(!snapshot || saving || snapshot.migration_required || !Number.isInteger(next) || next<1 || next>12) {
       if(prior!=null)input.value=String(prior);
       return;
     }
@@ -131,7 +153,7 @@
   }
   document.getElementById('cxmCountSelect')?.addEventListener('change',e=>saveToolCount(e.currentTarget));
   async function saveField(input) {
-    if(!snapshot||saving)return;
+    if(!snapshot||saving||snapshot.migration_required)return;
     const key=input.dataset.key;
     const scope=input.dataset.cxm;
     const isBool=input.type==='checkbox';
@@ -150,6 +172,29 @@
     }catch(e){
       status('Save failed: '+e.message,true);
       window.alert('CXM setting was not saved: '+e.message);
+      await loadAfterSave();
+    }finally{saving=false;}
+  }
+  async function migrate(){
+    if(!snapshot || saving || !snapshot.migration_required)return;
+    const question=['Migrate CXM_variables.cfg to schema 2?',
+      'The original file will be backed up and all numeric calibration values preserved.',
+      'Every verification flag will start FALSE. Legacy T6–T11 were disabled by default,',
+      'so confirm their hardware separately before any future commissioning.',
+      'This will not move the printer or restart Klipper.'].join('\n\n');
+    if(!window.confirm(question))return;
+    saving=true;status('Backing up and migrating…');
+    try{
+      const response=await postJSON('/migrate',{expected_revision:snapshot.revision});
+      if(!response.saved)throw new Error('Migration not confirmed');
+      const fresh=await getJSON(endpoint+'/config');
+      if(fresh.migration_required || fresh.config?.schema!==2)
+        throw new Error('Schema 2 could not be verified from disk');
+      snapshot=fresh;render();toolCards();
+      status('Schema 2 verified · backup preserved · all tools unverified');
+    }catch(e){
+      status('Migration not verified: '+e.message,true);
+      window.alert('CXM migration not verified: '+e.message);
       await loadAfterSave();
     }finally{saving=false;}
   }
