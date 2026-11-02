@@ -69,5 +69,5 @@ test('V0.7 offline XY measurement lab is read-only and never offers live motion'
  assert.match(html,/Measure dock XY · unavailable<\/button>/);
  assert.match(html,/button class="btn" disabled title="Requires MCU, safe homing and verified capture adapter"/);
  assert.match(html,/python3 ~\/CXM\/scripts\/cxm_xy_review\.py --example/);
- assert.match(html,/No movement/);
+ assert.match(html,/without moving motors or saving a calibration/);
 });
