@@ -29,7 +29,7 @@ test('V0.4 cannot issue motion or falsely verify hardware pickup',()=>{
   assert.doesNotMatch(dock,/\/printer\/gcode\/script|\/printer\/gcode\/help|postJSON\('\/printer\//);
   assert.match(html,/button class="btn" disabled title="Requires safe Klipper macros">Approach dock/);
   assert.match(html,/button class="btn" disabled title="Requires physical pickup sensor testing">Test pickup/);
-  assert.match(html,/Saved positions are provisional/);
+  assert.match(html,/Crosshair is a visual reference only/);
   assert.match(dock,/NOT verified in Klipper/);
 });
  
