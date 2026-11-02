@@ -1,10 +1,10 @@
 # CXM Control Centre
 
-**CXM V0.7.2 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
+**CXM V0.8.0 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.2 or V0.3? Upgrade to V0.7.2
+## Already installed V0.2 or V0.3? Upgrade to V0.8.0
 
 Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. V0.5.1 retains a guided **Dock Calibration** tab. Select any enabled T0–T11, enter or nudge proposed X/Y/Z, then **Accept XYZ · AutoSave**. The three numbers are committed atomically with a backup and optimistic revision check. The tool-card Calibrate button now opens the editor, but **never initiates motion**. **No new terminal installation or Klipper restart is required.** The Tools page has a **Hotends in use (1–12)** selector which AutoSaves the global tool count. It shows **all selected hotend cards** from T0 up to the chosen count, including individually disabled profiles. Disabled tools are clearly labelled, remain protected from calibration commands and can be enabled deliberately in Settings. Reducing the count hides higher-numbered cards without modifying any of their saved calibration settings or Enabled flags. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
 
@@ -135,3 +135,27 @@ The proposed full calibration will: verify safe homing and T0 reference; measure
 ## V0.7.2 — Dock Calibration workflow order
 
 Dock Calibration now displays **1 · Automatic XY dock measurement**, then **2 · Align dock position** and **3 · Test and verify**. The measurement status panel is full-width at the top, while alignment and verification remain side-by-side underneath. Measurements are still offline-only until the MCU, endstops and motor motion are validated. Aligning coordinates still requires accepted X, Y and a separately established dock Z; the existing saved draft editor, safety locks, backup and rollback are preserved. No changes to scripts, Python services, active Klipper configuration or hardware movements. The single-extruder/hotend system keeps Axiscope and the dedicated Z Calibration page unchanged.
+
+## V0.8.0 — Cartographer 3D+1 / BTC2 Z calibration engine (OFFLINE ONLY)
+
+Built by analyzing the user's separately supplied working Voron StealthChanger BTC2 `btc2/calibration/z_calibration.cfg` v4 and `btc2/calibration/btc_auto_global_z.cfg` v9, **without changing or committing the BTC2 configuration**. CXM's permanent single extruder / detachable hotend architecture remains independent.
+
+Two new standalone Python files contain **math only**:
+
+- `scripts/cxm_z_math.py`: requires exactly **three complete Cartographer Touch probe results per hotend** (not raw individual taps), takes the **median**, and validates **full three-result range ≤0.020 mm**; T0 also requires a raw reference residual within **±0.025 mm** of fresh Touch-home. Proposed relative Z for tool N is median(N) minus median(T0), while T0 is fixed at 0.
+- Verification requires exactly **five fresh complete Touch results per hotend**; sorts the five readings and chooses the **tightest consecutive three-reading window** (on a tie, earliest window), checking cluster range ≤0.020 mm, offset error vs previously stored T1–T11 master Z ≤±0.025 mm, and overall min-to-max **tool-offset error spread ≤0.040 mm**. Reports also show the full five-reading range so one rejected outlier remains visible. A mathematical PASS is not a physical test and never alters verification flags.
+- `scripts/cxm_z_review.py`: generates/validates strict JSON input and returns explicit `SIMULATION_ONLY` or `PROVISIONAL_UNVERIFIED`, `save_permitted=false`, and `hardware_motion=false`. The mathematical engine supports tool counts **1 through 12**. No Klipper/Moonraker access, heating, G-code, storage or offset application is present.
+- Proven BTC2 starting defaults: **70°C bed**, **140°C nozzle**, **Touch nozzle limit 149°C**, T0 touch reference; these are offline validation defaults, **not automatic heater commands**. Its currently successful **0.750 mm global Z maximum-change** is recorded separately from the much tighter Touch and master-offset verification limits. This maximum change is NOT a probe quality threshold.
+
+To run the example **without any MCU** after updating:
+
+```bash
+python3 ~/CXM/scripts/cxm_z_review.py --example > /tmp/cxm_z_demo.json
+python3 ~/CXM/scripts/cxm_z_review.py --input /tmp/cxm_z_demo.json
+```
+
+This uses 12 **fabricated** hotends. Expected overall values: `overall_math_pass=true`, `save_permitted=false`, `hardware_motion=false`; both calibration and verification report `SIMULATION_ONLY`. Only the synthetic input is written to `/tmp`. Nothing touches the printer's configuration.
+
+In **Z Calibration**, the new offline panel displays the exact current design parameters and CLI instructions. The existing per-hotend Z states, T0 reference indication, maintenance lockouts and disabled physical actions remain unchanged.
+
+**Not yet implemented / prerequisites before motion:** validate actual Cartographer 3D+1 Touch firmware and nozzle-contact safety on the CXM printer; MCU, endstops, extruder/carriage rigidity, hotend identity and seating; same probe point and temperature, independent trial repeats with removal/reseating; safe global-Z sign/convention; robust backup/revision guards; and controlled runtime application. The user-supplied BTC2 setup is only the working reference, not proof the different CXM coupling is repeatable.
