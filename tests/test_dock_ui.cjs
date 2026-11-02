@@ -13,7 +13,7 @@ test('dock wizard loads and includes required user controls',()=>{
                    'cxmDockFeedback']) {
     assert.match(html,new RegExp('id="'+id+'"'));
   }
-  assert.match(html,/cxm-dock\.js\?v=0\.5\.2/);
+  assert.match(html,/cxm-dock\.js\?v=0\.6\.0/);
   assert.match(html,/data-panel="calibration"/);
   assert.match(cards,/data-cxm-calibrate/);
 });
@@ -46,11 +46,18 @@ test('successful save re-enables coordinate fields; failed save retains draft',(
   assert.match(dock,/Discard unsaved dock XYZ draft and switch hotends/);
 });
 
-test('disabled hotends remain selectable in Dock Calibration but cannot save XYZ',()=>{
+test('all selected hotends remain visible; maintenance-locked tools cannot save XYZ',()=>{
   const script=fs.readFileSync(path.join(__dirname,'../web/cxm-dock.js'),'utf8');
   assert.match(script,/\.filter\(p => p\.n < count\)/);
-  assert.match(script,/get\('cxmDockStatus'\)\.textContent = [\s\S]*?'Disabled · read only'/);
-  assert.match(script,/node\.textContent = 'T'\+option\.n\+\(option\.tool\.enabled===true\?'':' · disabled'\)/);
+  assert.match(script,/get\('cxmDockStatus'\)\.textContent = [\s\S]*?'LOCKED \/ MIGRATION · read only'/);
+  assert.match(script,/node\.textContent = 'T'\+option\.n/);
   assert.match(script,/get\('cxmDockAccept'\)\.disabled=!validDraft\(\)/);
   assert.match(script,/if \(!snapshot \|\| busy \|\| !dirty \|\| !canEdit\(\)\) return false/);
+});
+
+test('Dock editor requires migration completed and no manual lockout',()=>{
+ assert.match(dock,/!snapshot\.migration_required/);
+ assert.match(dock,/maintenance_lockout !== true/);
+ assert.match(dock,/CXMToolPicker\?\.sync\(select,snapshot\.config\)/);
+ assert.match(dock,/window\.CXMToolState\?\.classify\(option\.tool/);
 });
