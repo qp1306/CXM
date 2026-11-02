@@ -61,3 +61,13 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
  assert.match(dock,/CXMToolPicker\?\.sync\(select,snapshot\.config\)/);
  assert.match(dock,/window\.CXMToolState\?\.classify\(option\.tool/);
 });
+
+test('V0.7 offline XY measurement lab is read-only and never offers live motion',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
+ assert.match(html,/3 · Automatic XY dock measurement/);
+ assert.match(html,/Offline calculator available · Hardware pending/);
+ assert.match(html,/Measure dock XY · unavailable<\/button>/);
+ assert.match(html,/button class="btn" disabled title="Requires MCU, safe homing and verified capture adapter"/);
+ assert.match(html,/python3 ~\/CXM\/scripts\/cxm_xy_review\.py --example/);
+ assert.match(html,/No movement/);
+});
