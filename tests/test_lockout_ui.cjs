@@ -45,6 +45,6 @@ test('unlock does not bypass tool readiness or enable motion',()=>{
   assert.equal(classify(t,10,12).code,'NOT_CALIBRATED');
   assert.equal(classify({...t,maintenance_lockout:true},10,12).code,'LOCKED_OUT');
   assert.equal(classify(t,10,12).canPickup,false);
-  assert.match(html,/CXM starter <span>v0\.6\.2<\/span>/);
-  assert.match(html,/cxm-settings\.js\?v=0\.6\.2/);
+  assert.match(html,/CXM starter <span>v0\.7\.0<\/span>/);
+  assert.match(html,/cxm-settings\.js\?v=0\.7\.0/);
 });
