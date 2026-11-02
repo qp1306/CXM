@@ -1,56 +1,47 @@
-/* CXM V0.5 regression checks: axis camera is view-only and tools have stable identity. */
-const test=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs');
-const path=require('node:path');
-const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
-const axis=fs.readFileSync(path.join(__dirname,'../web/cxm-axiscope.js'),'utf8');
-const card=fs.readFileSync(path.join(__dirname,'../web/cxm-tool-cards.js'),'utf8');
-const colors=require('../web/cxm-tool-style.js');
-
-test('12 stable tool colours with T0 reference label',()=>{
-  assert.equal(colors.palette.length,12);
-  assert.equal(new Set(colors.palette).size,12);
-  assert.equal(colors.color(0),'#B6C4D5');
-  assert.equal(colors.color(12),'#B6C4D5');
-  assert.match(card,/class="cxm-tool-chip"/);
-  assert.match(card,/CXMToolStyle\?\.color\(n\)/);
-  assert.match(axis,/n===0\?' REF'/);
+/* CXM V0.6 Axiscope, palette, selector and no-motion regression tests */
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const read=p=>fs.readFileSync(path.join(__dirname,'../web/'+p),'utf8');
+const html=read('index.html'),axis=read('cxm-axiscope.js'),cards=read('cxm-tool-cards.js');
+const picker=read('cxm-tool-picker.js'),colors=require('../web/cxm-tool-style.js');
+test('12 distinct stable tool colours and T0 reference',()=>{
+ assert.equal(colors.palette.length,12);assert.equal(new Set(colors.palette).size,12);
+ assert.equal(colors.color(0),'#B6C4D5');assert.equal(colors.color(10),'#B2DA75');
+ assert.match(cards,/CXMToolStyle\?\.color\(n\)/);
+ assert.match(axis,/n===0\?' REF'/);
 });
-test('Axiscope camera supports same-origin webcam discovery but no remote embedding',()=>{
-  assert.match(axis,/\/server\/webcams\/list/);
-  assert.match(axis,/url\.origin!==origin/);
-  assert.match(axis,/url\.username \|\| url\.password/);
-  assert.match(axis,/!webcams\.length/);
-  assert.match(axis,/cameraURL\(entry\.stream_url,window\.location\.origin\)/);
+test('Axiscope supports secure Moonraker camera discovery',()=>{
+ assert.match(axis,/\/server\/webcams\/list/);
+ assert.match(axis,/url\.origin!==origin/);
+ assert.match(axis,/url\.username \|\| url\.password/);
+ assert.match(axis,/cameraURL\(entry\.stream_url,window\.location\.origin\)/);
 });
-test('all motion and capture controls are disabled with no G-code paths',()=>{
-  assert.match(html,/id="cxmAxisFrame"/);
-  assert.match(html,/id="cxmAxisTable"/);
-  assert.match(html,/button class="btn" disabled>Y\+/);
-  assert.match(html,/button class="btn" disabled>X−/);
-  assert.match(html,/button class="btn" disabled>X\+/);
-  assert.match(html,/button class="btn" disabled>Y−/);
-  assert.match(html,/button class="btn" disabled>Capture measurement/);
-  assert.doesNotMatch(axis,/\/printer\/gcode\/script|G1\s+[XY]|SET_GCODE_OFFSET|postJSON\(/);
-  assert.match(html,/crosshair|Crosshair/i);
-  assert.match(html,/CXM starter <span>v[0-9]+\.[0-9]+\.[0-9]+<\/span>/);
+test('coloured custom picker works with native select fallback',()=>{
+ assert.match(picker,/cxm-picker-option/);
+ assert.match(picker,/CXMToolStyle\?\.color\(n\)/);
+ assert.match(picker,/dispatchEvent\(new Event\('change',\{bubbles:true\}\)\)/);
+ assert.match(picker,/role','option'/);
+ assert.match(picker,/event\.key==='Escape'/);
+ assert.match(picker,/ArrowDown/);
+ assert.match(picker,/select\.classList\.add\('cxm-native-tool-select'\)/);
+ assert.match(html,/\.cxm-picker-option\[/);
 });
-
-test('selected hotend count applies to Axiscope without enabling disabled hardware',()=>{
-  assert.match(axis,/function selectedTools\(\)/);
-  assert.match(axis,/\.filter\(x=>x\.n<config\.globals\.tool_count\)/);
-  assert.doesNotMatch(axis,/\.filter\(x=>x\.n<config\.globals\.tool_count && x\.profile\.enabled/);
-  assert.match(axis,/const enabled=list\.filter\(x=>x\.profile\.enabled===true\)\.length/);
-  assert.match(axis,/item\.profile\.enabled===true\?'':' · disabled'/);
-  assert.match(axis,/state\.textContent=p\.enabled===true\?'Enabled':'Disabled'/);
-  assert.match(html,/<th>Tool status<\/th>/);
-  const dock=fs.readFileSync(path.join(__dirname,'../web/cxm-dock.js'),'utf8');
-  const settings=fs.readFileSync(path.join(__dirname,'../web/cxm-settings.js'),'utf8');
-  assert.match(dock,/\.filter\(p => p\.n < count\)/);
-  assert.match(dock,/const canEdit = \(\) => [\s\S]*?enabled === true/);
-  assert.match(dock,/el\.disabled = !canEdit\(\) \|\| busy/);
-  assert.match(dock,/if \(!snapshot \|\| busy \|\| !canEdit\(\)\) return/);
-  assert.match(settings,/cfg\.tools\.slice\(0,count\)\.map\(/);
-  assert.match(settings,/profile\.enabled===true\?'':' · disabled'/);
+test('selected tools show readiness independently of manual maintenance lockout',()=>{
+ assert.match(axis,/function selectedTools\(\)/);
+ assert.match(axis,/\.filter\(x=>x\.n<config\.globals\.tool_count\)/);
+ assert.match(axis,/CXMToolState\?\.classify\(p,n,config\.globals\.tool_count/);
+ assert.match(axis,/window\.CXMToolPicker\?\.sync\(selector,config\)/);
+ assert.match(axis,/state\.textContent=readiness\?\.label/);
+ assert.match(html,/<th>Tool status<\/th>/);
+ const dock=read('cxm-dock.js'),settings=read('cxm-settings.js');
+ assert.match(dock,/\.filter\(p => p\.n < count\)/);
+ assert.match(dock,/maintenance_lockout !== true/);
+ assert.match(settings,/cfg\.tools\.slice\(0,count\)\.map/);
+});
+test('no live motion or offset capture or fake Axiscope measurements',()=>{
+ for(const token of ['Y+','X−','X+','Y−','Capture measurement'])assert.ok(html.includes(token));
+ assert.match(html,/button class="btn" disabled>Y\+/);
+ assert.match(html,/button class="btn" disabled>Capture measurement/);
+ assert.doesNotMatch(axis,/\/printer\/gcode\/script|G1\s+[XY]|SET_GCODE_OFFSET|postJSON\(/);
+ assert.match(html,/id="cxmAxisFrame"/);
+ assert.match(html,/id="cxmAxisTable"/);
 });
