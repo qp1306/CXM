@@ -13,7 +13,7 @@ test('dock wizard loads and includes required user controls',()=>{
                    'cxmDockFeedback']) {
     assert.match(html,new RegExp('id="'+id+'"'));
   }
-  assert.match(html,/cxm-dock\.js\?v=0\.5\.0/);
+  assert.match(html,/cxm-dock\.js\?v=0\.5\.2/);
   assert.match(html,/data-panel="calibration"/);
   assert.match(cards,/data-cxm-calibrate/);
 });
@@ -35,14 +35,14 @@ test('V0.4 cannot issue motion or falsely verify hardware pickup',()=>{
  
 test('accept button remains disabled for blank, invalid or unchanged drafts',()=>{
   assert.match(dock,/function validDraft\(\)/);
-  assert.match(dock,/if \(!snapshot \|\| busy \|\| !dirty \|\| !current\(\)\) return false/);
+  assert.match(dock,/if \(!snapshot \|\| busy \|\| !dirty \|\| !canEdit\(\)\) return false/);
   assert.match(dock,/get\('cxmDockAccept'\)\.disabled=!validDraft\(\)/);
   assert.match(dock,/if \(!validDraft\(\)\)/);
   assert.match(dock,/function updateActions\(\)/);
 });
 test('successful save re-enables coordinate fields; failed save retains draft',()=>{
   assert.match(dock,/busy = false;[\s\S]*?if \(verified\) \{[\s\S]*?fill\(\)/);
-  assert.match(dock,/for \(const name of axis\) get\('cxmDock'\+name\.toUpperCase\(\)\)\.disabled=!current\(\)/);
+  assert.match(dock,/for \(const name of axis\) get\('cxmDock'\+name\.toUpperCase\(\)\)\.disabled=!canEdit\(\)/);
   assert.match(dock,/Discard unsaved dock XYZ draft and switch hotends/);
 });
 
