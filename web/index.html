@@ -67,7 +67,7 @@
 .cxm-xy-lab code{font-size:12px;color:#bfddff;word-break:break-all}
 @media(max-width:650px){.cxm-xy-lab-grid{grid-template-columns:1fr}}
 
-/* CXM V0.8.0: clear, hardware-locked Z calibration preparation */
+/* CXM V0.8.1: clear, hardware-locked Z calibration preparation */
 .cxm-z-warning{margin-bottom:16px;padding:16px 18px;font-size:13px;line-height:1.6}
 .cxm-z-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}
 .cxm-z-reading{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
@@ -86,7 +86,7 @@
 @media(max-width:850px){.cxm-z-layout{grid-template-columns:1fr}}
 @media(max-width:440px){.cxm-z-reading{grid-template-columns:1fr}}
 
-/* V0.8.0: offline Touch Z review panel */
+/* V0.8.1: offline Touch Z review panel */
 .cxm-z-math-lab{margin-bottom:16px}
 .cxm-z-math-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
 .cxm-z-math-grid>div{background:#202f42;border:1px solid #3f607f;border-radius:9px;padding:14px;min-width:0}
@@ -96,15 +96,23 @@
 .cxm-z-cli code{font-size:12px;overflow-wrap:anywhere;color:#a6dfb8}
 @media(max-width:700px){.cxm-z-math-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:440px){.cxm-z-math-grid{grid-template-columns:1fr}}
+
+/* CXM V0.8.1 — reliability advisory, separate from BTC2 acceptance */
+.cxm-z-quality{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+.cxm-z-quality>div{padding:13px;border:1px solid #546078;background:#252e3b;border-radius:9px}
+.cxm-z-quality strong{display:block;font-size:13px;margin-bottom:8px;color:#cbe5ff}
+.cxm-z-quality small{display:block;line-height:1.55;color:#bac7d8;font-size:12px}
+.cxm-z-cli small{color:#b3c9da;font-size:11px}
+@media(max-width:800px){.cxm-z-quality{grid-template-columns:1fr}}
 </style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
 <header class="topbar"><div class="brand"><div class="brand-mark">C<span>X</span>M</div><div><strong>Control Centre</strong><small>Single extruder · multi-hotend</small></div></div><div class="top-actions"><span id="connection" class="status-indicator"><i></i><span>Connecting to Moonraker</span></span><span id="saveStatus" class="mini-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg> Config sync: not connected</span></div></header>
 <main>
-<div class="page-heading"><div><div class="eyebrow">CXM / OVERVIEW</div><h1>Tool management</h1><p>One place for tool profiles, calibration and updates. The overview displays saved configuration, not live Klipper tool state.</p></div><div class="nav-tag">CXM starter <span>v0.8.0</span></div></div>
+<div class="page-heading"><div><div class="eyebrow">CXM / OVERVIEW</div><h1>Tool management</h1><p>One place for tool profiles, calibration and updates. The overview displays saved configuration, not live Klipper tool state.</p></div><div class="nav-tag">CXM starter <span>v0.8.1</span></div></div>
 <nav class="tabs" aria-label="CXM pages"><button class="tab active" data-tab="tools">Tools</button><button class="tab" data-tab="calibration">Dock Calibration</button><button class="tab" data-tab="offsets">XY Offsets</button><button class="tab" data-tab="z-calibration">Z Calibration</button><button class="tab" data-tab="tests">Testing</button><button class="tab" data-tab="updates">Updates <span id="updateDot" class="new-dot" hidden></span></button><button class="tab" data-tab="settings">Settings</button></nav>
 <section class="printer-strip" aria-label="Printer status"><div class="stat"><span class="stat-label">KLIPPER</span><strong id="klipperStatus">Unknown</strong></div><div class="stat"><span class="stat-label">HOMING</span><strong id="homing">—</strong></div><div class="stat"><span class="stat-label">PRINT STATE</span><strong id="printStatus">—</strong></div><div class="stat"><span class="stat-label">ACTIVE HOTEND</span><strong id="activeTool">Not connected</strong></div><div class="stat"><span class="stat-label">TOOLS</span><strong id="cxmActiveTools">Awaiting config</strong></div></section>
-<div id="message" class="notice" role="status" aria-live="polite">CXM V0.8.0 adds the BTC2-style Cartographer Touch Z calculator and offline verification for T0–T11. Physical calibration, tool pickup and all motion remain disabled.</div>
+<div id="message" class="notice" role="status" aria-live="polite">CXM V0.8.1 adds outlier reporting and independent re-dock maths to the BTC2-derived offline Touch Z reviewer. Physical calibration, tool pickup and all motion remain disabled.</div>
 <section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected slots are shown; readiness requires calibration and physical verification</span><span>All displayed settings: saved on disk · not active in Klipper</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Pickup and automatic calibration are intentionally disabled until the CXM toolchange macros and physical pickup verification are tested. The Edit button opens the saved profile; it does not move the printer.</div></section>
 <section data-panel="calibration" hidden>
 <div class="section-title"><div><h2>Dock test &amp; align</h2><p>Saved calibration · guided XY measurement · no hardware movement enabled</p></div><span class="count-pill">Provisional only</span></div>
@@ -183,9 +191,15 @@
       <div><small>Overall error spread</small><strong>≤ 0.040 mm</strong></div>
     </div>
     <p class="helper">Separate BTC2 global Z correction limit: <strong>0.750 mm</strong> (NOT a Touch error allowance). Touch nozzle temperature above 149°C is rejected by the reviewer.</p>
+    <div class="cxm-z-quality">
+      <div><strong>Full 5-reading quality audit</strong><small>New CXM advisory: flag a full-five range above 0.040 mm; list excluded readings without weakening BTC2's tightest-three acceptance.</small></div>
+      <div><strong>Re-dock consistency check</strong><small>Compare two separately collected post-reseat trial sets with the T0 reference and the original offset. Proposed 0.025 mm drift review limit.</small></div>
+      <div><strong>Physical verification still mandatory</strong><small>Offline result files cannot prove removal, correct hotend seating, nozzle contact, or pickup. No readiness or save flags can be granted.</small></div>
+    </div>
+    <p class="helper">The deliberately fabricated demo includes one large Touch outlier on every hotend. Its BTC2 math passes but the new audit must report <strong>REVIEW_REQUIRED</strong> and <strong>ready_for_commissioning: false</strong>.</p>
     <p class="helper">Run the read-only synthetic test on your Pi; these values are deliberately fabricated:</p>
-    <div class="cxm-z-cli"><code>python3 ~/CXM/scripts/cxm_z_review.py --example &gt; /tmp/cxm_z_demo.json</code><code>python3 ~/CXM/scripts/cxm_z_review.py --input /tmp/cxm_z_demo.json</code></div>
-    <div class="dock-warning">A calculation PASS does not commission a hotend. Heating, probing, physical calibration, offset application and AutoSave remain locked until verified MCU, safe contact, pickup feedback and repeated docking tests.</div>
+    <div class="cxm-z-cli"><code>python3 ~/CXM/scripts/cxm_z_review.py --example &gt; /tmp/cxm_z_demo.json</code><code>python3 ~/CXM/scripts/cxm_z_review.py --input /tmp/cxm_z_demo.json --summary</code><small>Remove --summary to inspect per-tool outlier and re-dock diagnostics.</small></div>
+    <div class="dock-warning">A mathematical PASS is not physical verification. Full-five review alerts and re-dock trial consistency are separate checks. Heating, probing, physical calibration, AutoSave and commissioning remain locked pending verified MCU and real tool seating tests.</div>
   </article>
   <div class="cxm-z-layout">
     <article class="panel">
@@ -232,7 +246,7 @@
 <p>Enable only when no controller or operating printer is attached. This does not fix Klipper or enable any printer motion.</p>
 </div><div class="buttons"><button class="btn primary" id="checkUpdates">↻ &nbsp; Check for Updates</button><button class="btn success" id="installUpdate" disabled>Install CXM Update</button></div><div class="helper">Checking is read-only. Installing requires confirmation and is blocked while printing or paused; no-MCU development mode requires separate acknowledgement.</div></article><aside class="panel sidebar-panel"><h3>Built for safe updates</h3><div class="checkitem"><span>✓</span><div><strong>CXM updates only</strong><small>Never performs a full system update.</small></div></div><div class="checkitem"><span>✓</span><div><strong>Protected calibration data</strong><small>Keep CXM_variables.cfg outside the Git working tree.</small></div></div><div class="checkitem"><span>✓</span><div><strong>Minimal Klipper restarts</strong><small>Web-only updates do not automatically restart Klipper.</small></div></div><div class="checkitem"><span>✓</span><div><strong>Validation first</strong><small>Dirty or invalid Git repositories cannot be updated here.</small></div></div><p class="warning">Macro code updates may need a separate, deliberate Klipper reload while idle. A successful download does not guarantee newly edited macros are loaded.</p></aside></div><div class="panel log-panel"><div class="panel-heading"><h3>Activity</h3><span id="lastChecked" class="muted">No checks yet</span></div><pre id="activityLog" aria-live="polite">Ready to check CXM updates.</pre></div></section>
 <section data-panel="settings" hidden><div class="section-title"><div><h2>Configuration & AutoSave</h2><p>Persistent central settings for T0–T11; live Klipper application will be integrated later</p></div></div><div class="panel"><h3>Configuration architecture</h3><p class="muted">CXM_variables.cfg contains saved values outside the Git repository. Accepted edits are written automatically with backups. No values are claimed active in Klipper until live synchronisation is implemented and verified.</p><div class="kv"><span>Printer URL</span><strong id="baseUrl">Same-origin Moonraker</strong></div><div class="kv"><span>CXM updater identifier</span><strong>CXM</strong></div><div class="kv"><span>Software channel</span><strong>dev (initial development)</strong></div></div><div id="configEditor"><div class="notice">Connecting to the CXM configuration backend…</div></div></section>
-</main><footer>CXM Control Centre · V0.8.0 · UI based on the approved ToolConfig-style layout · No unverified machine controls</footer></div>
+</main><footer>CXM Control Centre · V0.8.1 · UI based on the approved ToolConfig-style layout · No unverified machine controls</footer></div>
 <script>/* CXM Control Centre V0.6.0 — real Moonraker update API, no fake printer actions. */
 'use strict';
 const UPDATER = 'CXM';
@@ -438,12 +452,12 @@ loadPrinterStatus();loadUpdateStatus();
 // Refresh status only (not Git remote) periodically. The explicit Check button refreshes GitHub.
 setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-panel="updates"]:not([hidden])'))loadUpdateStatus();}},15000);
 </script>
-<script src="cxm-tool-style.js?v=0.8.0" defer></script>
-<script src="cxm-tool-state.js?v=0.8.0" defer></script>
-<script src="cxm-tool-picker.js?v=0.8.0" defer></script>
-<script src="cxm-tool-cards.js?v=0.8.0" defer></script>
-<script src="cxm-settings.js?v=0.8.0" defer></script>
-<script src="cxm-dock.js?v=0.8.0" defer></script>
-<script src="cxm-axiscope.js?v=0.8.0" defer></script>
-<script src="cxm-z.js?v=0.8.0" defer></script>
+<script src="cxm-tool-style.js?v=0.8.1" defer></script>
+<script src="cxm-tool-state.js?v=0.8.1" defer></script>
+<script src="cxm-tool-picker.js?v=0.8.1" defer></script>
+<script src="cxm-tool-cards.js?v=0.8.1" defer></script>
+<script src="cxm-settings.js?v=0.8.1" defer></script>
+<script src="cxm-dock.js?v=0.8.1" defer></script>
+<script src="cxm-axiscope.js?v=0.8.1" defer></script>
+<script src="cxm-z.js?v=0.8.1" defer></script>
 </body></html>
