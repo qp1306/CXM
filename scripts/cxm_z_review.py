@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Offline CXM Touch Z math review. Never connects to or changes Klipper."""
+"""Offline CXM Touch Z math and reliability review. No printer connection."""
 from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
 import sys
 from cxm_z_math import calibrate, verify
+from cxm_z_reliability import touch_quality, reseat_repeatability
 
 FORMAT="CXM_Z_TOUCH_RESULTS_V1"
 
@@ -15,7 +16,7 @@ def synthetic_example(count=12):
         raise ValueError("Invalid synthetic tool count (1..12)")
     offsets=[0.000,0.070,-0.294,-0.198,0.114,0.186,
              -0.112,0.033,-0.051,0.128,-0.091,0.042]
-    calibration={}; verification={}; stored={}
+    calibration={}; verification={}; stored={}; reseat=[{},{}]
     for index,offset in enumerate(offsets[:count]):
         key=f"T{index}"
         center=0.003+offset
@@ -23,22 +24,37 @@ def synthetic_example(count=12):
         # Deliberate high outlier tests tightest-3-of-5, not all-five range.
         verification[key]=[round(center+d,6) for d in (-0.006,0.0,0.004,0.007,0.100)]
         stored[key]=offset
+        # Two FABRICATED re-dock trial captures; no actual physical events.
+        for cycle, deviation in enumerate((0.001,-0.002)):
+            reseat[cycle][key]=[round(center+deviation+d,6)
+                                for d in (-0.004,0.0,0.004)]
     return dict(format=FORMAT,synthetic=True,tool_count=count,
-                calibration=calibration,verification=verification,stored_offsets=stored)
+                calibration=calibration,verification=verification,
+                stored_offsets=stored,reseat_trials=reseat)
 
 def analyze(doc):
-    if not isinstance(doc,dict) or set(doc)!={
-        "format","synthetic","tool_count","calibration","verification","stored_offsets"}:
+    required={"format","synthetic","tool_count","calibration","verification","stored_offsets"}
+    allowed=required|{"reseat_trials"}
+    if not isinstance(doc,dict) or not required.issubset(doc) or not set(doc)<=allowed:
         raise ValueError("Unexpected measurement input schema")
     if doc["format"]!=FORMAT or type(doc["synthetic"]) is not bool:
         raise ValueError("Invalid input format or simulation flag")
     count=doc["tool_count"]; sim=doc["synthetic"]
     cal=calibrate(doc["calibration"],count,synthetic=sim)
     ver=verify(doc["verification"],doc["stored_offsets"],count,synthetic=sim)
+    quality=touch_quality(doc["verification"],count)
+    reseat=reseat_repeatability(doc["calibration"],count,doc.get("reseat_trials"))
     return {
         "format":FORMAT,"calibration":cal.to_dict(),
         "verification":ver.to_dict(),
+        "measurement_quality":quality,
+        "redock_repeatability":reseat,
+        # Preserve BTC2 mathematical tolerance checks; excess full-five
+        # variation is independently flagged rather than silently accepted.
         "overall_math_pass":cal.passed_math and ver.passed_math,
+        "review_required":quality["review_required"],
+        "additional_reseat_tests_required":not reseat["passed_math"],
+        "ready_for_commissioning":False,
         "save_permitted":False,"hardware_motion":False,
     }
 
