@@ -27,6 +27,7 @@ class ReliabilityTest(unittest.TestCase):
         self.assertEqual([x["sample_index"] for x in entry["excluded_readings"]],[1,5])
         self.assertEqual([x["sample_index"] for x in entry["suspected_outliers"]],[5])
         self.assertFalse(result["ready_for_commissioning"])
+        self.assertTrue(result["additional_reseat_tests_required"])
         self.assertFalse(result["save_permitted"])
         self.assertFalse(result["hardware_motion"])
 
@@ -51,7 +52,7 @@ class ReliabilityTest(unittest.TestCase):
         self.assertEqual(repeat["received_trials"],2)
         self.assertFalse(repeat["independent_reseating_confirmed"])
         self.assertFalse(repeat["commissioning_allowed"])
-        self.assertEqual(result["additional_reseat_tests_required"],False)
+        self.assertTrue(result["additional_reseat_tests_required"])
         self.assertFalse(result["ready_for_commissioning"])
 
     def test_reseat_absent_or_one_cycle_never_approves(self):
@@ -105,6 +106,27 @@ class ReliabilityTest(unittest.TestCase):
                                  relative_drift_tolerance_mm=0.75)
         with self.assertRaisesRegex(ValueError,"numeric"):
             touch_quality(d["verification"],2,full_range_review_mm=True)
+
+    def test_cli_summary_is_read_only_and_never_certifies_synthetic_reseat(self):
+        import json
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            input_file=Path(tmp)/"example.json"
+            input_file.write_text(json.dumps(synthetic_example(12)))
+            script=Path(__file__).resolve().parents[1]/"scripts"/"cxm_z_review.py"
+            command=[sys.executable,str(script),"--input",str(input_file),"--summary"]
+            result=subprocess.run(command,check=True,capture_output=True,text=True)
+            data=json.loads(result.stdout)
+            self.assertTrue(data["btc2_math_pass"])
+            self.assertEqual(data["quality_status"],"REVIEW_REQUIRED")
+            self.assertEqual(data["flagged_hotends"],[f"T{i}" for i in range(12)])
+            self.assertEqual(data["reseat_status"],"MATH_PASS_UNVERIFIED")
+            self.assertFalse(data["physical_reseating_verified"])
+            self.assertFalse(data["ready_for_commissioning"])
+            self.assertFalse(data["save_permitted"])
+            self.assertFalse(data["hardware_motion"])
+            self.assertEqual(list(Path(tmp).iterdir()),[input_file])
 
     def test_legacy_capture_is_compatible_but_reseat_required(self):
         d=synthetic_example(1)
