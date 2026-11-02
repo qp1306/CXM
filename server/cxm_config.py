@@ -10,10 +10,24 @@ import re
 import tempfile
 from datetime import datetime, timezone
 
-SCHEMA = 1
+SCHEMA = 2
+LEGACY_SCHEMA = 1
 TOOL_MAX = 12
 FIELDS = {
-    "enabled": ("bool", None, None),
+    "maintenance_lockout": ("bool", None, None),
+    # These flags are recorded by future, separately verified calibration
+    # routines. They are NOT editable through the generic settings API.
+    "offset_xy_accepted": ("bool", None, None),
+    "offset_z_accepted": ("bool", None, None),
+    "dock_verified": ("bool", None, None),
+    "offset_xy_verified": ("bool", None, None),
+    "offset_z_verified": ("bool", None, None),
+    "pickup_verified": ("bool", None, None),
+    "dropoff_verified": ("bool", None, None),
+    "heater_verified": ("bool", None, None),
+    "sensor_verified": ("bool", None, None),
+    "reference_verified": ("bool", None, None),
+    "commissioned": ("bool", None, None),
     "dock_x": ("float", -50, 600),
     "dock_y": ("float", -50, 600),
     "dock_z": ("float", -20, 600),
@@ -23,6 +37,18 @@ FIELDS = {
     "approach_speed": ("float", 10, 15000),
     "dock_speed": ("float", 10, 5000),
 }
+LEGACY_FIELDS = {"enabled": ("bool", None, None), **{
+    key: value for key, value in FIELDS.items()
+    if key not in {"maintenance_lockout","offset_xy_accepted","offset_z_accepted",
+        "dock_verified","offset_xy_verified","offset_z_verified","pickup_verified",
+        "dropoff_verified","heater_verified","sensor_verified","reference_verified",
+        "commissioned"}
+}}
+EDITABLE_TOOL_FIELDS = {
+    "maintenance_lockout","dock_x","dock_y","dock_z",
+    "offset_x","offset_y","offset_z","approach_speed","dock_speed",
+}
+VERIFICATION_FLAGS = set(FIELDS) - EDITABLE_TOOL_FIELDS
 GLOBAL_FIELDS = {
     "tool_count": ("int", 1, 12),
     "safe_y": ("float", 0, 600),
@@ -33,7 +59,13 @@ def template():
     tools = []
     for n in range(TOOL_MAX):
         tools.append({
-            "enabled": n < 6,
+            "maintenance_lockout": False,
+            "offset_xy_accepted": False, "offset_z_accepted": False,
+            "dock_verified": False,
+            "offset_xy_verified": False, "offset_z_verified": False,
+            "pickup_verified": False, "dropoff_verified": False,
+            "heater_verified": False, "sensor_verified": False,
+            "reference_verified": False, "commissioned": False,
             "dock_x": None, "dock_y": None, "dock_z": None,
             "offset_x": 0.0, "offset_y": 0.0, "offset_z": 0.0,
             "approach_speed": 1200.0, "dock_speed": 800.0,
@@ -61,8 +93,8 @@ def check_value(field, value, spec, *, nullable=False):
         raise ValueError(f"{field} must be between {lo} and {hi}")
     return v
 
-def validate(data):
-    if type(data) is not dict or set(data) != {'schema','globals','tools'} or data['schema'] != SCHEMA:
+def validate(data, schema=SCHEMA):
+    if type(data) is not dict or set(data) != {'schema','globals','tools'} or data['schema'] != schema:
         raise ValueError('Unsupported CXM schema')
     if type(data['globals']) is not dict or set(data['globals']) != set(GLOBAL_FIELDS):
         raise ValueError('Invalid global settings')
@@ -70,12 +102,46 @@ def validate(data):
         check_value(k, data['globals'][k], spec)
     if type(data['tools']) is not list or len(data['tools']) != TOOL_MAX:
         raise ValueError('Exactly 12 tool profiles are required')
+    fields = FIELDS if schema == SCHEMA else LEGACY_FIELDS
     for n, tool in enumerate(data['tools']):
-        if type(tool) is not dict or set(tool) != set(FIELDS):
+        if type(tool) is not dict or set(tool) != set(fields):
             raise ValueError(f'Invalid T{n} settings')
-        for key, spec in FIELDS.items():
+        for key, spec in fields.items():
             check_value(key, tool[key], spec, nullable=key.startswith('dock_'))
     return data
+
+
+def schema_on_disk(raw):
+    """Read strict saved schema from config text, never infer from file date."""
+    values = [line.partition(':')[2].strip() for line in raw.splitlines()
+              if line.startswith('variable_schema_version:')]
+    if len(values) != 1:
+        raise ValueError('Missing or duplicated CXM schema version')
+    try:
+        version = ast.literal_eval(values[0])
+    except (SyntaxError, ValueError) as exc:
+        raise ValueError('Invalid CXM schema version') from exc
+    if type(version) is not int or version not in (LEGACY_SCHEMA, SCHEMA):
+        raise ValueError('Unsupported CXM schema version')
+    return version
+
+
+def upgrade_legacy(config):
+    """Produce an UNVERIFIED schema-2 projection without changing source data."""
+    validate(config, LEGACY_SCHEMA)
+    out = template()
+    out['globals'] = copy.deepcopy(config['globals'])
+    for n, old in enumerate(config['tools']):
+        tool = out['tools'][n]
+        for key in LEGACY_FIELDS:
+            if key != 'enabled':
+                tool[key] = old[key]
+        # The first six tools were enabled by default in v1. A disabled one
+        # in this group was likely manually locked. Preserve that block.
+        # T6–T11 were disabled by default: do not treat the default as fault.
+        # Regardless, ALL migrated tools are unverified and uncommissioned.
+        tool['maintenance_lockout'] = n < 6 and not old['enabled']
+    return out
 
 def render(data):
     validate(data)
@@ -102,8 +168,14 @@ def parse(s):
     required = {'variable_schema_version', 'variable_globals'} | {f'variable_t{i}' for i in range(TOOL_MAX)}
     if set(parts) != required:
         raise ValueError('Unrecognised or missing CXM variables')
-    return validate({'schema': parts['variable_schema_version'], 'globals': parts['variable_globals'],
-                     'tools': [parts[f'variable_t{i}'] for i in range(TOOL_MAX)]})
+    raw_data = {'schema': parts['variable_schema_version'], 'globals': parts['variable_globals'],
+                'tools': [parts[f'variable_t{i}'] for i in range(TOOL_MAX)]}
+    version = raw_data['schema']
+    if version == LEGACY_SCHEMA:
+        return upgrade_legacy(raw_data)
+    if version == SCHEMA:
+        return validate(raw_data)
+    raise ValueError('Unsupported CXM schema version')
 
 class Store:
     def __init__(self, folder):
@@ -155,7 +227,24 @@ class Store:
         with self.lock.open('a+') as f:
             fcntl.flock(f, fcntl.LOCK_SH)
             d, raw = self._current()
-            return {'config': d, 'revision': self._hash(raw), 'active_in_klipper': False}
+            return {'config': d, 'revision': self._hash(raw), 'active_in_klipper': False,
+                    'migration_required': schema_on_disk(raw) == LEGACY_SCHEMA}
+
+    def migrate(self, expected_revision):
+        """Explicit, revision-checked v1 -> v2; one backup, atomic replacement."""
+        if type(expected_revision) is not str or not re.fullmatch(r'[0-9a-f]{64}', expected_revision):
+            raise ValueError('Valid expected revision required')
+        with self.lock.open('a+') as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            data, old = self._current()
+            if self._hash(old) != expected_revision:
+                raise RuntimeError('Configuration changed; reload before migrating')
+            if schema_on_disk(old) == SCHEMA:
+                return {'saved': True, 'unchanged': True, 'revision': self._hash(old),
+                        'active_in_klipper': False, 'migration_required': False}
+            result = self._commit(old, render(data))
+            result['migration_required'] = False
+            return result
     def _backup(self, raw):
         self.backups.mkdir(exist_ok=True)
         name = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')+'-'+self._hash(raw)[:12]+'.cfg'
@@ -178,15 +267,33 @@ class Store:
             data, old = self._current()
             if self._hash(old) != expected_revision:
                 raise RuntimeError('Configuration changed; reload before editing')
+            if schema_on_disk(old) != SCHEMA:
+                raise RuntimeError('Explicit configuration migration required before editing')
             data = copy.deepcopy(data)
             if tool == 'global':
                 if key not in GLOBAL_FIELDS:
                     raise ValueError('Unknown global setting')
                 data['globals'][key] = check_value(key, value, GLOBAL_FIELDS[key])
             else:
-                if type(tool) is not int or not 0 <= tool < TOOL_MAX or key not in FIELDS:
-                    raise ValueError('Unknown tool or setting')
-                data['tools'][tool][key] = check_value(key, value, FIELDS[key], nullable=key.startswith('dock_'))
+                if type(tool) is not int or not 0 <= tool < TOOL_MAX or key not in EDITABLE_TOOL_FIELDS:
+                    raise ValueError('Unknown or protected tool setting')
+                if tool >= data['globals']['tool_count']:
+                    raise ValueError('Tool not selected within configured count')
+                entry = data['tools'][tool]
+                entry[key] = check_value(key, value, FIELDS[key], nullable=key.startswith('dock_'))
+                if key.startswith('dock_'):
+                    entry['dock_verified'] = False
+                    entry['pickup_verified'] = False
+                    entry['dropoff_verified'] = False
+                    entry['commissioned'] = False
+                if key in ('offset_x','offset_y'):
+                    entry['offset_xy_accepted'] = False
+                    entry['offset_xy_verified'] = False
+                    entry['commissioned'] = False
+                if key == 'offset_z':
+                    entry['offset_z_accepted'] = False
+                    entry['offset_z_verified'] = False
+                    entry['commissioned'] = False
             new = render(data)
             if new == old:
                 return {'saved': True, 'unchanged': True, 'revision': self._hash(old), 'active_in_klipper': False}
@@ -213,10 +320,19 @@ class Store:
             data, old = self._current()
             if self._hash(old) != expected_revision:
                 raise RuntimeError('Configuration changed; reload before saving dock')
-            if tool >= data['globals']['tool_count'] or not data['tools'][tool]['enabled']:
-                raise ValueError('Tool is not enabled within configured tool count')
+            if schema_on_disk(old) != SCHEMA:
+                raise RuntimeError('Explicit configuration migration required before editing')
+            if tool >= data['globals']['tool_count'] or data['tools'][tool]['maintenance_lockout']:
+                raise ValueError('Tool outside count or in maintenance lockout')
             data = copy.deepcopy(data)
-            data['tools'][tool].update(values)
+            entry = data['tools'][tool]
+            changed = any(entry[k] != v for k, v in values.items())
+            entry.update(values)
+            if changed:
+                entry['dock_verified'] = False
+                entry['pickup_verified'] = False
+                entry['dropoff_verified'] = False
+                entry['commissioned'] = False
             new = render(data)
             if new == old:
                 return {'saved': True, 'unchanged': True, 'revision': self._hash(old),
@@ -232,6 +348,9 @@ class Store:
             _, old = self._current()
             if self._hash(old) != expected_revision:
                 raise RuntimeError('Configuration changed; reload before rollback')
-            new = (self.backups/name).read_text(encoding='utf-8')
-            parse(new)
+            saved = (self.backups/name).read_text(encoding='utf-8')
+            restored = parse(saved)
+            # Old backups must not downgrade the live file to v1. Restore
+            # the numbers through an unverified v2 projection instead.
+            new = render(restored)
             return self._commit(old, new)
