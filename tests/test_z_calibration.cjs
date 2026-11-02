@@ -40,7 +40,7 @@ test('distinct Z Calibration tab, T0 and all-hotend comparison are visible',()=>
   assert.ok(html.includes('id="'+id+'"'),'Missing '+id);
  assert.match(html,/T0 nozzle-to-bed reference · T1–T11 nozzle heights relative to T0/);
  assert.match(html,/Z calibration and dock Z are different/);
- assert.match(html,/Cartographer model\/firmware supports a safe nozzle-contact method/);
+ assert.match(html,/PHYSICAL Z CALIBRATION REMAINS DISABLED/);
  assert.match(html,/id="cxmZTool" disabled/);
  assert.match(html,/Start Z calibration · unavailable<\/button>/);
  assert.match(html,/Accept measured Z · unavailable<\/button>/);
