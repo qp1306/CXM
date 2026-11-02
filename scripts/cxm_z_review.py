@@ -64,9 +64,13 @@ def main(argv=None):
     choice.add_argument("--example",action="store_true",help="Print fabricated input JSON")
     choice.add_argument("--input",type=Path,help="Review a saved JSON input")
     parser.add_argument("--tool-count",type=int,default=12,help="Synthetic tool count 1..12")
+    parser.add_argument("--summary",action="store_true",
+                        help="Print compact reliability and repeatability report for --input")
     args=parser.parse_args(argv)
     try:
         if args.example:
+            if args.summary:
+                raise ValueError("--summary requires --input")
             print(json.dumps(synthetic_example(args.tool_count),indent=2,allow_nan=False))
         else:
             if args.tool_count!=12:
@@ -75,7 +79,23 @@ def main(argv=None):
                 raise ValueError("Input file too large")
             doc=json.loads(args.input.read_text(encoding="utf-8"),
                 parse_constant=lambda x: (_ for _ in ()).throw(ValueError("Non-finite JSON number")))
-            print(json.dumps(analyze(doc),indent=2,allow_nan=False))
+            output=analyze(doc)
+            if args.summary:
+                output={
+                    "status":output["calibration"]["status"],
+                    "tool_count":output["calibration"]["tool_count"],
+                    "btc2_math_pass":output["overall_math_pass"],
+                    "quality_status":output["measurement_quality"]["status"],
+                    "advisory_full_five_range_mm":output["measurement_quality"]["advisory_full_five_spread_mm"],
+                    "flagged_hotends":output["measurement_quality"]["flagged_hotends"],
+                    "reseat_status":output["redock_repeatability"]["status"],
+                    "reseat_trial_count":output["redock_repeatability"]["received_trials"],
+                    "physical_reseating_verified":False,
+                    "ready_for_commissioning":False,
+                    "save_permitted":False,
+                    "hardware_motion":False,
+                }
+            print(json.dumps(output,indent=2,allow_nan=False))
         return 0
     except (ValueError,TypeError,KeyError,OSError,UnicodeError) as e:
         print("CXM Z OFFLINE REVIEW REJECTED: "+str(e),file=sys.stderr)
