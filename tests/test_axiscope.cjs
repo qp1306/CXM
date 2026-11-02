@@ -34,5 +34,5 @@ test('all motion and capture controls are disabled with no G-code paths',()=>{
   assert.match(html,/button class="btn" disabled>Capture measurement/);
   assert.doesNotMatch(axis,/\/printer\/gcode\/script|G1\s+[XY]|SET_GCODE_OFFSET|postJSON\(/);
   assert.match(html,/crosshair|Crosshair/i);
-  assert.match(html,/v0\.5\.0/);
+  assert.match(html,/CXM starter <span>v[0-9]+\.[0-9]+\.[0-9]+<\/span>/);
 });
