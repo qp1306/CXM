@@ -1,4 +1,4 @@
-/* CXM V0.5.2 — dock coordinate editor; all movement and sensor actions absent. */
+/* CXM V0.6 — dock coordinate editor; all movement and sensor actions absent. */
 (() => {
   'use strict';
   const root = document.querySelector('[data-panel="calibration"]');
@@ -18,9 +18,11 @@
     return data.tools.map((tool,n) => ({tool,n}))
       .filter(p => p.n < count);
   };
-  // Visibility is decided by count; calibration permission still requires Enabled.
-  const canEdit = () => !!snapshot && selected < snapshot.config.globals.tool_count
-    && snapshot.config.tools[selected]?.enabled === true;
+  // Selection is decided by tool_count. Only explicit maintenance lockout,
+  // pending migration or an unavailable config prevents editing provisional XYZ.
+  const canEdit = () => !!snapshot && !snapshot.migration_required
+    && selected < snapshot.config.globals.tool_count
+    && snapshot.config.tools[selected]?.maintenance_lockout !== true;
   function readDraft() {
     const xyz = {};
     for (const name of axis) {
@@ -64,7 +66,7 @@
     dirty = false;
     const hasValues = tool && axis.every(name => tool['dock_'+name] != null);
     get('cxmDockStatus').textContent = !tool ? 'No selected tool'
-      : !canEdit() ? 'Disabled · read only'
+      : !canEdit() ? 'LOCKED / MIGRATION · read only'
       : hasValues ? 'Saved · unverified' : 'Dock not calibrated';
     get('cxmDockSummary').textContent = tool
       ? 'T'+selected+' saved dock XYZ: '+axis.map(name => nice(tool['dock_'+name])).join(' / ')+
@@ -80,18 +82,22 @@
     for (const option of options) {
       const node = document.createElement('option');
       node.value = String(option.n);
-      node.textContent = 'T'+option.n+(option.tool.enabled===true?'':' · disabled');
+      const state=window.CXMToolState?.classify(option.tool,option.n,
+        snapshot.config.globals.tool_count,{migrationRequired:snapshot.migration_required});
+      node.textContent = 'T'+option.n+(option.n===0?' · reference':'')+
+        ' · '+(state?.label||'NOT READY');
       select.append(node);
     }
     select.value = String(selected);
     select.disabled = busy || !options.length;
     select.style.borderColor=window.CXMToolStyle?.color(selected)||'#45576b';
+    window.CXMToolPicker?.sync(select,snapshot.config);
     fill();
     if (!busy) report(!options.length
       ? 'No selected hotends. Configure the count in Tools.'
       : !canEdit()
-      ? 'T'+selected+' is disabled. Its saved coordinates are visible but read-only; enable it in Settings first.'
-      : 'Ready to edit T'+selected+'. Draft XYZ can be accepted with one backup; hardware verification is unavailable.', !options.length || !canEdit());
+      ? 'T'+selected+' has a maintenance lockout or requires configuration migration. Saved coordinates are read-only.'
+      : 'T'+selected+' is selected but NOT READY. Draft XYZ may be saved; physical verification is still required.', !options.length || !canEdit());
   }
   async function getJSON(path) {
     const response = await fetch(base+path,{credentials:'same-origin',cache:'no-store'});
@@ -171,8 +177,9 @@
     e.currentTarget.style.borderColor=window.CXMToolStyle?.color(selected)||'#45576b';
     fill();
     report(canEdit()
-      ? 'T'+selected+' selected. Draft edits are local until accepted.'
-      : 'T'+selected+' is disabled; enable it in Settings to edit dock XYZ.', !canEdit());
+      ? 'T'+selected+' selected. Draft edits are local until accepted; hardware remains unverified.'
+      : 'T'+selected+' is locked or requires migration; edit blocked.', !canEdit());
+    window.CXMToolPicker?.sync(e.currentTarget,snapshot.config);
   });
   for (const name of axis) {
     const node=get('cxmDock'+name.toUpperCase());
