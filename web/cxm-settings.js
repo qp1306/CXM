@@ -1,4 +1,4 @@
-/* CXM V0.6 settings editor; API served from loopback Python through Nginx. */
+/* CXM V0.6.1 settings editor; API served from loopback Python through Nginx. */
 (() => {
   'use strict';
   const endpoint = '/cxm/api/v1';
@@ -11,7 +11,7 @@
   const definitions = {
     global: [['tool_count', 'Configured tools', 1], ['safe_y', 'Safe Y position (mm)', 0.1],
              ['x_docking_adjust', 'X docking adjustment (mm)', 0.01]],
-    tool: [['maintenance_lockout', 'Maintenance lockout (block tool)', null], ['dock_x', 'Dock X (mm)', 0.001],
+    tool: [['dock_x', 'Dock X (mm)', 0.001],
            ['dock_y', 'Dock Y (mm)', 0.001], ['dock_z', 'Dock Z (mm)', 0.001],
            ['offset_x', 'X offset (mm)', 0.001], ['offset_y', 'Y offset (mm)', 0.001],
            ['offset_z', 'Z offset (mm)', 0.001],
@@ -32,6 +32,29 @@
         `<input data-cxm="${scope}" data-key="${key}" type="number" step="${step}" value="${escape(value)}" placeholder="Not calibrated" style="width:150px;padding:8px;border-radius:6px;background:#161b23;border:1px solid #465061;color:#ecf0f6">`;
       return `<label class="kv"><span>${escape(label)}</span>${input}</label>`;
     }).join('');
+  }
+  function lockoutControl(profile) {
+    const locked=profile.maintenance_lockout===true;
+    const readonly=snapshot.migration_required===true;
+    return `<label class="cxm-lockout-panel ${locked?'is-locked':'is-unlocked'} ${readonly?'is-readonly':''}">
+      <span class="cxm-lockout-content">
+        <span class="cxm-lockout-eyebrow">SAFETY OVERRIDE · HOTEND T${tool}</span>
+        <span class="cxm-lockout-title">MAINTENANCE LOCKOUT</span>
+        <span class="cxm-lockout-status" id="cxmLockoutState">${locked?'LOCKED OUT — calibration blocked':'UNLOCKED — calibration permitted'}</span>
+        <span class="cxm-lockout-description">Use when a hotend is faulty, removed or under maintenance. Unlocking does not mean READY; physical calibration and verification remain mandatory.</span>
+        <span class="cxm-lockout-saved" id="cxmLockoutPersist">${readonly?'Migration required · read-only':'AutoSave · current state loaded from disk'}</span>
+      </span>
+      <span class="cxm-lockout-action">
+        <span class="cxm-lockout-track">
+          <input class="cxm-lockout-input" id="cxmMaintenanceLockout" type="checkbox" role="switch"
+            data-cxm="tool" data-key="maintenance_lockout"
+            aria-label="Maintenance lockout for hotend T${tool}"
+            ${locked?'checked':''} ${readonly?'disabled':''}>
+          <span class="cxm-lockout-thumb" aria-hidden="true"></span>
+        </span>
+        <span class="cxm-lockout-onoff">${locked?'ON':'OFF'}</span>
+      </span>
+    </label>`;
   }
   function toolCards() {
     if (window.CXMToolCards) window.CXMToolCards.render(snapshot);
@@ -88,6 +111,7 @@
       <p class="muted">Every accepted field change is saved immediately. Values are on disk, <b>not yet active in Klipper</b>. Verification flags are protected from manual editing.</p>
       <div style="margin-top:20px"><h3>Global settings</h3>${fields('global',cfg.globals)}</div>
       <div style="margin-top:20px;display:flex;align-items:center;gap:14px"><h3 style="margin:0">Hotend settings</h3><select id="cxmToolChoice" style="padding:9px;border-radius:6px;background:#161b23;border:1px solid #465061;color:white">${cfg.tools.slice(0,count).map((profile,i)=>`<option value="${i}" ${tool===i?'selected':''}>T${i}${profile.maintenance_lockout===true?' · locked out':''}</option>`).join('')}</select></div>
+      ${lockoutControl(cfg.tools[tool])}
       ${fields('tool',cfg.tools[tool])}
       <p class="helper" id="cxmReadiness">Readiness requires hardware verification.</p>
       <div class="cxm-migration-slot" id="cxmMigrateSlot"></div>
@@ -157,13 +181,23 @@
     const key=input.dataset.key;
     const scope=input.dataset.cxm;
     const isBool=input.type==='checkbox';
+    if(key==='maintenance_lockout' && isBool && !input.checked &&
+       snapshot.config.tools[tool].maintenance_lockout===true){
+      if(!window.confirm('Remove maintenance lockout from T'+tool+'?\\n\\nCalibration will be permitted, but the hotend will remain NOT READY until physical verification. Pickup and movement remain disabled.')){
+        input.checked=true;
+        status('Maintenance lockout unchanged · T'+tool+' remains locked out');
+        return;
+      }
+    }
     const raw=input.value.trim();
     const value=isBool?input.checked:raw===''?null:Number(raw);
     if(!isBool && raw!=='' && !Number.isFinite(value)){
       status('Invalid numeric value',true);return;
     }
     saving=true;
-    status('Saving…');
+    status(key==='maintenance_lockout'?'Saving T'+tool+' maintenance lockout…':'Saving…');
+    const localFeedback=root.querySelector('#cxmLockoutPersist');
+    if(key==='maintenance_lockout' && localFeedback)localFeedback.textContent='Saving to CXM_variables.cfg…';
     root.querySelectorAll('[data-cxm]').forEach(x=>x.disabled=true);
     try{
       const result=await postJSON('/setting',{tool:scope==='global'?'global':tool,key,value,expected_revision:snapshot.revision});
