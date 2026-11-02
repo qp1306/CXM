@@ -14,8 +14,11 @@ jobs:
         run: python3 -m unittest discover -s tests -v
       - name: JavaScript syntax
         run: node --check web/cxm-settings.js
-      - name: Tool card JavaScript syntax
-        run: node --check web/cxm-tool-cards.js
+      - name: Tool states, tool picker and card JavaScript syntax
+        run: |
+          node --check web/cxm-tool-state.js
+          node --check web/cxm-tool-picker.js
+          node --check web/cxm-tool-cards.js
       - name: Dock editor JavaScript syntax
         run: node --check web/cxm-dock.js
       - name: Axiscope and colour JavaScript syntax
@@ -23,4 +26,4 @@ jobs:
           node --check web/cxm-axiscope.js
           node --check web/cxm-tool-style.js
       - name: Updater, overview, dock and Axiscope regression tests
-        run: node --test tests/test_web_update_safety.cjs tests/test_tool_cards.cjs tests/test_dock_ui.cjs tests/test_axiscope.cjs
+        run: node --test tests/test_web_update_safety.cjs tests/test_tool_cards.cjs tests/test_dock_ui.cjs tests/test_axiscope.cjs tests/test_readiness.cjs
