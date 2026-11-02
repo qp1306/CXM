@@ -51,6 +51,6 @@ test('no runtime motion, writes, fabricated optical measurements, or automatic v
  assert.match(script,/cache:'no-store'/);
  assert.match(script,/CXMToolPicker\?\.sync/);
  assert.match(script,/status\.textContent=.*read-only|Read-only saved profiles/);
- assert.match(html,/cxm-z\.js\?v=0\.7\.1/);
- assert.match(html,/CXM starter <span>v0\.7\.1<\/span>/);
+ assert.match(html,/cxm-z\.js\?v=0\.7\.2/);
+ assert.match(html,/CXM starter <span>v0\.7\.2<\/span>/);
 });
