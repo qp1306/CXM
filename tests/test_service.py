@@ -83,6 +83,39 @@ class TestAPI(unittest.TestCase):
                            ('error','MCU lost steps'),('startup','printer starting')]:
             with patch('cxm_service.urllib.request.urlopen',return_value=response(state,msg)):
                 self.assertFalse(printer_safe())
+    def test_schema2_migration_endpoint_and_readonly_legacy(self):
+        import cxm_config
+        config=self.store.read()['config']
+        old_tools=[]
+        for i,t in enumerate(config['tools']):
+            item={key:t[key] for key in cxm_config.LEGACY_FIELDS if key!='enabled'}
+            item['enabled']=i<6
+            old_tools.append(item)
+        raw=['[gcode_macro _CXM_VARIABLES]','variable_schema_version: 1',
+             'variable_globals: '+repr(config['globals'])]
+        raw += ['variable_t%d: %s'%(i,repr(t)) for i,t in enumerate(old_tools)]
+        raw += ['gcode:','  {% set cxm_values_loaded = 1 %}','']
+        self.store.path.write_text('\n'.join(raw))
+        current=self.call('/v1/config')
+        self.assertTrue(current['migration_required'])
+        headers={'Content-Type':'application/json','Origin':f'http://127.0.0.1:{self.port}',
+                 'X-Requested-With':'CXM'}
+        with patch('cxm_service.printer_safe',return_value=True):
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                self.call('/v1/setting',{'tool':0,'key':'dock_x','value':12,
+                                         'expected_revision':current['revision']},headers)
+            self.assertEqual(error.exception.code,409)
+            migrated=self.call('/v1/migrate',{'expected_revision':current['revision']},headers)
+        self.assertTrue(migrated['saved'])
+        self.assertFalse(self.call('/v1/config')['migration_required'])
+        self.assertEqual(self.call('/v1/config')['config']['schema'],2)
+        self.assertEqual(len(self.store.history()),1)
+        with patch('cxm_service.printer_safe',return_value=True):
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                self.call('/v1/setting',{'tool':0,'key':'commissioned','value':True,
+                                         'expected_revision':migrated['revision']},headers)
+        self.assertEqual(error.exception.code,400)
+
     def test_unknown_printer_state_blocks(self):
         current=self.call('/v1/config')
         headers={'Content-Type':'application/json','Origin':f'http://127.0.0.1:{self.port}',
