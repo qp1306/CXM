@@ -66,15 +66,34 @@
 .cxm-xy-lab .btn:disabled{opacity:.55;cursor:not-allowed}
 .cxm-xy-lab code{font-size:12px;color:#bfddff;word-break:break-all}
 @media(max-width:650px){.cxm-xy-lab-grid{grid-template-columns:1fr}}
+
+/* CXM V0.7.1: clear, hardware-locked Z calibration preparation */
+.cxm-z-warning{margin-bottom:16px;padding:16px 18px;font-size:13px;line-height:1.6}
+.cxm-z-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.cxm-z-reading{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
+.cxm-z-reading>div{border:1px solid #3a526e;border-radius:9px;padding:15px;background:#223145;min-width:0}
+.cxm-z-reading small{display:block;color:#a9bed5;font-size:12px;margin-bottom:8px}
+.cxm-z-reading strong{display:block;font-size:18px;line-height:1.3;overflow-wrap:anywhere}
+#cxmZStatus{color:#f3b1b5;font-size:14px}
+.cxm-z-state[data-state="VERIFIED_RECORD"]{color:#94d8b0}
+.cxm-z-state:not([data-state="VERIFIED_RECORD"]){color:#efb1b8}
+.cxm-z-steps{display:grid;gap:14px}
+.cxm-z-steps>div{display:flex;gap:12px;align-items:flex-start;padding:10px 2px;border-bottom:1px solid #353f4b}
+.cxm-z-steps>div>b{width:30px;height:30px;flex:0 0 30px;display:grid;place-items:center;background:#274464;color:#a9d8ff;border:1px solid #50739c;border-radius:9px}
+.cxm-z-steps>div>span{display:grid;gap:5px}
+.cxm-z-steps strong{font-size:14px}
+.cxm-z-steps small{font-size:12px;color:#aeb9c9;line-height:1.5}
+@media(max-width:850px){.cxm-z-layout{grid-template-columns:1fr}}
+@media(max-width:440px){.cxm-z-reading{grid-template-columns:1fr}}
 </style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
 <header class="topbar"><div class="brand"><div class="brand-mark">C<span>X</span>M</div><div><strong>Control Centre</strong><small>Single extruder · multi-hotend</small></div></div><div class="top-actions"><span id="connection" class="status-indicator"><i></i><span>Connecting to Moonraker</span></span><span id="saveStatus" class="mini-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg> Config sync: not connected</span></div></header>
 <main>
-<div class="page-heading"><div><div class="eyebrow">CXM / OVERVIEW</div><h1>Tool management</h1><p>One place for tool profiles, calibration and updates. The overview displays saved configuration, not live Klipper tool state.</p></div><div class="nav-tag">CXM starter <span>v0.7.0</span></div></div>
-<nav class="tabs" aria-label="CXM pages"><button class="tab active" data-tab="tools">Tools</button><button class="tab" data-tab="calibration">Dock Calibration</button><button class="tab" data-tab="offsets">XYZ Offsets</button><button class="tab" data-tab="tests">Testing</button><button class="tab" data-tab="updates">Updates <span id="updateDot" class="new-dot" hidden></span></button><button class="tab" data-tab="settings">Settings</button></nav>
+<div class="page-heading"><div><div class="eyebrow">CXM / OVERVIEW</div><h1>Tool management</h1><p>One place for tool profiles, calibration and updates. The overview displays saved configuration, not live Klipper tool state.</p></div><div class="nav-tag">CXM starter <span>v0.7.1</span></div></div>
+<nav class="tabs" aria-label="CXM pages"><button class="tab active" data-tab="tools">Tools</button><button class="tab" data-tab="calibration">Dock Calibration</button><button class="tab" data-tab="offsets">XY Offsets</button><button class="tab" data-tab="z-calibration">Z Calibration</button><button class="tab" data-tab="tests">Testing</button><button class="tab" data-tab="updates">Updates <span id="updateDot" class="new-dot" hidden></span></button><button class="tab" data-tab="settings">Settings</button></nav>
 <section class="printer-strip" aria-label="Printer status"><div class="stat"><span class="stat-label">KLIPPER</span><strong id="klipperStatus">Unknown</strong></div><div class="stat"><span class="stat-label">HOMING</span><strong id="homing">—</strong></div><div class="stat"><span class="stat-label">PRINT STATE</span><strong id="printStatus">—</strong></div><div class="stat"><span class="stat-label">ACTIVE HOTEND</span><strong id="activeTool">Not connected</strong></div><div class="stat"><span class="stat-label">TOOLS</span><strong id="cxmActiveTools">Awaiting config</strong></div></section>
-<div id="message" class="notice" role="status" aria-live="polite">CXM V0.7 adds a read-only XY measurement lab. Hardware motion, optical measurement and automatic dock acceptance remain disabled. All pickup/motion controls remain disabled.</div>
+<div id="message" class="notice" role="status" aria-live="polite">CXM V0.7.1 adds a dedicated Z Calibration preparation page alongside the offline XY measurement lab. Physical measurements, tool pickup and all printer motion remain disabled.</div>
 <section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected slots are shown; readiness requires calibration and physical verification</span><span>All displayed settings: saved on disk · not active in Klipper</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Pickup and automatic calibration are intentionally disabled until the CXM toolchange macros and physical pickup verification are tested. The Edit button opens the saved profile; it does not move the printer.</div></section>
 <section data-panel="calibration" hidden>
 <div class="section-title"><div><h2>Dock test &amp; align</h2><p>Saved calibration · guided XY measurement · no hardware movement enabled</p></div><span class="count-pill">Provisional only</span></div>
@@ -133,13 +152,61 @@
 <p id="cxmAxisFeedback" class="helper">No measurements or movements have been performed.</p></article></div>
 <article class="panel axis-table-panel"><div class="panel-heading"><h3>Hotend XY comparison</h3><span class="panel-label">Saved profiles · unmeasured</span></div><div class="axis-scroll"><table><thead><tr><th>Tool</th><th>Saved X (mm)</th><th>Saved Y (mm)</th><th>Axiscope measurement</th><th>Tool status</th></tr></thead><tbody id="cxmAxisTable"></tbody></table></div><p class="helper">All selected hotends appear here, including disabled profiles. Saved values are not optical measurements.</p></article>
 </section>
+<section data-panel="z-calibration" hidden>
+  <div class="section-title">
+    <div><h2>Z Calibration</h2><p>T0 nozzle-to-bed reference · T1–T11 nozzle heights relative to T0</p></div>
+    <span class="count-pill">Preparation only · No Z motion</span>
+  </div>
+  <div class="dock-warning cxm-z-warning">
+    <strong>Z CALIBRATION IS NOT YET IMPLEMENTED.</strong>
+    Saved offsets in Settings are numbers, not measurements. A carriage-mounted Cartographer alone does not prove where an interchangeable nozzle tip sits. Before automated Z measurement we must confirm the Cartographer model/firmware supports a safe nozzle-contact method, or choose a separately verified contact reference.
+  </div>
+  <div class="cxm-z-layout">
+    <article class="panel">
+      <div class="panel-heading"><h3>Selected hotend</h3><span class="panel-label" id="cxmZScope">Waiting for configuration</span></div>
+      <div class="axis-row">
+        <label for="cxmZTool">Hotend</label>
+        <select id="cxmZTool" disabled></select>
+        <button class="btn" id="cxmZRefresh">Refresh</button>
+      </div>
+      <div class="cxm-z-reading">
+        <div><small>Stored relative Z offset</small><strong id="cxmZSaved">—</strong></div>
+        <div><small>Calibration state</small><strong id="cxmZStatus">NOT MEASURED</strong></div>
+      </div>
+      <p class="helper">T0 is the reference tool. Its nominal relative offset can be 0.000 mm without the T0 nozzle-to-bed datum having been calibrated.</p>
+      <div class="dock-warning">This is a read-only review. It cannot set the Z offset, record verification, contact the bed, or change the active tool.</div>
+      <div class="buttons">
+        <button class="btn primary" disabled title="Requires verified MCU, homing, safe nozzle-contact procedure and tool identity">Start Z calibration · unavailable</button>
+        <button class="btn" disabled title="Requires repeatable nozzle tip measurement before acceptance">Accept measured Z · unavailable</button>
+      </div>
+      <p class="helper" id="cxmZFeedback">Loading saved Z profiles…</p>
+    </article>
+    <article class="panel">
+      <div class="panel-heading"><h3>Planned Z calibration sequence</h3><span class="panel-label">Hardware verification required</span></div>
+      <div class="cxm-z-steps">
+        <div><b>1</b><span><strong>Establish T0 nozzle-to-bed reference</strong><small>Verify machine homing, bed preparation, nozzle contact and repeatability at a controlled temperature</small></span></div>
+        <div><b>2</b><span><strong>Measure T1–T11 relative nozzle height</strong><small>Compare each seated hotend with T0 against the same physical reference; confirm correct tool pickup</small></span></div>
+        <div><b>3</b><span><strong>Confirm the sign and repeatability</strong><small>Check direction, safe clearance, repeats and behaviour after undock/re-dock before applying compensation</small></span></div>
+        <div><b>4</b><span><strong>Accept, AutoSave and verify</strong><small>Future workflow: revision-checked save to CXM_variables.cfg; apply runtime value only after full safety gates pass</small></span></div>
+      </div>
+      <p class="helper">Z calibration and dock Z are different: dock Z is a parking/pickup coordinate; tool Z offset compensates the nozzle height during printing.</p>
+    </article>
+  </div>
+  <article class="panel axis-table-panel">
+    <div class="panel-heading"><h3>Hotend Z offset comparison</h3><span class="panel-label" id="cxmZProgress">Not measured</span></div>
+    <div class="axis-scroll">
+      <table><thead><tr><th>Hotend</th><th>Saved relative Z</th><th>Measurement</th><th>Verification status</th></tr></thead><tbody id="cxmZTable"></tbody></table>
+    </div>
+    <p class="helper">Only hotends inside Hotends in use are shown. Values are read from CXM_variables.cfg. No measurements or printer motion are performed on this page.</p>
+  </article>
+</section>
 <section data-panel="tests" hidden><div class="empty-panel"><div class="panel-icon">✓</div><h2>Toolchange testing</h2><p>Controlled pickup and dropoff, filament switch transitions, safe speeds, and test history will appear here.</p><span class="coming">Planned for later release</span></div></section>
 <section data-panel="updates" hidden><div class="section-title"><div><h2>GitHub updates</h2><p>Updates for CXM only — not Klipper, Moonraker or system packages.</p></div><span id="updateBadge" class="mini-pill">Not checked</span></div><div class="update-layout"><article class="panel"><div class="panel-heading"><h3>Current installation</h3><span class="panel-label">Moonraker Update Manager</span></div><div class="kv"><span>Repository</span><strong id="repo">Not configured</strong></div><div class="kv"><span>Installed version</span><strong id="installedVersion">—</strong></div><div class="kv"><span>Available version</span><strong id="remoteVersion">—</strong></div><div class="kv"><span>Channel</span><strong id="channel">—</strong></div><div class="kv"><span>Update status</span><strong id="updateState">Not checked</strong></div><div id="devModePanel" hidden class="dev-mode-panel">
 <label><input type="checkbox" id="devModeConfirm"> I confirm this is an MCU-free development installation. Permit CXM-only web updates while Klipper is halted.</label>
 <p>Enable only when no controller or operating printer is attached. This does not fix Klipper or enable any printer motion.</p>
 </div><div class="buttons"><button class="btn primary" id="checkUpdates">↻ &nbsp; Check for Updates</button><button class="btn success" id="installUpdate" disabled>Install CXM Update</button></div><div class="helper">Checking is read-only. Installing requires confirmation and is blocked while printing or paused; no-MCU development mode requires separate acknowledgement.</div></article><aside class="panel sidebar-panel"><h3>Built for safe updates</h3><div class="checkitem"><span>✓</span><div><strong>CXM updates only</strong><small>Never performs a full system update.</small></div></div><div class="checkitem"><span>✓</span><div><strong>Protected calibration data</strong><small>Keep CXM_variables.cfg outside the Git working tree.</small></div></div><div class="checkitem"><span>✓</span><div><strong>Minimal Klipper restarts</strong><small>Web-only updates do not automatically restart Klipper.</small></div></div><div class="checkitem"><span>✓</span><div><strong>Validation first</strong><small>Dirty or invalid Git repositories cannot be updated here.</small></div></div><p class="warning">Macro code updates may need a separate, deliberate Klipper reload while idle. A successful download does not guarantee newly edited macros are loaded.</p></aside></div><div class="panel log-panel"><div class="panel-heading"><h3>Activity</h3><span id="lastChecked" class="muted">No checks yet</span></div><pre id="activityLog" aria-live="polite">Ready to check CXM updates.</pre></div></section>
 <section data-panel="settings" hidden><div class="section-title"><div><h2>Configuration & AutoSave</h2><p>Persistent central settings for T0–T11; live Klipper application will be integrated later</p></div></div><div class="panel"><h3>Configuration architecture</h3><p class="muted">CXM_variables.cfg contains saved values outside the Git repository. Accepted edits are written automatically with backups. No values are claimed active in Klipper until live synchronisation is implemented and verified.</p><div class="kv"><span>Printer URL</span><strong id="baseUrl">Same-origin Moonraker</strong></div><div class="kv"><span>CXM updater identifier</span><strong>CXM</strong></div><div class="kv"><span>Software channel</span><strong>dev (initial development)</strong></div></div><div id="configEditor"><div class="notice">Connecting to the CXM configuration backend…</div></div></section>
-</main><footer>CXM Control Centre · V0.6.0 · UI based on the approved ToolConfig-style layout · No unverified machine controls</footer></div>
+</main><footer>CXM Control Centre · V0.7.1 · UI based on the approved ToolConfig-style layout · No unverified machine controls</footer></div>
 <script>/* CXM Control Centre V0.6.0 — real Moonraker update API, no fake printer actions. */
 'use strict';
 const UPDATER = 'CXM';
@@ -345,11 +412,12 @@ loadPrinterStatus();loadUpdateStatus();
 // Refresh status only (not Git remote) periodically. The explicit Check button refreshes GitHub.
 setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-panel="updates"]:not([hidden])'))loadUpdateStatus();}},15000);
 </script>
-<script src="cxm-tool-style.js?v=0.7.0" defer></script>
-<script src="cxm-tool-state.js?v=0.7.0" defer></script>
-<script src="cxm-tool-picker.js?v=0.7.0" defer></script>
-<script src="cxm-tool-cards.js?v=0.7.0" defer></script>
-<script src="cxm-settings.js?v=0.7.0" defer></script>
-<script src="cxm-dock.js?v=0.7.0" defer></script>
-<script src="cxm-axiscope.js?v=0.7.0" defer></script>
+<script src="cxm-tool-style.js?v=0.7.1" defer></script>
+<script src="cxm-tool-state.js?v=0.7.1" defer></script>
+<script src="cxm-tool-picker.js?v=0.7.1" defer></script>
+<script src="cxm-tool-cards.js?v=0.7.1" defer></script>
+<script src="cxm-settings.js?v=0.7.1" defer></script>
+<script src="cxm-dock.js?v=0.7.1" defer></script>
+<script src="cxm-axiscope.js?v=0.7.1" defer></script>
+<script src="cxm-z.js?v=0.7.1" defer></script>
 </body></html>
