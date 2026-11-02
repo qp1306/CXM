@@ -53,7 +53,9 @@ def analyze(doc):
         # variation is independently flagged rather than silently accepted.
         "overall_math_pass":cal.passed_math and ver.passed_math,
         "review_required":quality["review_required"],
-        "additional_reseat_tests_required":not reseat["passed_math"],
+        # No input file can prove physical removal or re-seating. This gate
+        # stays closed even when synthetic or uploaded trial maths passes.
+        "additional_reseat_tests_required":True,
         "ready_for_commissioning":False,
         "save_permitted":False,"hardware_motion":False,
     }
