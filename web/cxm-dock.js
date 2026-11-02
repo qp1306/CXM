@@ -80,6 +80,7 @@
     }
     select.value = String(selected);
     select.disabled = busy || !options.length;
+    select.style.borderColor=window.CXMToolStyle?.color(selected)||'#45576b';
     fill();
     if (!busy) report(options.length
       ? 'Ready to edit T'+selected+'. Draft XYZ can be accepted together with one backup; hardware verification is not available.'
@@ -160,6 +161,7 @@
       return;
     }
     selected=Number(e.currentTarget.value);
+    e.currentTarget.style.borderColor=window.CXMToolStyle?.color(selected)||'#45576b';
     fill();
     report('T'+selected+' selected. All draft edits are local until accepted.');
   });
