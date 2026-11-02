@@ -54,18 +54,30 @@
 .cxm-lockout-onoff{font-size:17px;font-weight:900;letter-spacing:.07em;color:#c4d2e1}
 .cxm-lockout-panel.is-locked .cxm-lockout-onoff{color:#ffc5cc}
 @media(max-width:520px){.cxm-lockout-panel{padding:16px;gap:14px}.cxm-lockout-content{min-width:180px}.cxm-lockout-action{flex-direction:row;justify-content:space-between;width:100%}.cxm-lockout-title{font-size:20px}}
+
+/* V0.7: Offline XY measurement readiness status, never an active movement console */
+.cxm-xy-lab{margin-top:16px}
+.cxm-xy-lab-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0}
+.cxm-xy-lab-grid>div{display:flex;flex-direction:column;gap:7px;padding:14px;border-radius:9px;border:1px solid #3c4d63;background:#202a37}
+.cxm-xy-lab-grid span{font-size:12px;color:#afc0d7}
+.cxm-xy-lab-grid strong{font-size:14px}
+.cxm-xy-lab-ok{color:#8dd7a9}.cxm-xy-lab-pending{color:#e6c184}
+.cxm-xy-lab .dock-warning{margin-bottom:14px}
+.cxm-xy-lab .btn:disabled{opacity:.55;cursor:not-allowed}
+.cxm-xy-lab code{font-size:12px;color:#bfddff;word-break:break-all}
+@media(max-width:650px){.cxm-xy-lab-grid{grid-template-columns:1fr}}
 </style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
 <header class="topbar"><div class="brand"><div class="brand-mark">C<span>X</span>M</div><div><strong>Control Centre</strong><small>Single extruder · multi-hotend</small></div></div><div class="top-actions"><span id="connection" class="status-indicator"><i></i><span>Connecting to Moonraker</span></span><span id="saveStatus" class="mini-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg> Config sync: not connected</span></div></header>
 <main>
-<div class="page-heading"><div><div class="eyebrow">CXM / OVERVIEW</div><h1>Tool management</h1><p>One place for tool profiles, calibration and updates. The overview displays saved configuration, not live Klipper tool state.</p></div><div class="nav-tag">CXM starter <span>v0.6.2</span></div></div>
+<div class="page-heading"><div><div class="eyebrow">CXM / OVERVIEW</div><h1>Tool management</h1><p>One place for tool profiles, calibration and updates. The overview displays saved configuration, not live Klipper tool state.</p></div><div class="nav-tag">CXM starter <span>v0.7.0</span></div></div>
 <nav class="tabs" aria-label="CXM pages"><button class="tab active" data-tab="tools">Tools</button><button class="tab" data-tab="calibration">Dock Calibration</button><button class="tab" data-tab="offsets">XYZ Offsets</button><button class="tab" data-tab="tests">Testing</button><button class="tab" data-tab="updates">Updates <span id="updateDot" class="new-dot" hidden></span></button><button class="tab" data-tab="settings">Settings</button></nav>
 <section class="printer-strip" aria-label="Printer status"><div class="stat"><span class="stat-label">KLIPPER</span><strong id="klipperStatus">Unknown</strong></div><div class="stat"><span class="stat-label">HOMING</span><strong id="homing">—</strong></div><div class="stat"><span class="stat-label">PRINT STATE</span><strong id="printStatus">—</strong></div><div class="stat"><span class="stat-label">ACTIVE HOTEND</span><strong id="activeTool">Not connected</strong></div><div class="stat"><span class="stat-label">TOOLS</span><strong id="cxmActiveTools">Awaiting config</strong></div></section>
-<div id="message" class="notice" role="status" aria-live="polite">CXM V0.6.2 keeps maintenance lockout prominent but more compact while preserving calibrated-state safety. All pickup/motion controls remain disabled.</div>
+<div id="message" class="notice" role="status" aria-live="polite">CXM V0.7 adds a read-only XY measurement lab. Hardware motion, optical measurement and automatic dock acceptance remain disabled. All pickup/motion controls remain disabled.</div>
 <section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected slots are shown; readiness requires calibration and physical verification</span><span>All displayed settings: saved on disk · not active in Klipper</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Pickup and automatic calibration are intentionally disabled until the CXM toolchange macros and physical pickup verification are tested. The Edit button opens the saved profile; it does not move the printer.</div></section>
 <section data-panel="calibration" hidden>
-<div class="section-title"><div><h2>Dock test &amp; align</h2><p>Saved calibration · guided alignment · no hardware movement in V0.4</p></div><span class="count-pill">Provisional only</span></div>
+<div class="section-title"><div><h2>Dock test &amp; align</h2><p>Saved calibration · guided XY measurement · no hardware movement enabled</p></div><span class="count-pill">Provisional only</span></div>
 <div class="panel dock-top"><div class="dock-toolbar"><label for="cxmDockTool">Hotend</label><select id="cxmDockTool" disabled></select><span class="dock-status" id="cxmDockStatus">Loading configuration</span><button class="btn" id="cxmDockRefresh">Refresh</button></div><p class="muted" id="cxmDockSummary">Reading saved dock position…</p><div class="dock-safety">Shared extruder / filament switch · No MCU connected · Positions are not active in Klipper</div></div>
 <div class="dock-columns">
 <div class="panel">
@@ -85,8 +97,21 @@
  <p class="muted">These checks will be enabled after we integrate and test the MCU, carriage, endstops, macros and shared filament-switch feedback.</p>
  <div class="dock-checks"><div><span>XYZ homing</span><strong>Not verified</strong></div><div><span>Safe approach / clearance</span><strong>Not tested</strong></div><div><span>Hotend pickup confirmation</span><strong>Not tested</strong></div><div><span>Dropoff / repeat cycles</span><strong>Not tested</strong></div></div>
  <div class="buttons"><button class="btn" disabled title="Requires safe Klipper macros">Approach dock</button><button class="btn" disabled title="Requires physical pickup sensor testing">Test pickup</button><button class="btn" disabled title="Requires physical pickup sensor testing">Repeat test</button></div>
- <div class="dock-warning">Automated XY dock measurement will use the separate Python calibration routine after hardware is connected. No movement or pickup verification occurs in V0.4.</div>
+ <div class="dock-warning">The offline XY calculation reviewer is available, but no automated homing or pickup verification is enabled until hardware is independently tested.</div>
 </div></div>
+<div class="panel cxm-xy-lab">
+  <div class="panel-heading"><h3>3 · Automatic XY dock measurement</h3><span class="panel-label">Offline calculator available · Hardware pending</span></div>
+  <p class="muted">CXM now has a Python reviewer for raw Klipper GET_POSITION MCU step counts. It can verify the calculation sequence and produce provisional raw dock X/Y without moving motors or saving a calibration.</p>
+  <div class="cxm-xy-lab-grid">
+    <div><span>1 · CoreXY conversion</span><strong class="cxm-xy-lab-ok">Synthetic tests passed</strong></div>
+    <div><span>2 · MCU step-count capture</span><strong class="cxm-xy-lab-pending">Waiting for verified hardware</strong></div>
+    <div><span>3 · Y then X homing validation</span><strong class="cxm-xy-lab-pending">Physical test pending</strong></div>
+    <div><span>4 · Accept measured dock XY</span><strong class="cxm-xy-lab-pending">Not authorised</strong></div>
+  </div>
+  <div class="dock-warning"><strong>DO NOT USE FOR MOTION.</strong> A successful mathematical result is not verified calibration. We still need motor, endstop, clearance and repeatability tests before accepting any XY coordinates.</div>
+  <div class="buttons"><button class="btn" disabled title="Requires MCU, safe homing and verified capture adapter">Measure dock XY · unavailable</button></div>
+  <p class="helper">Safe offline demo: <code>python3 ~/CXM/scripts/cxm_xy_review.py --example</code> · read-only synthetic data, no printer connection.</p>
+</div>
 <div class="panel dock-bottom"><h3>Recovery</h3><p class="muted">The original settings can be restored using Settings → Backup history / rollback. Calibration writes and restores do not move motors.</p><button class="btn" id="cxmDockBackups">Open backup history</button></div>
 </section>
 <section data-panel="offsets" hidden>
@@ -320,11 +345,11 @@ loadPrinterStatus();loadUpdateStatus();
 // Refresh status only (not Git remote) periodically. The explicit Check button refreshes GitHub.
 setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-panel="updates"]:not([hidden])'))loadUpdateStatus();}},15000);
 </script>
-<script src="cxm-tool-style.js?v=0.6.2" defer></script>
-<script src="cxm-tool-state.js?v=0.6.2" defer></script>
-<script src="cxm-tool-picker.js?v=0.6.2" defer></script>
-<script src="cxm-tool-cards.js?v=0.6.2" defer></script>
-<script src="cxm-settings.js?v=0.6.2" defer></script>
-<script src="cxm-dock.js?v=0.6.2" defer></script>
-<script src="cxm-axiscope.js?v=0.6.2" defer></script>
+<script src="cxm-tool-style.js?v=0.7.0" defer></script>
+<script src="cxm-tool-state.js?v=0.7.0" defer></script>
+<script src="cxm-tool-picker.js?v=0.7.0" defer></script>
+<script src="cxm-tool-cards.js?v=0.7.0" defer></script>
+<script src="cxm-settings.js?v=0.7.0" defer></script>
+<script src="cxm-dock.js?v=0.7.0" defer></script>
+<script src="cxm-axiscope.js?v=0.7.0" defer></script>
 </body></html>
