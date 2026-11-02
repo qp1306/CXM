@@ -1,4 +1,4 @@
-/* V0.6.1 regression: maintenance lockout must be prominent and safe. */
+/* V0.6.2 regression: maintenance lockout must be prominent and safe. */
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
@@ -18,11 +18,14 @@ test('large, distinct switch replaces the tiny checkbox',()=>{
   assert.match(settings,/lockoutControl\(cfg\.tools\[tool\]\)/);
   assert.doesNotMatch(settings,/\['maintenance_lockout', 'Maintenance lockout/);
   assert.match(html,/\.cxm-lockout-panel\{/);
-  assert.match(html,/min-height:158px/);
+  assert.match(html,/min-height:140px/);
   assert.match(html,/\.cxm-lockout-title\{[^}]*font-size:/);
-  assert.match(html,/\.cxm-lockout-track\{[^}]*width:82px;height:46px/);
+  assert.match(html,/\.cxm-lockout-track\{[^}]*width:74px;height:42px/);
   assert.match(html,/\.cxm-lockout-panel\.is-locked\{/);
   assert.match(html,/\.cxm-lockout-panel:focus-within\{/);
+  assert.match(html,/padding:18px 22px/);
+  assert.match(html,/\.cxm-lockout-thumb\{[^}]*width:30px;height:30px/);
+  assert.match(html,/\.cxm-lockout-input:checked\+\.cxm-lockout-thumb\{transform:translateX\(36px\)/);
 });
 
 test('AutoSave uses existing API and cancellation preserves lockout',()=>{
@@ -42,6 +45,6 @@ test('unlock does not bypass tool readiness or enable motion',()=>{
   assert.equal(classify(t,10,12).code,'NOT_CALIBRATED');
   assert.equal(classify({...t,maintenance_lockout:true},10,12).code,'LOCKED_OUT');
   assert.equal(classify(t,10,12).canPickup,false);
-  assert.match(html,/CXM starter <span>v0\.6\.1<\/span>/);
-  assert.match(html,/cxm-settings\.js\?v=0\.6\.1/);
+  assert.match(html,/CXM starter <span>v0\.6\.2<\/span>/);
+  assert.match(html,/cxm-settings\.js\?v=0\.6\.2/);
 });
