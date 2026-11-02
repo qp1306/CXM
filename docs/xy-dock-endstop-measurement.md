@@ -1,6 +1,6 @@
 # CXM — XY dock measurement using endstop travel (design only)
 
-Status: **DESIGN / NOT SAFE FOR HARDWARE EXECUTION YET**. This file contains no motion commands. V0.5 Axiscope remains intact; work is developed on a separate feature branch.
+Status: **OFFLINE REVIEW IMPLEMENTED / NOT SAFE FOR HARDWARE EXECUTION YET**. This file contains no motion commands. V0.5 Axiscope remains intact; work is developed on a separate feature branch.
 
 ## Machine-specific baseline
 
@@ -56,4 +56,4 @@ If step-count travel across homing cannot be captured reliably, **home normally,
 - Tool count and all calibration parameters remain centralized. Multiple manual edit sources must not race `CXM_variables.cfg`; reject stale revisions.
 - Always preserve existing Axiscope work and avoid changing its camera files for this milestone.
 
-**Current next action:** implement a hardware-independent function that takes independently verified signed X/Y travel (or two validated CoreXY motor-counter deltas plus measured transform), returns raw XY, and validates physical bounds. Test it with known synthetic examples. Do not connect it to motors until after the physical tests above.
+**Implemented:** the pure travel-to-dock maths, GET_POSITION MCU snapshot parser, CoreXY calibration from known moves, continuity checks and synthetic regression tests are in scripts/cxm_xy_measure.py and scripts/cxm_xy_review.py. The UI includes a noninteractive readiness panel. Nothing moves or saves. **Next milestone:** connect the MCU, identify the real stepper counter names, check homing direction and endstop safety, then implement an explicitly armed capture adapter that validates an uninterrupted sequence. Do not enable any automated motion without that verification.
