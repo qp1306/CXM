@@ -273,7 +273,14 @@ class Store:
             if tool == 'global':
                 if key not in GLOBAL_FIELDS:
                     raise ValueError('Unknown global setting')
+                previous = data['globals'][key]
                 data['globals'][key] = check_value(key, value, GLOBAL_FIELDS[key])
+                if key in ('safe_y','x_docking_adjust') and previous != data['globals'][key]:
+                    for entry in data['tools']:
+                        entry['dock_verified'] = False
+                        entry['pickup_verified'] = False
+                        entry['dropoff_verified'] = False
+                        entry['commissioned'] = False
             else:
                 if type(tool) is not int or not 0 <= tool < TOOL_MAX or key not in EDITABLE_TOOL_FIELDS:
                     raise ValueError('Unknown or protected tool setting')
@@ -293,6 +300,10 @@ class Store:
                 if key == 'offset_z':
                     entry['offset_z_accepted'] = False
                     entry['offset_z_verified'] = False
+                    entry['commissioned'] = False
+                if key in ('approach_speed','dock_speed','maintenance_lockout'):
+                    entry['pickup_verified'] = False
+                    entry['dropoff_verified'] = False
                     entry['commissioned'] = False
             new = render(data)
             if new == old:
