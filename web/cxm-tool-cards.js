@@ -53,7 +53,7 @@
       if(!visible) return;
       const result=card(t,n,count);
       element.dataset.profileState=result.state;
-      element.style.setProperty('--tool-color',window.CXMToolStyle?.color(n)||'#b6c4d5');
+      element.style?.setProperty('--tool-color',typeof window==='undefined'?'#b6c4d5':(window.CXMToolStyle?.color(n)||'#b6c4d5'));
       element.innerHTML=result.html;
       const edit=element.querySelector('[data-cxm-edit]');
       if(edit)edit.addEventListener('click',() => {
