@@ -45,7 +45,7 @@ def printer_safe():
         return False
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = 'CXMConfig/0.4'
+    server_version = 'CXMConfig/0.6'
     def output(self, code, obj):
         payload=json.dumps(obj, allow_nan=False).encode('utf-8')
         self.send_response(code)
@@ -62,7 +62,7 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/v1/history':
                 self.output(200,{'backups':self.server.store.history()})
             elif self.path == '/v1/health':
-                self.output(200,{'ok':True,'version':'0.4.0','loopback_only':True})
+                self.output(200,{'ok':True,'version':'0.6.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
         except (OSError, ValueError, SyntaxError) as e:
@@ -86,7 +86,7 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock'):
+            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock','/v1/migrate'):
                 self.output(404,{'error':'Not found'})
                 return
             if not printer_safe():
@@ -100,6 +100,10 @@ class Handler(BaseHTTPRequestHandler):
                 if set(body) != {'tool','xyz','expected_revision'}:
                     raise ValueError('Unexpected dock parameters')
                 result=self.server.store.save_dock(**body)
+            elif self.path=='/v1/migrate':
+                if set(body) != {'expected_revision'}:
+                    raise ValueError('Unexpected migration parameters')
+                result=self.server.store.migrate(**body)
             else:
                 if set(body) != {'name','expected_revision'}:
                     raise ValueError('Unexpected rollback parameters')
