@@ -44,7 +44,7 @@ test('every card is constructed from the supplied configuration, not fixed T0 va
   assert.notEqual(a.html,b.html);
 });
 
-test('overview hides unused tools but retains all 12 editable profiles in Settings',()=>{
+test('tool count displays selected T0–T11 including safely disabled profiles',()=>{
   const nodes=Array.from({length:12},()=>({
     hidden:false,dataset:{},innerHTML:'',querySelector(){return null;}
   }));
@@ -59,19 +59,32 @@ test('overview hides unused tools but retains all 12 editable profiles in Settin
     getElementById:id=>el[id]||null
   };
   try{
-    const profiles=Array.from({length:12},()=>make());
-    profiles[3].enabled=false; // T3 is unused even inside the count
-    cards.render({config:{globals:{tool_count:6,safe_y:125,x_docking_adjust:3},tools:profiles}});
-    assert.deepEqual(nodes.map((x,i)=>x.hidden?null:i).filter(x=>x!=null),[0,1,2,4,5]);
-    assert.match(el.cxmToolSummary.textContent,/5 shown \/ 6 configured/);
-    assert.equal(el.cxmActiveTools.textContent,'5 active');
-    profiles[3].enabled=true;
-    cards.render({config:{globals:{tool_count:8,safe_y:125,x_docking_adjust:3},tools:profiles}});
-    assert.deepEqual(nodes.map((x,i)=>x.hidden?null:i).filter(x=>x!=null),[0,1,2,3,4,5,6,7]);
-    assert.equal(el.cxmActiveTools.textContent,'8 active');
+    const profiles=Array.from({length:12},(_,i)=>make({enabled:i<6}));
+    // Reproduces the user's original case: 12 selected; T6–T11 disabled.
+    cards.render({config:{globals:{tool_count:12,safe_y:120,x_docking_adjust:3},tools:profiles}});
+    assert.deepEqual(nodes.map((x,i)=>x.hidden?null:i).filter(x=>x!=null),[0,1,2,3,4,5,6,7,8,9,10,11]);
+    assert.match(el.cxmToolSummary.textContent,/12 shown \/ 12 selected · 6 enabled/);
+    assert.equal(el.cxmActiveTools.textContent,'6 active');
+    for(let n=6;n<12;n++){
+      assert.match(nodes[n].innerHTML,/Disabled/);
+      assert.match(nodes[n].innerHTML,/disabled title="Tool not enabled">Calibrate/);
+      assert.match(nodes[n].innerHTML,/data-cxm-edit/);
+    }
+    assert.equal(el.cxmNoTools.hidden,true);
+    // Lowering count hides cards but never modifies the enabled flags.
+    cards.render({config:{globals:{tool_count:4,safe_y:120,x_docking_adjust:3},tools:profiles}});
+    assert.deepEqual(nodes.map((x,i)=>x.hidden?null:i).filter(x=>x!=null),[0,1,2,3]);
+    assert.match(el.cxmToolSummary.textContent,/4 shown \/ 4 selected · 4 enabled/);
+    assert.equal(profiles[6].enabled,false);
+    // A disabled hotend within the count must remain visible and protected.
+    profiles[1].enabled=false;
+    cards.render({config:{globals:{tool_count:4,safe_y:120,x_docking_adjust:3},tools:profiles}});
+    assert.equal(nodes[1].hidden,false);
+    assert.match(nodes[1].innerHTML,/Disabled/);
+    assert.equal(el.cxmActiveTools.textContent,'3 active');
     for(const profile of profiles) profile.enabled=false;
-    cards.render({config:{globals:{tool_count:6,safe_y:125,x_docking_adjust:3},tools:profiles}});
-    assert.equal(nodes.filter(x=>!x.hidden).length,0);
+    cards.render({config:{globals:{tool_count:4,safe_y:120,x_docking_adjust:3},tools:profiles}});
+    assert.equal(nodes.filter(x=>!x.hidden).length,4);
     assert.equal(el.cxmNoTools.hidden,false);
   }finally{if(previous===undefined)delete global.document;else global.document=previous;}
 });

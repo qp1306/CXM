@@ -40,6 +40,18 @@
       countSelect.disabled=!snapshot || saving;
       if(snapshot) countSelect.value=String(snapshot.config.globals.tool_count);
     }
+    const hint=document.getElementById('cxmCountHint');
+    if(hint) {
+      if(!snapshot) hint.textContent='Saved tool count unavailable';
+      else {
+        const count=snapshot.config.globals.tool_count;
+        const disabled=Array.from({length:count},(_,n)=>n)
+          .filter(n=>snapshot.config.tools[n]?.enabled!==true);
+        hint.textContent=disabled.length
+          ? disabled.length+' selected hotend(s) disabled · enable them individually in Settings'
+          : 'All selected hotends are enabled';
+      }
+    }
   }
   async function getJSON(url) {
     const r=await fetch(url,{cache:'no-store',credentials:'same-origin'});
@@ -104,13 +116,7 @@
       if(latest.config?.globals?.tool_count!==next)throw new Error('Saved count could not be verified.');
       snapshot=latest;
       render();toolCards();
-      const disabled=[];
-      for(let i=0;i<next;i++)if(snapshot.config.tools[i]?.enabled!==true)disabled.push('T'+i);
-      const hint=document.getElementById('cxmCountHint');
-      if(hint)hint.textContent=disabled.length
-        ? 'Disabled within count: '+disabled.join(', ')+' · enable in Settings'
-        : 'All tool slots within the count are enabled';
-      status('AutoSaved '+next+' tool slots · disk only');
+      status('AutoSaved '+next+' selected tool slots · disk only');
     }catch(e) {
       status('Tool count not verified: '+e.message,true);
       window.alert('CXM could not verify the tool count: '+e.message);

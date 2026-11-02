@@ -1,4 +1,4 @@
-/* CXM V0.3 — read-only overview of validated, disk-saved tool settings.
+/* CXM V0.5.1 — read-only overview of validated, disk-saved tool settings.
  * Works with no MCU. Never sends motion G-code or labels a saved dock as calibrated.
  */
 (function () {
@@ -41,15 +41,17 @@
     const cards=document.querySelectorAll('.tool-card');
     const count=Number.isInteger(config?.globals?.tool_count) ? config.globals.tool_count : 0;
     const tools=Array.isArray(config?.tools) ? config.tools : [];
-    let enabled=0, savedDock=0;
+    let shown=0, enabled=0, savedDock=0;
     cards.forEach((element,n) => {
       const t=tools[n];
-      // Hide any tool beyond the configured count or explicitly disabled.
-      // All 12 profiles remain available via Settings for future expansion.
-      const visible=!!t && n<count && t.enabled===true;
+      // Tool count controls visibility. A disabled tool remains visible
+      // with a Disabled label, but cannot use calibration or pickup.
+      // Never silently change the user's individual Enabled flags.
+      const visible=!!t && n<count;
       element.hidden=!visible;
-      if(visible) enabled++;
-      if(visible && [t.dock_x,t.dock_y,t.dock_z].every(v=>v!=null)) savedDock++;
+      if(visible) shown++;
+      if(visible && t.enabled===true) enabled++;
+      if(visible && t.enabled===true && [t.dock_x,t.dock_y,t.dock_z].every(v=>v!=null)) savedDock++;
       if(!visible) return;
       const result=card(t,n,count);
       element.dataset.profileState=result.state;
@@ -66,7 +68,7 @@
     });
     const summary=document.getElementById('cxmToolSummary');
     if(summary)summary.textContent=config ?
-      enabled+' shown / '+count+' configured · '+savedDock+' with saved dock XYZ'
+      shown+' shown / '+count+' selected · '+enabled+' enabled · '+savedDock+' with saved dock XYZ'
       : 'Configuration unavailable';
     const toolsStat=document.getElementById('cxmActiveTools');
     if(toolsStat)toolsStat.textContent=config ? enabled+' active' : 'Unavailable';
