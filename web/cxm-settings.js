@@ -183,7 +183,7 @@
     const isBool=input.type==='checkbox';
     if(key==='maintenance_lockout' && isBool && !input.checked &&
        snapshot.config.tools[tool].maintenance_lockout===true){
-      if(!window.confirm('Remove maintenance lockout from T'+tool+'?\\n\\nCalibration will be permitted, but the hotend will remain NOT READY until physical verification. Pickup and movement remain disabled.')){
+      if(!window.confirm('Remove maintenance lockout from T'+tool+'?\n\nCalibration will be permitted, but the hotend will remain NOT READY until physical verification. Pickup and movement remain disabled.')){
         input.checked=true;
         status('Maintenance lockout unchanged · T'+tool+' remains locked out');
         return;
