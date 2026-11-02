@@ -1,4 +1,4 @@
-/* CXM V0.4.1 — dock coordinate editor; all movement and sensor actions absent. */
+/* CXM V0.5.2 — dock coordinate editor; all movement and sensor actions absent. */
 (() => {
   'use strict';
   const root = document.querySelector('[data-panel="calibration"]');
@@ -16,8 +16,11 @@
   const configured = data => {
     const count = data.globals.tool_count;
     return data.tools.map((tool,n) => ({tool,n}))
-      .filter(p => p.n < count && p.tool.enabled === true);
+      .filter(p => p.n < count);
   };
+  // Visibility is decided by count; calibration permission still requires Enabled.
+  const canEdit = () => !!snapshot && selected < snapshot.config.globals.tool_count
+    && snapshot.config.tools[selected]?.enabled === true;
   function readDraft() {
     const xyz = {};
     for (const name of axis) {
@@ -33,7 +36,7 @@
   // authoritative; this only prevents invalid or incomplete UI submissions.
   const limits = {x:[-50,600],y:[-50,600],z:[-20,600]};
   function validDraft() {
-    if (!snapshot || busy || !dirty || !current()) return false;
+    if (!snapshot || busy || !dirty || !canEdit()) return false;
     try {
       const xyz=readDraft();
       return axis.every(name=>xyz[name]>=limits[name][0] && xyz[name]<=limits[name][1])
@@ -44,7 +47,7 @@
     get('cxmDockAccept').disabled=!validDraft();
   }
   function markDraft() {
-    if (!snapshot || busy) return;
+    if (!snapshot || busy || !canEdit()) return;
     dirty = true;
     updateActions();
     report(validDraft()
@@ -56,15 +59,17 @@
     for (const name of axis) {
       const el = get('cxmDock' + name.toUpperCase());
       el.value = tool?.['dock_'+name] == null ? '' : String(tool['dock_'+name]);
-      el.disabled = !tool || busy;
+      el.disabled = !canEdit() || busy;
     }
     dirty = false;
     const hasValues = tool && axis.every(name => tool['dock_'+name] != null);
-    get('cxmDockStatus').textContent = !tool ? 'No active tool' : hasValues ? 'Saved · unverified' : 'Dock not calibrated';
+    get('cxmDockStatus').textContent = !tool ? 'No selected tool'
+      : !canEdit() ? 'Disabled · read only'
+      : hasValues ? 'Saved · unverified' : 'Dock not calibrated';
     get('cxmDockSummary').textContent = tool
       ? 'T'+selected+' saved dock XYZ: '+axis.map(name => nice(tool['dock_'+name])).join(' / ')+
         ' mm · source: CXM_variables.cfg · not active in Klipper'
-      : 'No enabled tool selected. Enable the tool in Settings to create a dock position.';
+      : 'No profile selected. Choose a tool from the configured count.';
     updateActions(); // Never enable Save for empty or unchanged coordinates.
   }
   function render() {
@@ -75,16 +80,18 @@
     for (const option of options) {
       const node = document.createElement('option');
       node.value = String(option.n);
-      node.textContent = 'T'+option.n;
+      node.textContent = 'T'+option.n+(option.tool.enabled===true?'':' · disabled');
       select.append(node);
     }
     select.value = String(selected);
     select.disabled = busy || !options.length;
     select.style.borderColor=window.CXMToolStyle?.color(selected)||'#45576b';
     fill();
-    if (!busy) report(options.length
-      ? 'Ready to edit T'+selected+'. Draft XYZ can be accepted together with one backup; hardware verification is not available.'
-      : 'No enabled hotends in the configured tool count.', !options.length);
+    if (!busy) report(!options.length
+      ? 'No selected hotends. Configure the count in Tools.'
+      : !canEdit()
+      ? 'T'+selected+' is disabled. Its saved coordinates are visible but read-only; enable it in Settings first.'
+      : 'Ready to edit T'+selected+'. Draft XYZ can be accepted with one backup; hardware verification is unavailable.', !options.length || !canEdit());
   }
   async function getJSON(path) {
     const response = await fetch(base+path,{credentials:'same-origin',cache:'no-store'});
@@ -148,7 +155,7 @@
         report('T'+selected+' dock XYZ saved and verified on disk · backup created if changed · NOT verified in Klipper.');
       } else {
         // On failure, retain the user's draft and make its inputs editable.
-        for (const name of axis) get('cxmDock'+name.toUpperCase()).disabled=!current();
+        for (const name of axis) get('cxmDock'+name.toUpperCase()).disabled=!canEdit();
         updateActions();
       }
     }
@@ -163,7 +170,9 @@
     selected=Number(e.currentTarget.value);
     e.currentTarget.style.borderColor=window.CXMToolStyle?.color(selected)||'#45576b';
     fill();
-    report('T'+selected+' selected. All draft edits are local until accepted.');
+    report(canEdit()
+      ? 'T'+selected+' selected. Draft edits are local until accepted.'
+      : 'T'+selected+' is disabled; enable it in Settings to edit dock XYZ.', !canEdit());
   });
   for (const name of axis) {
     const node=get('cxmDock'+name.toUpperCase());
@@ -172,7 +181,7 @@
   }
   root.querySelectorAll('[data-dock-adjust]').forEach(btn=>btn.addEventListener('click',()=>{
     const input=get('cxmDock'+activeAxis.toUpperCase());
-    if (!snapshot || busy || !current()) return;
+    if (!snapshot || busy || !canEdit()) return;
     if (input.value.trim()==='') { report('Enter a starting '+activeAxis.toUpperCase()+' coordinate before adjusting.',true); return; }
     const n=Number(input.value), step=Number(btn.dataset.dockAdjust);
     if (!Number.isFinite(n)||!Number.isFinite(step)) return;

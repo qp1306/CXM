@@ -1,4 +1,4 @@
-/* CXM V0.5 — Axiscope visual preparation. NO G-code, motion or offset writes. */
+/* CXM V0.5.2 — Axiscope visual preparation. NO G-code, motion or offset writes. */
 (() => {
   'use strict';
   const panel=document.querySelector('[data-panel="offsets"]');
@@ -111,25 +111,30 @@
       text('cxmAxisFeedback','Saved profiles are unavailable: '+e.message);
     }
   }
-  function activeTools() {
-    if(!config)return[];
-    return config.tools.map((profile,n)=>({profile,n})).filter(x=>x.n<config.globals.tool_count && x.profile.enabled===true);
+  function selectedTools() {
+    if(!config || !Array.isArray(config.tools))return[];
+    return config.tools.map((profile,n)=>({profile,n}))
+      .filter(x=>x.n<config.globals.tool_count);
   }
   function render(){
-    const list=activeTools();
+    // Tool count controls visible entries; Enabled remains a separate state.
+    const list=selectedTools();
+    const enabled=list.filter(x=>x.profile.enabled===true).length;
     const selector=el('cxmAxisTool');
     if(!list.some(x=>x.n===tool))tool=list[0]?.n??0;
     selector.replaceChildren();
     for(const item of list){
       const opt=document.createElement('option');
       opt.value=String(item.n);
-      opt.textContent='T'+item.n+(item.n===0?' · reference':'');
+      opt.textContent='T'+item.n+(item.n===0?' · reference':'')+(item.profile.enabled===true?'':' · disabled');
       selector.append(opt);
     }
     selector.value=String(tool);
     selector.disabled=!list.length;
     selector.style.borderColor=colour(tool);
-    text('cxmAxisToolStatus',list.length?'T'+tool+(tool===0?' · reference':' · selected'):'No active hotends');
+    const selectedProfile=list.find(x=>x.n===tool)?.profile;
+    text('cxmAxisToolStatus',!list.length?'No selected hotends'
+      :'T'+tool+(selectedProfile?.enabled===true?(tool===0?' · reference':' · selected'):' · disabled'));
     el('cxmAxisToolStatus').style.color=colour(tool);
     const profile=config?.tools?.[tool];
     text('cxmAxisSavedX',profile?format(profile.offset_x)+' mm':'—');
@@ -145,15 +150,18 @@
       badge.textContent='T'+n+(n===0?' REF':'');
       badge.style.setProperty('--tool-color',colour(n));
       name.append(badge);
-      const x=document.createElement('td'),y=document.createElement('td'),measured=document.createElement('td');
+      const x=document.createElement('td'),y=document.createElement('td');
+      const measured=document.createElement('td'),state=document.createElement('td');
       x.textContent=format(p.offset_x);
       y.textContent=format(p.offset_y);
       measured.textContent='Not measured';
-      tr.append(name,x,y,measured);table.append(tr);
+      state.textContent=p.enabled===true?'Enabled':'Disabled';
+      state.style.color=p.enabled===true?'#95d6af':'#dfb982';
+      tr.append(name,x,y,measured,state);table.append(tr);
     }
     text('cxmAxisFeedback',list.length
-      ? 'Saved XY offsets shown for '+list.length+' hotend(s). Camera alignment and measured offsets are not yet available.'
-      : 'No enabled tools. Set the count and enable a profile in Settings.');
+      ? list.length+' selected hotend(s), '+enabled+' enabled. Disabled profiles are displayed for reference only. No measurements or movements have been performed.'
+      : 'No selected hotends. Configure the count in Tools.');
   }
   el('cxmAxisRefreshCameras').addEventListener('click',loadCameras);
   el('cxmAxisCamera').addEventListener('change',selectCamera);

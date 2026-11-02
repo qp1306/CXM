@@ -45,3 +45,12 @@ test('successful save re-enables coordinate fields; failed save retains draft',(
   assert.match(dock,/for \(const name of axis\) get\('cxmDock'\+name\.toUpperCase\(\)\)\.disabled=!current\(\)/);
   assert.match(dock,/Discard unsaved dock XYZ draft and switch hotends/);
 });
+
+test('disabled hotends remain selectable in Dock Calibration but cannot save XYZ',()=>{
+  const script=fs.readFileSync(path.join(__dirname,'../web/cxm-dock.js'),'utf8');
+  assert.match(script,/\.filter\(p => p\.n < count\)/);
+  assert.match(script,/get\('cxmDockStatus'\)\.textContent = [\s\S]*?'Disabled · read only'/);
+  assert.match(script,/node\.textContent = 'T'\+option\.n\+\(option\.tool\.enabled===true\?'':' · disabled'\)/);
+  assert.match(script,/get\('cxmDockAccept'\)\.disabled=!validDraft\(\)/);
+  assert.match(script,/if \(!snapshot \|\| busy \|\| !dirty \|\| !canEdit\(\)\) return false/);
+});

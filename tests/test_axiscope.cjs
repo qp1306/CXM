@@ -36,3 +36,21 @@ test('all motion and capture controls are disabled with no G-code paths',()=>{
   assert.match(html,/crosshair|Crosshair/i);
   assert.match(html,/CXM starter <span>v[0-9]+\.[0-9]+\.[0-9]+<\/span>/);
 });
+
+test('selected hotend count applies to Axiscope without enabling disabled hardware',()=>{
+  assert.match(axis,/function selectedTools\(\)/);
+  assert.match(axis,/\.filter\(x=>x\.n<config\.globals\.tool_count\)/);
+  assert.doesNotMatch(axis,/\.filter\(x=>x\.n<config\.globals\.tool_count && x\.profile\.enabled/);
+  assert.match(axis,/const enabled=list\.filter\(x=>x\.profile\.enabled===true\)\.length/);
+  assert.match(axis,/item\.profile\.enabled===true\?'':' · disabled'/);
+  assert.match(axis,/state\.textContent=p\.enabled===true\?'Enabled':'Disabled'/);
+  assert.match(html,/<th>Tool status<\/th>/);
+  const dock=fs.readFileSync(path.join(__dirname,'../web/cxm-dock.js'),'utf8');
+  const settings=fs.readFileSync(path.join(__dirname,'../web/cxm-settings.js'),'utf8');
+  assert.match(dock,/\.filter\(p => p\.n < count\)/);
+  assert.match(dock,/const canEdit = \(\) => [\s\S]*?enabled === true/);
+  assert.match(dock,/el\.disabled = !canEdit\(\) \|\| busy/);
+  assert.match(dock,/if \(!snapshot \|\| busy \|\| !canEdit\(\)\) return/);
+  assert.match(settings,/cfg\.tools\.slice\(0,count\)\.map\(/);
+  assert.match(settings,/profile\.enabled===true\?'':' · disabled'/);
+});

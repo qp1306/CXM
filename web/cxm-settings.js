@@ -1,4 +1,4 @@
-/* CXM V0.3.2 settings editor; API served from loopback Python through Nginx. */
+/* CXM V0.5.2 settings editor; API served from loopback Python through Nginx. */
 (() => {
   'use strict';
   const endpoint = '/cxm/api/v1';
@@ -81,11 +81,13 @@
   }
   function render() {
     const cfg=snapshot.config;
+    const count=cfg.globals.tool_count;
+    if (tool>=count || tool<0) tool=0;
     root.innerHTML=`<div class="panel" style="margin-top:16px">
       <div class="panel-heading"><h3>CXM_variables.cfg</h3><span class="panel-label">AutoSave · backups · rollback</span></div>
       <p class="muted">Every accepted field change is saved immediately. Values are persistent on disk, but are <b>not yet active in Klipper</b>. Dock coordinates are unverified until pickup testing is implemented.</p>
       <div style="margin-top:20px"><h3>Global settings</h3>${fields('global',cfg.globals)}</div>
-      <div style="margin-top:20px;display:flex;align-items:center;gap:14px"><h3 style="margin:0">Hotend settings</h3><select id="cxmToolChoice" style="padding:9px;border-radius:6px;background:#161b23;border:1px solid #465061;color:white">${cfg.tools.map((_,i)=>`<option value="${i}" ${tool===i?'selected':''}>T${i}</option>`).join('')}</select></div>
+      <div style="margin-top:20px;display:flex;align-items:center;gap:14px"><h3 style="margin:0">Hotend settings</h3><select id="cxmToolChoice" style="padding:9px;border-radius:6px;background:#161b23;border:1px solid #465061;color:white">${cfg.tools.slice(0,count).map((profile,i)=>`<option value="${i}" ${tool===i?'selected':''}>T${i}${profile.enabled===true?'':' · disabled'}</option>`).join('')}</select></div>
       ${fields('tool',cfg.tools[tool])}
       <div class="buttons"><button id="cxmReload" class="btn">Refresh settings</button><button id="cxmHistory" class="btn">Backup history / rollback</button></div>
       <div id="cxmFeedback" class="helper">Revision: ${escape(snapshot.revision.slice(0,12))} · Saved on disk · Not active in Klipper</div>
