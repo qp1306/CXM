@@ -28,15 +28,41 @@
 .cxm-migration-notice{margin:12px 0;padding:15px;border:1px solid #bd8842;background:#342b1f;border-radius:9px;color:#f2d5ad;line-height:1.55}
 .cxm-migration-notice button{margin-top:10px}
 @media(max-width:520px){.cxm-tool-picker{min-width:155px}.cxm-picker-menu{min-width:235px}.tool-card.cxm-needs-attention::after{font-size:24px}}
+
+/* CXM V0.6.1: high-visibility maintenance lockout control */
+.cxm-lockout-panel{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;min-height:158px;margin:22px 0 24px;padding:22px 26px;border-radius:15px;border:2px solid #5689b5;background:#1b2b3d;box-shadow:inset 0 0 0 1px rgba(116,169,218,.08);cursor:pointer;transition:border-color .15s,background .15s}
+.cxm-lockout-panel:hover{border-color:#94bde1}
+.cxm-lockout-panel:focus-within{outline:3px solid #b6d8ff;outline-offset:3px}
+.cxm-lockout-panel.is-locked{background:#3e232a;border-color:#fa6c77;box-shadow:inset 0 0 0 1px rgba(255,122,139,.14)}
+.cxm-lockout-panel.is-locked:hover{border-color:#ffc0c7}
+.cxm-lockout-panel.is-readonly{cursor:not-allowed;opacity:.76}
+.cxm-lockout-content{display:flex;flex-direction:column;gap:7px;flex:1;min-width:240px}
+.cxm-lockout-eyebrow{font-size:12px;font-weight:850;letter-spacing:.11em;color:#9ecfff}
+.cxm-lockout-title{display:block;font-size:clamp(19px,2.2vw,24px);font-weight:900;letter-spacing:.035em;line-height:1.2;color:#f7f9fd}
+.cxm-lockout-status{display:block;font-size:17px;font-weight:850;color:#b7ddff;line-height:1.4}
+.cxm-lockout-panel.is-locked .cxm-lockout-status{color:#ffabb8}
+.cxm-lockout-panel.is-locked .cxm-lockout-eyebrow{color:#ffa2af}
+.cxm-lockout-description{display:block;font-size:13px;color:#c0cddd;line-height:1.6;max-width:680px}
+.cxm-lockout-saved{display:block;font-size:12px;font-weight:700;color:#aebed0}
+.cxm-lockout-action{display:flex;flex-direction:column;gap:7px;align-items:center;justify-content:center;min-width:110px}
+.cxm-lockout-track{display:block;position:relative;width:82px;height:46px;border-radius:999px;border:2px solid #98b2c9;background:#415568;box-shadow:inset 0 2px 4px rgba(0,0,0,.4)}
+.cxm-lockout-panel.is-locked .cxm-lockout-track{border-color:#ffa7b1;background:#c8304b}
+.cxm-lockout-input{position:absolute;inset:0;z-index:2;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.cxm-lockout-input:disabled{cursor:not-allowed}
+.cxm-lockout-thumb{position:absolute;top:4px;left:4px;display:block;width:34px;height:34px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.5);transition:transform .15s;pointer-events:none}
+.cxm-lockout-input:checked+.cxm-lockout-thumb{transform:translateX(36px)}
+.cxm-lockout-onoff{font-size:19px;font-weight:900;letter-spacing:.07em;color:#c4d2e1}
+.cxm-lockout-panel.is-locked .cxm-lockout-onoff{color:#ffc5cc}
+@media(max-width:520px){.cxm-lockout-panel{padding:17px;gap:16px}.cxm-lockout-content{min-width:180px}.cxm-lockout-action{flex-direction:row;justify-content:space-between;width:100%}.cxm-lockout-title{font-size:20px}}
 </style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
 <header class="topbar"><div class="brand"><div class="brand-mark">C<span>X</span>M</div><div><strong>Control Centre</strong><small>Single extruder · multi-hotend</small></div></div><div class="top-actions"><span id="connection" class="status-indicator"><i></i><span>Connecting to Moonraker</span></span><span id="saveStatus" class="mini-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg> Config sync: not connected</span></div></header>
 <main>
-<div class="page-heading"><div><div class="eyebrow">CXM / OVERVIEW</div><h1>Tool management</h1><p>One place for tool profiles, calibration and updates. The overview displays saved configuration, not live Klipper tool state.</p></div><div class="nav-tag">CXM starter <span>v0.6.0</span></div></div>
+<div class="page-heading"><div><div class="eyebrow">CXM / OVERVIEW</div><h1>Tool management</h1><p>One place for tool profiles, calibration and updates. The overview displays saved configuration, not live Klipper tool state.</p></div><div class="nav-tag">CXM starter <span>v0.6.1</span></div></div>
 <nav class="tabs" aria-label="CXM pages"><button class="tab active" data-tab="tools">Tools</button><button class="tab" data-tab="calibration">Dock Calibration</button><button class="tab" data-tab="offsets">XYZ Offsets</button><button class="tab" data-tab="tests">Testing</button><button class="tab" data-tab="updates">Updates <span id="updateDot" class="new-dot" hidden></span></button><button class="tab" data-tab="settings">Settings</button></nav>
 <section class="printer-strip" aria-label="Printer status"><div class="stat"><span class="stat-label">KLIPPER</span><strong id="klipperStatus">Unknown</strong></div><div class="stat"><span class="stat-label">HOMING</span><strong id="homing">—</strong></div><div class="stat"><span class="stat-label">PRINT STATE</span><strong id="printStatus">—</strong></div><div class="stat"><span class="stat-label">ACTIVE HOTEND</span><strong id="activeTool">Not connected</strong></div><div class="stat"><span class="stat-label">TOOLS</span><strong id="cxmActiveTools">Awaiting config</strong></div></section>
-<div id="message" class="notice" role="status" aria-live="polite">CXM V0.6 separates selected hotends from calibration, verification and maintenance lockout. All pickup/motion controls remain disabled.</div>
+<div id="message" class="notice" role="status" aria-live="polite">CXM V0.6.1 adds a prominent maintenance lockout switch while preserving calibrated-state safety. All pickup/motion controls remain disabled.</div>
 <section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected slots are shown; readiness requires calibration and physical verification</span><span>All displayed settings: saved on disk · not active in Klipper</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Pickup and automatic calibration are intentionally disabled until the CXM toolchange macros and physical pickup verification are tested. The Edit button opens the saved profile; it does not move the printer.</div></section>
 <section data-panel="calibration" hidden>
 <div class="section-title"><div><h2>Dock test &amp; align</h2><p>Saved calibration · guided alignment · no hardware movement in V0.4</p></div><span class="count-pill">Provisional only</span></div>
@@ -294,11 +320,11 @@ loadPrinterStatus();loadUpdateStatus();
 // Refresh status only (not Git remote) periodically. The explicit Check button refreshes GitHub.
 setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-panel="updates"]:not([hidden])'))loadUpdateStatus();}},15000);
 </script>
-<script src="cxm-tool-style.js?v=0.6.0" defer></script>
-<script src="cxm-tool-state.js?v=0.6.0" defer></script>
-<script src="cxm-tool-picker.js?v=0.6.0" defer></script>
-<script src="cxm-tool-cards.js?v=0.6.0" defer></script>
-<script src="cxm-settings.js?v=0.6.0" defer></script>
-<script src="cxm-dock.js?v=0.6.0" defer></script>
-<script src="cxm-axiscope.js?v=0.6.0" defer></script>
+<script src="cxm-tool-style.js?v=0.6.1" defer></script>
+<script src="cxm-tool-state.js?v=0.6.1" defer></script>
+<script src="cxm-tool-picker.js?v=0.6.1" defer></script>
+<script src="cxm-tool-cards.js?v=0.6.1" defer></script>
+<script src="cxm-settings.js?v=0.6.1" defer></script>
+<script src="cxm-dock.js?v=0.6.1" defer></script>
+<script src="cxm-axiscope.js?v=0.6.1" defer></script>
 </body></html>
