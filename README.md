@@ -1,10 +1,10 @@
 # CXM Control Centre
 
-**CXM V0.6.1 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
+**CXM V0.6.2 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.2 or V0.3? Upgrade to V0.6.1
+## Already installed V0.2 or V0.3? Upgrade to V0.6.2
 
 Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. V0.5.1 retains a guided **Dock Calibration** tab. Select any enabled T0–T11, enter or nudge proposed X/Y/Z, then **Accept XYZ · AutoSave**. The three numbers are committed atomically with a backup and optimistic revision check. The tool-card Calibrate button now opens the editor, but **never initiates motion**. **No new terminal installation or Klipper restart is required.** The Tools page has a **Hotends in use (1–12)** selector which AutoSaves the global tool count. It shows **all selected hotend cards** from T0 up to the chosen count, including individually disabled profiles. Disabled tools are clearly labelled, remain protected from calibration commands and can be enabled deliberately in Settings. Reducing the count hides higher-numbered cards without modifying any of their saved calibration settings or Enabled flags. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
 
@@ -104,3 +104,7 @@ This release **does not** automatically rewrite your `CXM_variables.cfg`. It fir
 ## V0.6.1 — Maintenance lockout visibility
 
 Settings now displays a large, full-width **MAINTENANCE LOCKOUT** panel immediately under the selected hotend. Its 82 × 46 px ON/OFF switch and clear LOCKED OUT or UNLOCKED status replace the former small checkbox. A change AutoSaves through the existing revision-checked config endpoint. Removing an existing lockout requires deliberate confirmation. **Unlocked does not mean Ready**: no tool may move or be picked up until calibration and hardware verification are separately implemented and passed. No changes to Klipper, the Python service, tool offsets, webcam, or tool-count settings are required.
+
+## V0.6.2 — compact safety panel
+
+The maintenance lockout panel in Settings is modestly shorter: minimum height 140px (previously 158px), internal padding 18×22px (previously 22×26px), and the switch 74×42px (previously 82×46px). Heading, status and spacing are slightly reduced. Full-width layout, unlocked blue/locked red colours, prominent safety wording, AutoSave, confirmation on unlocking, and hardware safety rules are unchanged. This is a front-end styling release, requiring no Python service change or Klipper restart.
