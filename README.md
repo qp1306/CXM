@@ -1,10 +1,10 @@
 # CXM Control Centre
 
-**CXM V0.7.0 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
+**CXM V0.7.1 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.2 or V0.3? Upgrade to V0.7.0
+## Already installed V0.2 or V0.3? Upgrade to V0.7.1
 
 Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. V0.5.1 retains a guided **Dock Calibration** tab. Select any enabled T0–T11, enter or nudge proposed X/Y/Z, then **Accept XYZ · AutoSave**. The three numbers are committed atomically with a backup and optimistic revision check. The tool-card Calibrate button now opens the editor, but **never initiates motion**. **No new terminal installation or Klipper restart is required.** The Tools page has a **Hotends in use (1–12)** selector which AutoSaves the global tool count. It shows **all selected hotend cards** from T0 up to the chosen count, including individually disabled profiles. Disabled tools are clearly labelled, remain protected from calibration commands and can be enabled deliberately in Settings. Reducing the count hides higher-numbered cards without modifying any of their saved calibration settings or Enabled flags. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
 
@@ -121,3 +121,13 @@ python3 ~/CXM/scripts/cxm_xy_review.py --input /tmp/cxm_xy_demo.json
 ```
 
 Expected simulated output: `status=SIMULATION_ONLY`, `raw_dock_xy_mm={x:180.0,y:172.0}` and `save_permitted=false`. This is **made-up data**, not a dock calibration. No printer or configuration file changes, network requests or G-code are performed. Real experiments require verified stepper directions, mechanically safe homing, full stop at each capture, unchanged MCU session and repeated measurement validation. The dock X adjustment is deliberately not applied by this tool; it must be handled separately after confirming the correct sign.
+
+## V0.7.1 — Dedicated Z Calibration preparation
+
+A dedicated **Z Calibration** navigation tab shows the T0 nozzle-to-bed reference procedure and per-tool T1–T11 relative nozzle-height calibration. It reads stored `offset_z`, `offset_z_accepted`, `offset_z_verified`, `reference_verified` and maintenance lockout status for each selected hotend. The T0 reference remains **NOT VERIFIED** unless explicitly verified, even when `offset_z=0.000`. Previously entered offsets are shown as saved numbers, never presented as measured results.
+
+Important mechanical distinction: `dock_z` controls where a hotend parks/couples; `offset_z` compensates the interchangeable nozzle tip height during printing. A Cartographer permanently mounted to the carriage alone cannot establish the physical tip-height difference for every interchangeable hotend. If the installed Cartographer has a compatible, commissioned **Touch** capability, a contact-based reference might be possible; otherwise a separately validated common reference/measurement method is required. Verify the actual device model and physical travel/bed protection before choosing a method.
+
+The proposed full calibration will: verify safe homing and T0 reference; measure hotend nozzle tips against the **same repeatable datum** with stable temperature and confirmed pickup; check physical sign, repeatability and undock/redock behaviour; then use an intentionally authorised, revision-checked AutoSave and runtime compensation path. Those operations are future work, **not implemented** in this release.
+
+**MCU-free acceptance test:** open the new **Z Calibration** tab, check T0 reference is NOT VERIFIED, select T10 in the coloured dropdown, confirm its saved Z number is not labelled measured, verify T0–T11 comparison for tool count 12 (and T0–T5 when count 6), and confirm both **Start Z calibration** and **Accept measured Z** buttons are disabled. This change is view-only: no service restart, `printer.cfg` modification, G-code, nozzle motion or saved-offset changes.
