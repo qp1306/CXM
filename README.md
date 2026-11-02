@@ -1,10 +1,10 @@
 # CXM Control Centre
 
-**CXM V0.8.0 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
+**CXM V0.8.1 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.2 or V0.3? Upgrade to V0.8.0
+## Already installed V0.2 or V0.3? Upgrade to V0.8.1
 
 Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. V0.5.1 retains a guided **Dock Calibration** tab. Select any enabled T0–T11, enter or nudge proposed X/Y/Z, then **Accept XYZ · AutoSave**. The three numbers are committed atomically with a backup and optimistic revision check. The tool-card Calibrate button now opens the editor, but **never initiates motion**. **No new terminal installation or Klipper restart is required.** The Tools page has a **Hotends in use (1–12)** selector which AutoSaves the global tool count. It shows **all selected hotend cards** from T0 up to the chosen count, including individually disabled profiles. Disabled tools are clearly labelled, remain protected from calibration commands and can be enabled deliberately in Settings. Reducing the count hides higher-numbered cards without modifying any of their saved calibration settings or Enabled flags. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
 
@@ -159,3 +159,24 @@ This uses 12 **fabricated** hotends. Expected overall values: `overall_math_pass
 In **Z Calibration**, the new offline panel displays the exact current design parameters and CLI instructions. The existing per-hotend Z states, T0 reference indication, maintenance lockouts and disabled physical actions remain unchanged.
 
 **Not yet implemented / prerequisites before motion:** validate actual Cartographer 3D+1 Touch firmware and nozzle-contact safety on the CXM printer; MCU, endstops, extruder/carriage rigidity, hotend identity and seating; same probe point and temperature, independent trial repeats with removal/reseating; safe global-Z sign/convention; robust backup/revision guards; and controlled runtime application. The user-supplied BTC2 setup is only the working reference, not proof the different CXM coupling is repeatable.
+
+## V0.8.1 — Touch sample reliability and repeatable re-docking (offline)
+
+The existing BTC2 **tightest 3 of 5 results** verification, 0.020 mm intra-cluster tolerance, ±0.025 mm tool offset error, 0.040 mm overall error spread and 0.750 mm global Z correction limit remain **unchanged**.
+
+New pure-Python `scripts/cxm_z_reliability.py` adds an **advisory** full-five-reading quality audit (proposed CXM threshold: full-five spread >0.040 mm). It explicitly lists which individual readings were excluded from the chosen tightest-three cluster and marks possible outliers. It **does not replace or loosen BTC2 verification**. The synthetic V0.8.0 sample has one high outlier in every tool's five readings (full span ~0.106 mm): BTC2 math still passes, but the new quality report must say `REVIEW_REQUIRED`.
+
+Also new: mathematical consistency checks for at least **two independently supplied post-reseat trial sets** beyond baseline calibration. Each trial must provide three complete Cartographer Touch results per selected hotend including T0; it checks range ≤0.020 mm, a provisional 0.025 mm per-hotend relative Z drift from the baseline, and a 0.025 mm trial-to-trial drift. These 0.025 mm re-docking thresholds are new CXM engineering review values; they are not established BTC2 hardware limits.
+
+**Crucial:** data files cannot prove that a hotend was actually removed, seated, independently identified or contacted the bed. Even with satisfactory mathematical re-dock consistency, the reviewer always returns `independent_reseating_confirmed=false`, `ready_for_commissioning=false`, and `save_permitted=false`. Missing re-dock trials report `NOT_PROVIDED`, not a pass; existing V0.8.0 input files remain accepted.
+
+After installing, run:
+
+```bash
+python3 ~/CXM/scripts/cxm_z_review.py --example > /tmp/cxm_z_demo.json
+python3 ~/CXM/scripts/cxm_z_review.py --input /tmp/cxm_z_demo.json --summary
+```
+
+Expected synthetic results: `btc2_math_pass=true`, `quality_status=REVIEW_REQUIRED`, `flagged_hotends=[T0..T11]`, `reseat_status=MATH_PASS_UNVERIFIED`, `physical_reseating_verified=false`, `ready_for_commissioning=false`. The synthetic re-dock trial sets are fabricated, **not physical tests**. Without `--summary` the detailed per-tool outlier and re-dock data are returned.
+
+All hardware controls remain disabled on the Pi-only setup. The Z Calibration page displays the reliability methodology and run instructions. Nothing in this release changes stored calibration values, Klipper, Cartographer, printer movement, tool-readiness flags or the BTC2 printer.
