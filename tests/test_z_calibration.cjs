@@ -51,8 +51,8 @@ test('no runtime motion, writes, fabricated optical measurements, or automatic v
  assert.match(script,/cache:'no-store'/);
  assert.match(script,/CXMToolPicker\?\.sync/);
  assert.match(script,/status\.textContent=.*read-only|Read-only saved profiles/);
- assert.match(html,/cxm-z\.js\?v=0\.8\.0/);
- assert.match(html,/CXM starter <span>v0\.8\.0<\/span>/);
+ assert.match(html,/cxm-z\.js\?v=0\.8\.1/);
+ assert.match(html,/CXM starter <span>v0\.8\.1<\/span>/);
 });
 
 test('V0.8.0 Touch statistics and offline test are visible, but physical Z is locked',()=>{
@@ -70,4 +70,18 @@ test('V0.8.0 Touch statistics and offline test are visible, but physical Z is lo
  assert.match(html,/Start Z calibration · unavailable<\/button>/);
  assert.match(html,/Accept measured Z · unavailable<\/button>/);
  assert.doesNotMatch(script,/CARTOGRAPHER_TOUCH_PROBE|G28|SET_GCODE_OFFSET|\/printer\/gcode/);
+});
+
+test('V0.8.1 makes excessive full-five Touch variance and re-dock prerequisites explicit',()=>{
+ assert.match(html,/Full 5-reading quality audit/);
+ assert.match(html,/above 0\.040 mm/);
+ assert.match(html,/two separately collected post-reseat trial sets/);
+ assert.match(html,/Proposed 0\.025 mm drift review limit/);
+ assert.match(html,/REVIEW_REQUIRED/);
+ assert.match(html,/ready_for_commissioning: false/);
+ assert.match(html,/cxm_z_review\.py --input \/tmp\/cxm_z_demo\.json --summary/);
+ assert.match(html,/No readiness or save flags can be granted/);
+ assert.match(html,/Start Z calibration · unavailable<\/button>/);
+ assert.match(html,/Accept measured Z · unavailable<\/button>/);
+ assert.doesNotMatch(script,/\/printer\/gcode|SET_GCODE_OFFSET|method:\s*['"]POST|CARTOGRAPHER_TOUCH_PROBE/);
 });
