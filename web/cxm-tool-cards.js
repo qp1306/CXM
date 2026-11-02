@@ -23,7 +23,7 @@
                       : '<button class="btn" disabled>Edit</button>';
     return {
       state,
-      html: '<div class="tool-header"><strong>T' + n + '</strong><span class="dock-label">' + label + '</span></div>'
+      html: '<div class="tool-header"><strong class="cxm-tool-chip">T' + n + '</strong><span class="dock-label">' + label + '</span></div>'
         + '<div class="tool-sub">Hotend ' + n + (n===0?' · reference':'') + '</div>'
         + row('Dock XYZ (mm)',dock)
         + row('Tool offsets XYZ (mm)',offsets)
@@ -53,6 +53,7 @@
       if(!visible) return;
       const result=card(t,n,count);
       element.dataset.profileState=result.state;
+      element.style.setProperty('--tool-color',window.CXMToolStyle?.color(n)||'#b6c4d5');
       element.innerHTML=result.html;
       const edit=element.querySelector('[data-cxm-edit]');
       if(edit)edit.addEventListener('click',() => {
