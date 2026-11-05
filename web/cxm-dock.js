@@ -1,4 +1,5 @@
-/* CXM V0.6 — dock coordinate editor; all movement and sensor actions absent. */
+/* CXM V0.8.2 — provisional dock editor and read-only live Klipper preflight.
+   No printer motion, endstop probing, heating or sensor commands. */
 (() => {
   'use strict';
   const root = document.querySelector('[data-panel="calibration"]');
@@ -112,6 +113,85 @@
     if (!response.ok) throw new Error(data.error||'HTTP '+response.status);
     return data;
   }
+
+  // Read-only Moonraker status is informational. Never use it to grant
+  // motion, permit calibration acceptance, or mark a tool verified.
+  function liveField(id, label, cls='live-pending') {
+    const node=get(id);
+    if (!node) return;
+    node.textContent=label;
+    node.classList.remove('live-ok','live-pending','live-error');
+    node.classList.add(cls);
+  }
+  function resetLive(message) {
+    liveField('cxmDockLiveKlipper','Unavailable','live-error');
+    liveField('cxmDockLiveHoming','Unknown','live-error');
+    liveField('cxmDockLiveState','Unknown','live-error');
+    liveField('cxmDockLivePosition','Unavailable','live-error');
+    liveField('cxmDockLiveHomingTest','Not verified','live-pending');
+    get('cxmDockLiveUpdated').textContent=message;
+  }
+  async function moonrakerRead(path) {
+    const res=await fetch(path,{credentials:'same-origin',cache:'no-store'});
+    if (!res.ok) throw new Error('Moonraker HTTP '+res.status);
+    const data=await res.json();
+    if (data.error || !data.result || typeof data.result!=='object') {
+      throw new Error('Moonraker did not return a valid status result');
+    }
+    return data.result;
+  }
+  async function updateLiveStatus() {
+    try {
+      const info=await moonrakerRead('/printer/info');
+      if (info.state!=='ready') {
+        resetLive('Klipper state: '+String(info.state||'unknown')+
+          '. This is a read-only status; no calibration is authorised.');
+        return;
+      }
+      const listed=await moonrakerRead('/printer/objects/list');
+      const names=Array.isArray(listed.objects)?listed.objects:[];
+      if (!names.includes('toolhead')) throw new Error('Klipper toolhead is unavailable');
+      const queries=['toolhead'];
+      if (names.includes('idle_timeout')) queries.push('idle_timeout');
+      if (names.includes('print_stats')) queries.push('print_stats');
+      const data=await moonrakerRead('/printer/objects/query?'+queries.join('&'));
+      const st=data.status||{};
+      const toolhead=st.toolhead;
+      if (!toolhead || typeof toolhead!=='object') throw new Error('Missing toolhead status');
+      const homed=typeof toolhead.homed_axes==='string'?toolhead.homed_axes:'';
+      const xyz=['x','y','z'].every(axis=>homed.includes(axis));
+      const idle=st.idle_timeout?.state;
+      const print=st.print_stats?.state;
+      const state=print && !['standby','complete','cancelled','error'].includes(print)
+        ? 'Print: '+print
+        : idle==='Ready'||idle==='Idle'
+        ? idle+' (Klipper)'
+        : idle ? idle+' (Klipper)' : 'Idle status unknown';
+      const position=toolhead.position;
+      const finiteXYZ=Array.isArray(position) && position.length>=3
+        && position.slice(0,3).every(n=>typeof n==='number' && Number.isFinite(n));
+      liveField('cxmDockLiveKlipper','Ready (reported)','live-ok');
+      liveField('cxmDockLiveHoming',xyz?'XYZ homed (reported)':homed.toUpperCase()||'Not homed',
+        xyz?'live-ok':'live-pending');
+      liveField('cxmDockLiveState',state,
+        (['Ready','Idle'].includes(idle) && (!print ||
+          ['standby','complete','cancelled','error'].includes(print)))?'live-ok':'live-pending');
+      liveField('cxmDockLivePosition',finiteXYZ
+        ? position.slice(0,3).map(v=>v.toFixed(3)).join(' / ')+' mm'
+        : 'Position unavailable',finiteXYZ?'live-ok':'live-pending');
+      liveField('cxmDockLiveHomingTest',xyz
+        ? 'XYZ reported homed · physical validation pending'
+        : 'Not all axes reported homed · physical validation pending',
+        'live-pending');
+      get('cxmDockLiveUpdated').textContent=
+        'Updated from Moonraker (read-only). XYZ is the CURRENT carriage position, NOT the dock location. '+
+        'Klipper homing does not verify motor directions, endstops or safe docking clearance.';
+    } catch (e) {
+      resetLive('Moonraker live preflight unavailable: '+e.message+
+        '. Saved dock drafts remain separate. No motion or verification is authorised.');
+    }
+  }
+
   async function load() {
     if (busy) return;
     if (dirty && !window.confirm('Discard unsaved dock XYZ draft and reload the saved coordinates?')) return;
@@ -122,6 +202,10 @@
       snapshot = null;
       render();
       report('Configuration service unavailable: '+e.message+'. No coordinates have been changed.',true);
+    } finally {
+      // Always refresh live status, even when saved config is inaccessible.
+      // Never alter motion/saving safety gates based on this report.
+      await updateLiveStatus();
     }
   }
   async function accept() {
