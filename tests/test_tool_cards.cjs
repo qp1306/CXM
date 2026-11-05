@@ -62,11 +62,11 @@ test('red overlay, preserved palette and control count',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
  assert.match(html,/\.tool-card\.cxm-needs-attention::after\{content:"NOT READY"/);
  assert.match(html,/pointer-events:none/);
- assert.match(html,/cxm-tool-state\.js\?v=0\.8\.1/);
- assert.match(html,/cxm-tool-picker\.js\?v=0\.8\.1/);
+ assert.match(html,/cxm-tool-state\.js\?v=0\.8\.2/);
+ assert.match(html,/cxm-tool-picker\.js\?v=0\.8\.2/);
  assert.match(html,/id="cxmCountSelect"/);
  assert.match(html,/<option value="12">12<\/option>/);
- assert.match(html,/CXM starter <span>v0\.8\.1<\/span>/);
+ assert.match(html,/CXM starter <span>v0\.8\.2<\/span>/);
  const script=fs.readFileSync(path.join(__dirname,'../web/cxm-settings.js'),'utf8');
  assert.match(script,/key:'tool_count',value:next/);
  assert.match(script,/snapshot\.migration_required/);
