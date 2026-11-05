@@ -13,7 +13,7 @@ test('dock wizard loads and includes required user controls',()=>{
                    'cxmDockFeedback']) {
     assert.match(html,new RegExp('id="'+id+'"'));
   }
-  assert.match(html,/cxm-dock\.js\?v=0\.8\.1/);
+  assert.match(html,/cxm-dock\.js\?v=0\.8\.2/);
   assert.match(html,/data-panel="calibration"/);
   assert.match(cards,/data-cxm-calibrate/);
 });
@@ -65,7 +65,7 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
 test('V0.7 offline XY measurement lab is read-only and never offers live motion',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
  assert.match(html,/1 · Automatic XY dock measurement/);
- assert.match(html,/Offline calculator available · Hardware pending/);
+ assert.match(html,/Offline maths ready · live measurement not yet integrated/);
  assert.match(html,/Measure dock XY · unavailable<\/button>/);
  assert.match(html,/button class="btn" disabled title="Requires MCU, safe homing and verified capture adapter"/);
  assert.match(html,/python3 ~\/CXM\/scripts\/cxm_xy_review\.py --example/);
@@ -86,4 +86,25 @@ test('dock layout follows measure → align → verify, with the same safety con
  assert.match(section,/button class="btn" disabled title="Requires physical pickup sensor testing"/);
  for(const id of ['cxmDockTool','cxmDockAccept','cxmDockReset','cxmDockBackups','cxmDockFeedback'])
    assert.equal(section.split('id="'+id+'"').length-1,1);
+});
+
+test('V0.8.2 dock preflight reads real Klipper status but cannot authorise motion',()=>{
+ for(const id of ['cxmDockLiveKlipper','cxmDockLiveHoming','cxmDockLiveState',
+                  'cxmDockLivePosition','cxmDockLiveHomingTest','cxmDockLiveUpdated'])
+  assert.match(html,new RegExp('id="'+id+'"'));
+ assert.doesNotMatch(html,/No MCU connected/);
+ assert.match(html,/Not integrated<\/strong>/);
+ assert.match(html,/live Klipper state shown below/);
+ assert.match(html,/XYZ is the CURRENT carriage position|read-only Klipper hardware preflight/i);
+ assert.match(dock,/async function moonrakerRead\(path\)/);
+ assert.match(dock,/await moonrakerRead\('\/printer\/info'\)/);
+ assert.match(dock,/await moonrakerRead\('\/printer\/objects\/list'\)/);
+ assert.match(dock,/await moonrakerRead\('\/printer\/objects\/query\?'\+queries\.join\('&'\)\)/);
+ assert.match(dock,/xyz\?'XYZ homed \(reported\)'/);
+ assert.match(dock,/XYZ reported homed · physical validation pending/);
+ assert.match(dock,/await updateLiveStatus\(\)/);
+ assert.match(dock,/no motion or verification is authorised/i);
+ assert.doesNotMatch(dock,/\/printer\/gcode\/script|\/printer\/gcode\/help|CARTOGRAPHER_TOUCH|SET_GCODE_OFFSET/);
+ assert.match(html,/Measure dock XY · unavailable<\/button>/);
+ assert.match(html,/button class="btn" disabled title="Requires safe Klipper macros">Approach dock/);
 });
