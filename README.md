@@ -1,10 +1,10 @@
 # CXM Control Centre
 
-**CXM V0.8.1 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
+**CXM V0.8.2 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.2 or V0.3? Upgrade to V0.8.1
+## Already installed V0.2 or V0.3? Upgrade to V0.8.2
 
 Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. V0.5.1 retains a guided **Dock Calibration** tab. Select any enabled T0–T11, enter or nudge proposed X/Y/Z, then **Accept XYZ · AutoSave**. The three numbers are committed atomically with a backup and optimistic revision check. The tool-card Calibrate button now opens the editor, but **never initiates motion**. **No new terminal installation or Klipper restart is required.** The Tools page has a **Hotends in use (1–12)** selector which AutoSaves the global tool count. It shows **all selected hotend cards** from T0 up to the chosen count, including individually disabled profiles. Disabled tools are clearly labelled, remain protected from calibration commands and can be enabled deliberately in Settings. Reducing the count hides higher-numbered cards without modifying any of their saved calibration settings or Enabled flags. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
 
@@ -180,3 +180,21 @@ python3 ~/CXM/scripts/cxm_z_review.py --input /tmp/cxm_z_demo.json --summary
 Expected synthetic results: `btc2_math_pass=true`, `quality_status=REVIEW_REQUIRED`, `flagged_hotends=[T0..T11]`, `reseat_status=MATH_PASS_UNVERIFIED`, `physical_reseating_verified=false`, `ready_for_commissioning=false`. The synthetic re-dock trial sets are fabricated, **not physical tests**. Without `--summary` the detailed per-tool outlier and re-dock data are returned.
 
 All hardware controls remain disabled on the Pi-only setup. The Z Calibration page displays the reliability methodology and run instructions. Nothing in this release changes stored calibration values, Klipper, Cartographer, printer movement, tool-readiness flags or the BTC2 printer.
+
+## V0.8.2 — Dock Calibration live Klipper preflight (NO MOTION)
+
+Following successful basic XY/Z movement commissioning, Dock Calibration now includes **read-only Moonraker status**. On opening the tab or pressing **Refresh**, the browser queries:
+- `GET /printer/info`
+- `GET /printer/objects/list`
+- `GET /printer/objects/query?toolhead&idle_timeout` (plus `print_stats` only when actually present)
+
+It displays Klipper state, XYZ **reported** homing, idle/print state and **current carriage position**. These are informational: a Klipper-reported homed XYZ is **not** proof of physically correct axis direction, the real dock position, a safe clearance or any tool pickup. If a live API call fails or returns a non-ready state, the display fails closed and does not pretend the printer is ready for calibration. Status refresh changes **no** readiness or saving permissions.
+
+Fixed misleading static text from MCU-free development:
+- Replaced `No MCU connected` in Dock Calibration with a neutral warning that stored dock coordinates are not currently active in Klipper.
+- Replaced the fixed `XYZ homing: Not verified` label with the live reported homing state **and explicitly retained physical verification pending**.
+- `Active hotend` now says `Not integrated` rather than implying that Klipper itself is disconnected.
+
+**Still intentionally unavailable:** automatic Y-then-X XY dock capture, motor movement, approach dock, Test Pickup, Repeat Test, and any hotend commissioning. No G-code is issued; the current V0.7.0 XY calculations remain offline. Manual provisional XYZ editing still requires all **three** valid coordinates, deliberate acceptance, and the backend's existing Klipper idle safety gate. No changes to Klipper macros, `printer.cfg`, active tool, hardware or Z math. The working V0.8.1 release remains the rollout baseline.
+
+**Acceptance:** install through the existing Updates page while Klipper is idle. Open Dock Calibration. If Klipper reports Ready and XYZ homed, expect live indicators `Ready (reported)`, `XYZ homed (reported)`, current XYZ position from Moonraker, and a separate `physical validation pending` label. Confirm `Measure dock XY`, `Approach dock` and `Test pickup` remain disabled. No invented dock XYZ should be saved.
