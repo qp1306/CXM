@@ -8,6 +8,8 @@ No automatic calibration motion. Assumes repo deployed at ~/CXM.
 import argparse
 from datetime import datetime, timezone
 import hashlib
+import configparser
+import math
 import os
 from pathlib import Path
 import re
@@ -22,6 +24,38 @@ def section(raw, name):
     if len(matches)!=1: raise RuntimeError('Expected exactly one ['+name+'] in printer.cfg')
     pairs=dict(re.findall(r'(?m)^\s*([a-z_]+)\s*:\s*([^#\n]+)',matches[0]))
     return {k:v.strip() for k,v in pairs.items()}
+
+def verify_existing_cfg(raw, *, resolution, xstop, ystop):
+    """Accept equivalent settings regardless of comments, spacing or description.
+
+    Reject unexpected sections, duplicate keys and different executable G-code.
+    Never rewrite an existing operator-owned calibration file.
+    """
+    parser=configparser.ConfigParser(
+        interpolation=None, strict=True, inline_comment_prefixes=('#',))
+    parser.read_string(raw)
+    names={'dock_locate_calibrate', 'gcode_macro DOCK_CALIBRATION'}
+    if set(parser.sections()) != names:
+        raise RuntimeError('Existing Lineux CFG has missing/extra sections; not replacing')
+    engine=parser['dock_locate_calibrate']
+    if set(engine) != {'xy_resolution','x_endstop','y_endstop','calibrate_move_x'}:
+        raise RuntimeError('Existing Lineux CFG has missing/extra engine options')
+    for field,expected in (
+            ('xy_resolution',resolution),('x_endstop',xstop),
+            ('y_endstop',ystop),('calibrate_move_x',3.0)):
+        try:
+            value=float(engine[field])
+        except (TypeError,ValueError) as exc:
+            raise RuntimeError('Invalid existing Lineux '+field) from exc
+        if not math.isfinite(value) or abs(value-expected)>1e-7:
+            raise RuntimeError('Existing Lineux '+field+
+                               ' differs from CXM; manual review required')
+    macro=parser['gcode_macro DOCK_CALIBRATION']
+    if set(macro) != {'description','gcode'} or (
+            macro['gcode'].strip() != 'DOCK_LOCATE_CALIBRATE'):
+        raise RuntimeError('Existing DOCK_CALIBRATION G-code differs; review required')
+    return True
+
 
 def atomically_write(path, raw):
     with tempfile.NamedTemporaryFile('wb',dir=path.parent,delete=False) as f:
@@ -67,8 +101,16 @@ def main():
     content=('''# CXM Control Centre - Lineux calibrated measurement engine\n# Original Python module unchanged (SHA256 verified by installer).\n# Measurement must be initiated only after checking the dock clearance.\n[dock_locate_calibrate]\nxy_resolution: %.8f\nx_endstop: %.5f\ny_endstop: %.5f\ncalibrate_move_x: 3.0\n\n[gcode_macro DOCK_CALIBRATION]\ndescription: Lineux provisional dock XY measurement - supervised only\ngcode:\n    DOCK_LOCATE_CALIBRATE\n'''%(resolution,xstop,ystop)).encode('utf-8')
     if destination.exists() and destination.read_bytes()!=src:
         raise RuntimeError('Another dock_locate_calibrate.py exists; refusing overwrite')
-    if cfg.exists() and cfg.read_bytes()!=content:
-        raise RuntimeError('An existing custom dock_locate_calibrate.cfg differs; refusing overwrite')
+    cfg_preserved=False
+    if cfg.exists():
+        # Existing CXM installation may have different explanatory comments.
+        # Preserve the file if the configuration meaning is identical.
+        try:
+            verify_existing_cfg(cfg.read_text('utf-8'),
+                resolution=resolution,xstop=xstop,ystop=ystop)
+        except (configparser.Error, UnicodeError) as exc:
+            raise RuntimeError('Existing Lineux CFG cannot be parsed safely: '+str(exc)) from exc
+        cfg_preserved=True
     target='[include dock_locate_calibrate.cfg]'
     count=conf.count(target)
     if count>1:raise RuntimeError('Duplicate dock_locate_calibrate.cfg includes')
@@ -77,6 +119,7 @@ def main():
     print('Klipper module:',destination)
     print('Calibration settings:',{'resolution':resolution,'x_endstop':xstop,'y_endstop':ystop})
     print('Existing include count:',count)
+    print('Lineux CFG:', 'existing verified; PRESERVE unchanged' if cfg_preserved else 'create new')
     print('NO printer movement; NO Klipper restart')
     if not a.apply:
         print('DRY RUN ONLY. Review before applying --apply.')
