@@ -11,6 +11,7 @@ import time
 import urllib.error
 import urllib.request
 from cxm_config import Store
+from cxm_t0 import status as t0_status, record_sensor as t0_record_sensor, motion as t0_motion, T0Error
 from cxm_lineux import (query_readiness, perform_measurement, perform_known_check,
                         release_xy_for_dock, home_and_lift_for_dock, MeasurementError)
 from urllib.parse import parse_qs, urlsplit
@@ -114,6 +115,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,{'backups':self.server.store.history()})
             elif self.path == '/v1/runtime':
                 self.output(200,runtime_evidence())
+            elif self.path == '/v1/t0/status':
+                self.output(200,t0_status(self.server.store))
             elif self.path.startswith('/v1/lineux/status?'):
                 url=urlsplit(self.path)
                 args=parse_qs(url.query)
@@ -149,8 +152,18 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home'):
+            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/t0/sensor':
+                if set(body) != {'expected_revision','name','condition','acknowledgement'}:
+                    raise ValueError('Unexpected T0 sensor request')
+                self.output(200,t0_record_sensor(store=self.server.store,**body))
+                return
+            if self.path == '/v1/t0/motion':
+                if set(body) != {'expected_revision','kind','acknowledgement','shift_x','dodge_y'}:
+                    raise ValueError('Unexpected T0 motion request')
+                self.output(200,t0_motion(store=self.server.store,**body))
                 return
             if self.path == '/v1/lineux/home':
                 if set(body) != {'tool','expected_revision','acknowledgement'}:
@@ -226,7 +239,8 @@ def main():
     # GitHub updates modify repository files but should not need an SSH step.
     # systemd Restart=always relaunches the new Python code after a source change.
     watched=[Path(__file__),Path(__file__).with_name('cxm_config.py'),
-             Path(__file__).with_name('cxm_lineux.py')]
+             Path(__file__).with_name('cxm_lineux.py'),
+             Path(__file__).with_name('cxm_t0.py')]
     before=[p.stat().st_mtime_ns for p in watched]
     def monitor_updates():
         while True:

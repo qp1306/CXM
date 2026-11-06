@@ -21,6 +21,7 @@ MOVE_LOCK = threading.Lock()
 # In-memory known-position evidence. Reset on service restart and invalidated on Klipper PID change.
 KNOWN_SESSION = {'pid': None, 'at': 0.0}
 KNOWN_MAX_AGE_SEC = 3600
+CXM_HOME_SESSION = {'pid':None,'revision':None,'at':0.0}
 KNOWN_TOLERANCE_MM = 0.25  # Initial commissioning threshold, not established accuracy
 NUMBER = r'([+-]?(?:\d+(?:\.\d*)?|\.\d+))'
 
@@ -362,6 +363,7 @@ def home_and_lift_for_dock(*, tool, expected_revision, acknowledgement, store):
             or not all(motors.get(n) is True for n in
                 ('stepper_x','stepper_y','stepper_z','stepper_z1','stepper_z2','stepper_z3'))):
             raise MeasurementError('Homing completion not verified; inspect XYZ and all four Z motors before proceeding')
+        CXM_HOME_SESSION.update(pid=pre['status']['klipper_pid'],revision=expected_revision,at=time.monotonic())
         return {'status':'HOMED_Z20_CENTRE','tool':tool,'position_mm':[195,170,20],
                 'note':'CXM homed and parked X195 Y170 Z20. Check physical clearance before releasing XY.'}
 
@@ -382,6 +384,7 @@ def release_xy_for_dock(*, tool, expected_revision, acknowledgement, store):
         pre=query_readiness(tool=tool,saved=snap,mode='prepare')
         if not pre['ready']:
             raise MeasurementError('XY release blocked: '+'; '.join(pre['blockers']))
+        CXM_HOME_SESSION.update(pid=None,revision=None,at=0.0)
         _rpc('/printer/gcode/script',{'script':
             'SET_STEPPER_ENABLE STEPPER=stepper_x ENABLE=0\n'
             'SET_STEPPER_ENABLE STEPPER=stepper_y ENABLE=0'})
