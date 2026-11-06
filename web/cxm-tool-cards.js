@@ -3,7 +3,6 @@
 (function(){
   'use strict';
   const format=v=>v==null?'—':Number(v).toFixed(3);
-  const speed=v=>v==null?'—':Number(v).toFixed(0);
   const row=(name,value)=>'<div class="tool-row"><span>'+name+'</span><b>'+value+'</b></div>';
   const stateApi=typeof require==='function'?require('./cxm-tool-state.js'):window.CXMToolState;
   function card(tool,n,count,runtime={}) {
@@ -14,23 +13,18 @@
       s.code==='CONFIG_UNAVAILABLE'?'CONFIG UNAVAILABLE':
       s.code==='PRINTER_OFFLINE'?'PRINTER OFFLINE':s.label;
     const canEdit=!!tool && s.selected && runtime.migrationRequired!==true;
-    const edit=canEdit?'<button class="btn" data-cxm-edit="'+n+'">Edit</button>':
-      '<button class="btn" disabled>Edit</button>';
+    const edit=canEdit?'<button class="btn" data-cxm-edit="'+n+'">Settings</button>':
+      '<button class="btn" disabled>Settings</button>';
     const calibrate=s.canCalibrate?
-      '<button class="btn" data-cxm-calibrate="'+n+'">Calibrate</button>':
-      '<button class="btn" disabled title="Calibration locked">Calibrate</button>';
-    // Keep pickup locked until actual macros and verification are integrated.
-    const pickup='<button class="btn primary" disabled title="Pickup unavailable until verified CXM macros are installed">Pick up</button>';
+      '<button class="btn primary" data-cxm-calibrate="'+n+'">Dock XY</button>':
+      '<button class="btn" disabled title="Calibration locked">Dock XY</button>';
     return {state:s.code,
       html:'<div class="tool-header"><strong class="cxm-tool-chip">T'+n+'</strong>'+
       '<span class="dock-label cxm-readiness-label">'+label+'</span></div>'+
       '<div class="tool-sub">Hotend '+n+(n===0?' · reference':'')+'</div>'+
       '<div class="cxm-tool-readiness-detail">'+s.reason+'</div>'+
       row('Dock XY (mm)',dock)+row('Tool offsets XYZ (mm)',offsets)+
-      row('Approach speed',tool?speed(tool.approach_speed)+' mm/min':'—')+
-      row('Dock speed',tool?speed(tool.dock_speed)+' mm/min':'—')+
-      row('Temperature','— (not connected)')+
-      '<div class="tool-buttons">'+pickup+edit+calibrate+'</div>'};
+      '<div class="tool-buttons">'+calibrate+edit+'</div>'};
   }
   function render(snapshot){
     if(typeof document==='undefined')return;

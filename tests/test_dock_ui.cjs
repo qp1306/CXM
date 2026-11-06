@@ -117,7 +117,7 @@ test('V0.8.2 dock preflight reads real Klipper status but cannot authorise motio
                   'cxmDockLivePosition','cxmDockLiveHomingTest','cxmDockLiveUpdated'])
   assert.match(html,new RegExp('id="'+id+'"'));
  assert.doesNotMatch(html,/No MCU connected/);
- assert.match(html,/Not integrated<\/strong>/);
+ assert.match(html,/id="activeTool" hidden>Not integrated<\/span>/);
  assert.match(html,/Printer diagnostics \(optional\)/);
  assert.match(html,/XYZ is the CURRENT carriage position|read-only Klipper hardware preflight/i);
  assert.match(dock,/async function moonrakerRead\(path\)/);
