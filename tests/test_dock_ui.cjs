@@ -62,14 +62,21 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
  assert.match(dock,/window\.CXMToolState\?\.classify\(option\.tool/);
 });
 
-test('V0.7 offline XY measurement lab is read-only and never offers live motion',()=>{
- const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
+test('Lineux live measurement is gated, provisional, and separate from protected dock AutoSave',()=>{
+ const lineux=fs.readFileSync(path.join(__dirname,'../web/cxm-lineux.js'),'utf8');
  assert.match(html,/1 · Automatic XY dock measurement/);
- assert.match(html,/Offline maths ready · live measurement not yet integrated/);
- assert.match(html,/Measure dock XY · unavailable<\/button>/);
- assert.match(html,/button class="btn" disabled title="Requires MCU, safe homing and verified capture adapter"/);
- assert.match(html,/real CoreXY capture reviewer directly below/i);
- assert.match(html,/Automatic G28 motion is deliberately unavailable/);
+ assert.match(html,/cxm-lineux\.js\?v=0\.9\.4/);
+ for(const id of ['cxmLineuxAck','cxmLineuxPreflight','cxmLineuxStart',
+                  'cxmLineuxResult','cxmLineuxToDraft','cxmLineuxApplyAdjust'])
+   assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(html,/id="cxmLineuxStart" disabled/);
+ assert.match(html,/id="cxmLineuxToDraft" disabled/);
+ assert.match(lineux,/I_CONFIRM_CLEAR_DOCK_PATH/);
+ assert.match(lineux,/expected_revision:snapshot\.revision/);
+ assert.match(lineux,/status!=='PROVISIONAL_LINEUX_UNVERIFIED'/);
+ assert.match(lineux,/source:'lineux-live'/);
+ assert.doesNotMatch(lineux,/\/printer\/gcode\/script/);
+ assert.match(dock,/\['manual-mcu-review','lineux-live'\]/);
 });
 
 test('dock layout follows measure → align → verify, with the same safety controls',()=>{
@@ -81,7 +88,8 @@ test('dock layout follows measure → align → verify, with the same safety con
  const recovery=section.indexOf('<h3>Recovery</h3>');
  assert.ok(auto>=0 && align>auto && verify>align && recovery>verify);
  assert.match(section,/After physically reviewing the provisional dock X\/Y in step 1/);
- assert.match(section,/button class="btn" disabled title="Requires MCU, safe homing and verified capture adapter"/);
+ assert.match(section,/id="cxmLineuxStart" disabled/);
+ assert.match(section,/id="cxmLineuxToDraft" disabled/);
  assert.match(section,/button class="btn" disabled title="Requires safe Klipper macros"/);
  assert.match(section,/button class="btn" disabled title="Requires physical pickup sensor testing"/);
  for(const id of ['cxmDockTool','cxmDockAccept','cxmDockReset','cxmDockBackups','cxmDockFeedback'])
@@ -105,6 +113,6 @@ test('V0.8.2 dock preflight reads real Klipper status but cannot authorise motio
  assert.match(dock,/await updateLiveStatus\(\)/);
  assert.match(dock,/no motion or verification is authorised/i);
  assert.doesNotMatch(dock,/\/printer\/gcode\/script|\/printer\/gcode\/help|CARTOGRAPHER_TOUCH|SET_GCODE_OFFSET/);
- assert.match(html,/Measure dock XY · unavailable<\/button>/);
+ assert.match(html,/id="cxmLineuxStart" disabled/);
  assert.match(html,/button class="btn" disabled title="Requires safe Klipper macros">Approach dock/);
 });

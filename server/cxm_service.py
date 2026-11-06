@@ -11,6 +11,8 @@ import time
 import urllib.error
 import urllib.request
 from cxm_config import Store
+from cxm_lineux import query_readiness, perform_measurement, MeasurementError
+from urllib.parse import parse_qs, urlsplit
 
 MAX_BODY = 4096
 
@@ -111,11 +113,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,{'backups':self.server.store.history()})
             elif self.path == '/v1/runtime':
                 self.output(200,runtime_evidence())
+            elif self.path.startswith('/v1/lineux/status?'):
+                url=urlsplit(self.path)
+                args=parse_qs(url.query)
+                if set(args) != {'tool'} or len(args['tool'])!=1 or not args['tool'][0].isdigit():
+                    raise ValueError('Select one valid hotend number')
+                n=int(args['tool'][0])
+                self.output(200,query_readiness(tool=n,saved=self.server.store.read()))
             elif self.path == '/v1/health':
                 self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
-        except (OSError, ValueError, SyntaxError) as e:
+        except (OSError, ValueError, SyntaxError, MeasurementError) as e:
             self.output(503,{'error':str(e)})
     def do_POST(self):
         # No CORS, strict same-origin and custom header to prevent cross-site form submits.
@@ -136,8 +145,17 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock','/v1/migrate'):
+            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/lineux/measure':
+                if set(body) != {'tool','expected_revision','acknowledgement'}:
+                    raise ValueError('Unexpected Lineux measurement parameters')
+                self.output(200,perform_measurement(
+                    tool=body['tool'],
+                    expected_revision=body['expected_revision'],
+                    acknowledgement=body['acknowledgement'],
+                    store=self.server.store))
                 return
             if not printer_safe():
                 self.output(409,{'error':'Klipper status not confirmed idle/halted; save blocked'})
