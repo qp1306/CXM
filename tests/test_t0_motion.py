@@ -190,7 +190,7 @@ class T0Test(unittest.TestCase):
             acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
         c.SESSION['last_action']='first_dropoff_pending'
         self.assertFalse(c.status(self.store)['can_confirm_staging'])
-        with self.assertRaisesRegex(c.T0Error,'Only a fresh'):
+        with self.assertRaisesRegex(c.T0Error,'Only an untouched first-cycle'):
             c.confirm_staging(store=self.store,expected_revision=self.store.rev,
                 acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
         self.assertEqual(self.machine.scripts,[])
