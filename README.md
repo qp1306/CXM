@@ -239,3 +239,23 @@ In Dock Calibration, select T0–T11, view real Klipper status, load the 6 Novem
 **Not yet integrated:** live MCU capture, automated Y-then-X homing, automatic docking, pickup/dropoff and live Klipper activation of saved coordinates. Do not invoke G28 from a parked hotend before the Z homing-override fault is fixed and the entire path is physically inspected. This release is a front-end-only layout/workflow consolidation: **no Klipper restart or modification to printer.cfg**.
 
 **Verification:** install V0.9.1 using Updates, hard-refresh the page, open Dock Calibration and click Load 6 Nov reference test → Calculate provisional XY; expect X295.00000 / Y99.96875 and a disabled Copy proposed X/Y button. Click Start new T0 capture and confirm the three snapshot fields and known references are cleared. The Testing page must no longer contain the XY calculator.
+
+
+## Hardware commissioning: homing override correction (X/Y-only G28 Z-drift fix)
+
+This **optional, operator-applied** patch addresses the CXM gantry rising another 10 mm on each \`G28 Y\` / \`G28 X\`. The existing \`printer.cfg\` has \`[homing_override]\`, \`axes: xyz\`, unconditional \`set_position_z: 0\`, and a 10 mm relative Z lift. The actual 6 November captures showed **+8,000 Z motor counts** on both an XY-only Y home and a subsequent X home.
+
+The smallest safe fix changes the override to \`axes: z\`, so individual \`G28 Y\` and \`G28 X\` are performed by native Klipper XY homing and **do not run the override's forced Z reset or lift**. Full \`G28\` still invokes the override, using the original first Z10 lift, Y → X → Cartographer Z at X195/Y170, and final Z5 lift. The patch also makes \`G28 Z\` home missing X/Y axes before moving to the Cartographer location. Note that Klipper **no longer forces Y first when \`G28 X\` is invoked alone**: use \`G28 Y\` followed by \`G28 X\` as separate commands for the CXM measurement procedure. The machine must be physically clear along the entire homing path and initial full-home lift.
+
+In SSH on the Pi after updating the CXM Git repo:
+
+\`\`\`bash
+python3 ~/CXM/scripts/cxm_homing_fix.py
+python3 ~/CXM/scripts/cxm_homing_fix.py --apply
+\`\`\`
+
+The first command prints the exact proposed diff and **never edits**. The second fails closed unless Moonraker confirms Ready/Idle, makes a timestamped backup at \`printer.cfg.cxm-before-homing-<timestamp>.bak\`, edits only the known \`[homing_override]\`, atomically writes, and verifies bytes. It neither moves the printer nor restarts Klipper. Never run \`--apply\` if the preflight differs from the expected configuration, or if a print or calibration is in progress.
+
+**One deliberate Klipper \`RESTART\` is required** because this modifies \`printer.cfg\`, unlike ordinary CXM disk-only AutoSave. After safely parking and verifying clearance, use Mainsail Console \`RESTART\`. Confirm Klipper reconnects and a complete **full** \`G28\` still homes Y first, X second and Cartographer Z. **Do not** perform an uninspected full \`G28\` from a dock or when the physical 10 mm Z lift is unsafe. With the nozzle clear and Z homed, record \`GET_POSITION\`, run \`G28 Y\`, record \`GET_POSITION\`, then \`G28 X\` and record again. Neither individual XY homing operation should advance any Z MCU step counters. If Z changes unexpectedly, stop, do not enable the automatic dock measurement and investigate other macros or firmware. The full original backup can be restored manually after stopping Klipper; then a deliberate \`RESTART\` is needed again.
+
+This patch does **not** enable live endstop travel capture or pickup motion in CXM Control Centre, and does **not** solve extruder thermistor disconnection or independent Z-step loss. It is a necessary XY-only homing prerequisite before live dock-calibration motion.
