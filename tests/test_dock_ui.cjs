@@ -139,7 +139,7 @@ test('T0 test controls are hardware-gated and never mark a tool verified',()=>{
  for(const id of ['cxmT0Sensor','cxmT0RecordEmpty','cxmT0RecordMounted',
    'cxmT0Stage','cxmT0Pickup','cxmT0Dropoff','cxmT0Plan'])
    assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(t0,/state\.sensor_calibrated===true/);
+ assert.match(t0,/state\?\.sensor_calibrated===true/);
  assert.match(t0,/state\?\.stage==='staged'/);
  assert.match(t0,/I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH/);
  assert.doesNotMatch(t0,/SET_GCODE_OFFSET|SET_HEATER_TEMPERATURE|G1 Z|printer\/gcode\/script/);
