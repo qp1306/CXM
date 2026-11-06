@@ -176,10 +176,17 @@ def query_readiness(*, tool, saved, mode='dock'):
 
 
 def parse_report(text):
-    if text.count('Lineux Hotswap Dock Calibration') != 1:
+    # Klipper's gcode.respond_info prefixes EACH output line with "// ".
+    # Moonraker retains these prefixes in gcode_store. Normalize only
+    # that known prefix before interpreting a multiline Lineux report.
+    if type(text) is not str:
+        raise MeasurementError('Invalid Lineux response')
+    normalized='\n'.join(re.sub(r'^\s*//[ \t]?', '', line)
+                         for line in text.splitlines())
+    if normalized.count('Lineux Hotswap Dock Calibration') != 1:
         raise MeasurementError('Missing or duplicate Lineux report')
     match = re.search(r'Calculated Dock Location:\s*X:\s*'+NUMBER+
-                      r'\s*mm\s*Y:\s*'+NUMBER+r'\s*mm',text,re.I)
+                      r'\s*mm\s*Y:\s*'+NUMBER+r'\s*mm',normalized,re.I)
     if not match:
         raise MeasurementError('Lineux calculated X/Y not found in response')
     x,y=map(float,match.groups())
