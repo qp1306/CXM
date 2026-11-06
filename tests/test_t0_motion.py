@@ -1,6 +1,7 @@
 """T0 XY-only commissioning protections: no physical hardware required."""
 import sys
 import unittest
+import itertools
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server'))
@@ -26,6 +27,9 @@ class Machine:
         self.z=20.0
         self.sensor=False
         self.scripts=[]
+        self.busy_reads_after_move=0
+        self.busy_remaining=0
+        self.busy_read_count=0
         self.axes='xyz'
         self.enabled=True
     def rpc(self,path,payload=None):
@@ -42,14 +46,20 @@ class Machine:
                     'gcode_button carriage_t0':{'state':state},
                     'gcode_button cxm_tool_detect':{'state':state},
                 }}
+            idle='Ready'
+            if self.busy_remaining>0:
+                self.busy_remaining-=1
+                self.busy_read_count+=1
+                idle='Printing'
             return {'status':{
-                'idle_timeout':{'state':'Ready'},
+                'idle_timeout':{'state':idle},
                 'toolhead':{'homed_axes':self.axes,'position':[self.x,self.y,self.z,0]},
                 'stepper_enable':{'steppers':{v:self.enabled for v in c.MOTORS}},
             }}
         if path=='/printer/gcode/script':
             script=payload['script']
             self.scripts.append(script)
+            self.busy_remaining=self.busy_reads_after_move
             for line in script.splitlines():
                 if line.startswith('G1'):
                     for term in line.split()[1:]:
@@ -236,6 +246,56 @@ class T0Test(unittest.TestCase):
         self.assertEqual(len(self.machine.scripts),3)
         self.assertEqual(c.status(self.store)['automatic']['action'],'dropoff')
         self.assertEqual(c.SESSION['samples'],{})
+
+    def test_one_click_waits_for_transient_idle_after_staging_and_dropoff(self):
+        # Exactly reproduces the field failure: the first script moves
+        # to Safe Y, Moonraker returns, but idle_timeout is still Printing.
+        # Only read-only queries may repeat; never submit duplicate G-code.
+        self.machine.sensor=True
+        self.machine.busy_reads_after_move=3
+        result=c.automatic_toolchange(store=self.store,
+            expected_revision=self.store.rev,kind='dropoff',
+            acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(result['status'],'T0_DROPOFF_SENSOR_CONFIRMED')
+        self.assertEqual(len(self.machine.scripts),2)
+        self.assertGreaterEqual(self.machine.busy_read_count,6)
+        self.assertIn('G1 Y120.00000 F600',self.machine.scripts[0])
+        self.assertIn('G1 X298.98000 Y65.88000 F240',self.machine.scripts[1])
+        self.assertEqual(c.status(self.store)['automatic']['signal'],'RELEASED')
+        self.assertIsNone(c.AUTO_STATE['fault'])
+
+    def test_persistent_klipper_busy_never_starts_dock_movement(self):
+        self.machine.sensor=True
+        self.machine.busy_reads_after_move=1000
+        clock=itertools.count()
+        with patch.object(c.time,'monotonic',side_effect=lambda: next(clock)):
+            with patch.object(c.time,'sleep',return_value=None):
+                with self.assertRaisesRegex(c.T0Error,'did not return to idle'):
+                    c.automatic_toolchange(store=self.store,
+                        expected_revision=self.store.rev,kind='dropoff',
+                        acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(len(self.machine.scripts),1,
+                         'Stage only; never attempt the dock move if Klipper never goes idle')
+        self.machine.busy_remaining=0
+        status=c.status(self.store)
+        self.assertFalse(status['automatic']['enabled'])
+        self.assertIsNotNone(status['automatic']['fault'])
+
+    def test_staging_sensor_changed_does_not_proceed_even_after_idle(self):
+        self.machine.sensor=True
+        self.machine.busy_reads_after_move=2
+        original=self.machine.rpc
+        def sensor_changed_after_stage(path,payload=None):
+            result=original(path,payload)
+            if path=='/printer/gcode/script':
+                self.machine.sensor=False
+            return result
+        with patch.object(c,'_rpc',side_effect=sensor_changed_after_stage):
+            with self.assertRaisesRegex(c.T0Error,'presence signal changed unexpectedly'):
+                c.automatic_toolchange(store=self.store,
+                    expected_revision=self.store.rev,kind='dropoff',
+                    acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(len(self.machine.scripts),1)
 
     def test_one_click_action_uses_live_switch_not_session_samples(self):
         self.machine.sensor=True
