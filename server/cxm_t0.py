@@ -222,7 +222,7 @@ def motion(*,store,expected_revision,kind,acknowledgement,
                     raise T0Error('T0 sensor not in expected pre-motion state')
                 if kind=='dropoff' and SESSION['last_action']!='pickup':
                     raise T0Error('Dropoff requires successful supervised pickup in this session')
-                if kind=='pickup' and SESSION['last_action'] not in (None,'dropoff','staged'):
+                if kind=='pickup' and SESSION['last_action'] not in (None,'dropoff','stage'):
                     raise T0Error('Cannot pick up again until T0 is released')
             # Disarm before any irreversible movement. On failure, a fresh
             # staging test and manual inspection are always required.
