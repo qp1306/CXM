@@ -61,12 +61,38 @@ function display(s){
   else if(typeof temp==='number')
     state('cxmTestThermistor','Sensor reports '+temp.toFixed(1)+'°C (NOT validated)','pending');
   else state('cxmTestThermistor','No sensor reading — no heating','bad');
-  // A configfile object reveals a risky override but cannot certify a safe one.
-  const override=s.st.configfile?.config?.homing_override;
-  const gcode=typeof override?.gcode==='string'?override.gcode:'';
-  if(override && override.set_position_z!=null && /G1\s+Z10\b/i.test(gcode))
-    state('cxmTestHoming','BLOCKED: forced Z=0 and repeated Z10 in G28','bad');
-  else state('cxmTestHoming','Not independently cleared: review homing_override','pending');
+  // Configuration detection only: never mark an untested homing path READY.
+  // Earlier releases used axes:xyz with forced Z=0 and Z10, causing each
+  // XY-only G28 to raise the gantry. V0.9.3 separates Z-only homing from a
+  // public G28 wrapper that enforces Y-first X with renamed G28.1 calls.
+  const cfg=s.st.configfile?.config||{};
+  const override=cfg.homing_override;
+  const wrapped=cfg['gcode_macro G28'];
+  const overrideAxes=typeof override?.axes==='string'
+    ?override.axes.toLowerCase().replace(/\s+/g,''):'xyz';
+  const protectedWrapper=overrideAxes==='z' &&
+    wrapped?.rename_existing==='G28.1' &&
+    typeof wrapped?.gcode==='string' &&
+    wrapped.gcode.includes('G28.1 Y') &&
+    wrapped.gcode.includes('G28.1 X');
+  if(protectedWrapper) {
+    state('cxmTestHoming',
+      'Y-first wrapper installed · Z-only override · PHYSICAL TEST PENDING',
+      'pending');
+  } else if(overrideAxes==='z') {
+    state('cxmTestHoming',
+      'BLOCKED: Z-only override but G28 X Y-first wrapper not confirmed',
+      'bad');
+  } else if(override && override.set_position_z!=null &&
+             /G1\s+Z10\b/i.test(String(override.gcode||''))) {
+    state('cxmTestHoming',
+      'BLOCKED: XY homing still applies forced Z=0 and repeated Z10',
+      'bad');
+  } else {
+    state('cxmTestHoming',
+      'Homing configuration not independently verified',
+      'pending');
+  }
   show('cxmTestLast','Last checked '+new Date(s.timestamp).toLocaleString()+
     ' · Read-only; no motors, heaters or settings changed');
 }
