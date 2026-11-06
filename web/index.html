@@ -198,7 +198,7 @@
 <div class="panel">
  <div class="panel-heading"><h3>2 · Align dock position</h3><span class="panel-label">Provisional coordinates</span></div>
  <div class="dock-steps" aria-label="Dock calibration stages"><span>Review saved XYZ</span><span>Edit draft</span><span>Accept &amp; save</span><span class="future">Hardware test — later</span></div>
- <p class="muted">After obtaining verified dock X/Y in step 1, enter the separately established dock Z and fine-adjust the draft if necessary. All three XYZ coordinates are saved together with a backup. Saved coordinates do not prove a successful pickup.</p>
+ <p class="muted">After physically reviewing the provisional dock X/Y in step 1, transfer it into this draft, then enter separately established dock Z and fine-adjust if necessary. All three XYZ coordinates are saved together with a backup. Saved coordinates do not prove a successful pickup.</p>
  <div class="dock-inputs">
  <label>X (mm)<input id="cxmDockX" type="number" step="0.001" placeholder="Not measured" /></label>
  <label>Y (mm)<input id="cxmDockY" type="number" step="0.001" placeholder="Not measured" /></label>
@@ -553,4 +553,5 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-z.js?v=0.9.1" defer></script>
 <script src="cxm-test-math.js?v=0.9.1" defer></script>
 <script src="cxm-testing.js?v=0.9.1" defer></script>
+<script src="cxm-dock-review.js?v=0.9.1" defer></script>
 </body></html>
