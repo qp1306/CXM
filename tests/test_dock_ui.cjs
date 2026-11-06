@@ -13,7 +13,7 @@ test('dock wizard loads and includes required user controls',()=>{
                    'cxmDockFeedback']) {
     assert.match(html,new RegExp('id="'+id+'"'));
   }
-  assert.match(html,/cxm-dock\.js\?v=0\.9\.0/);
+  assert.match(html,/cxm-dock\.js\?v=0\.9\.1/);
   assert.match(html,/data-panel="calibration"/);
   assert.match(cards,/data-cxm-calibrate/);
 });
@@ -68,8 +68,8 @@ test('V0.7 offline XY measurement lab is read-only and never offers live motion'
  assert.match(html,/Offline maths ready · live measurement not yet integrated/);
  assert.match(html,/Measure dock XY · unavailable<\/button>/);
  assert.match(html,/button class="btn" disabled title="Requires MCU, safe homing and verified capture adapter"/);
- assert.match(html,/python3 ~\/CXM\/scripts\/cxm_xy_review\.py --example/);
- assert.match(html,/without moving motors or saving a calibration/);
+ assert.match(html,/real CoreXY capture reviewer directly below/i);
+ assert.match(html,/Automatic G28 motion is deliberately unavailable/);
 });
 
 test('dock layout follows measure → align → verify, with the same safety controls',()=>{
@@ -80,7 +80,7 @@ test('dock layout follows measure → align → verify, with the same safety con
  const verify=section.indexOf('<h3>3 · Test and verify</h3>');
  const recovery=section.indexOf('<h3>Recovery</h3>');
  assert.ok(auto>=0 && align>auto && verify>align && recovery>verify);
- assert.match(section,/After obtaining verified dock X\/Y in step 1, enter the separately established dock Z/);
+ assert.match(section,/After physically reviewing the provisional dock X\/Y in step 1/);
  assert.match(section,/button class="btn" disabled title="Requires MCU, safe homing and verified capture adapter"/);
  assert.match(section,/button class="btn" disabled title="Requires safe Klipper macros"/);
  assert.match(section,/button class="btn" disabled title="Requires physical pickup sensor testing"/);
