@@ -211,9 +211,9 @@ def _automatic_script(path, kind, *, at_stage):
     """
     movement=_gcode(path[kind],kind).splitlines()
     if at_stage:
-        return '\\n'.join(movement)
+        return '\n'.join(movement)
     stage=_gcode(path['stage'],'stage').splitlines()
-    return '\\n'.join(stage+movement[1:])
+    return '\n'.join(stage+movement[1:])
 
 
 def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
