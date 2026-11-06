@@ -52,7 +52,7 @@ class Machine:
                         if term.startswith('X'):self.x=float(term[1:])
                         if term.startswith('Y'):self.y=float(term[1:])
             if len(self.scripts)>=2:
-                self.sensor=(len(self.scripts)%2)==0
+                self.sensor=not self.sensor
             return {}
         raise AssertionError('Unexpected request '+path)
 
@@ -141,6 +141,101 @@ class T0Test(unittest.TestCase):
         self.assertTrue(drop['sensor_confirmed'])
         self.assertEqual(len(self.machine.scripts),3)
         self.assertTrue(all(' Z' not in script for script in self.machine.scripts))
+
+    def test_first_supervised_dropoff_from_initially_mounted_t0(self):
+        # Fresh commissioning starts with T0 actually mounted. There is no
+        # physically EMPTY carriage to sample until the first dropoff.
+        self.machine.sensor=True
+        sample=c.record_sensor(store=self.store,expected_revision=self.store.rev,
+            name='gcode_button carriage_t0',condition='mounted',
+            acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        self.assertEqual(sample['value'],'PRESSED')
+        self.assertFalse(sample['both_states_distinct'])
+        c.motion(store=self.store,expected_revision=self.store.rev,kind='stage',
+                 acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertTrue(c.status(self.store)['first_dropoff_ready'])
+        result=c.motion(store=self.store,expected_revision=self.store.rev,kind='dropoff',
+                 acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertEqual(result['status'],
+                         'SUPERVISED_T0_FIRST_DROPOFF_AWAITING_EMPTY_CONFIRMATION')
+        self.assertFalse(result['sensor_confirmed'])
+        self.assertEqual(self.machine.scripts[-1].splitlines(),
+            ['G90','G1 X298.98000 Y65.88000 F240',
+             'G1 X295.98000 Y65.88000 F180',
+             'G1 X295.98000 Y79.88000 F240',
+             'G1 X298.98000 Y79.88000 F240',
+             'G1 X298.98000 Y120.00000 F240','M400'])
+        status=c.status(self.store)
+        self.assertTrue(status['first_dropoff_pending_empty'])
+        self.assertFalse(status['sensor_calibrated'])
+        with self.assertRaisesRegex(c.T0Error,'Verify carriage sensor EMPTY'):
+            c.motion(store=self.store,expected_revision=self.store.rev,kind='pickup',
+                 acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        recorded=c.record_sensor(store=self.store,expected_revision=self.store.rev,
+            name='gcode_button carriage_t0',condition='empty',
+            acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        self.assertEqual(recorded['value'],'RELEASED')
+        self.assertTrue(recorded['both_states_distinct'])
+        status=c.status(self.store)
+        self.assertTrue(status['sensor_calibrated'])
+        self.assertEqual(status['last_action'],'dropoff')
+        self.assertFalse(status['first_dropoff_pending_empty'])
+        pick=c.motion(store=self.store,expected_revision=self.store.rev,kind='pickup',
+                 acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertTrue(pick['sensor_confirmed'])
+        self.assertEqual(len(self.machine.scripts),3)
+
+    def test_initial_dropoff_needs_recorded_mounted_and_stage(self):
+        self.machine.sensor=True
+        c.motion(store=self.store,expected_revision=self.store.rev,kind='stage',
+            acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertFalse(c.status(self.store)['first_dropoff_ready'])
+        with self.assertRaisesRegex(c.T0Error,'Select and record'):
+            c.motion(store=self.store,expected_revision=self.store.rev,kind='dropoff',
+                acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertEqual(len(self.machine.scripts),1)
+
+    def test_first_dropoff_rejects_unconfirmed_empty_signal(self):
+        self.machine.sensor=True
+        c.record_sensor(store=self.store,expected_revision=self.store.rev,
+            name='gcode_button carriage_t0',condition='mounted',
+            acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        c.motion(store=self.store,expected_revision=self.store.rev,kind='stage',
+            acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        c.motion(store=self.store,expected_revision=self.store.rev,kind='dropoff',
+            acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        # A physically false "record mounted again" attempt must not bypass
+        # the pending EMPTY verification state.
+        with self.assertRaisesRegex(c.T0Error,'awaits physical EMPTY'):
+            c.record_sensor(store=self.store,expected_revision=self.store.rev,
+                name='gcode_button carriage_t0',condition='mounted',
+                acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        self.machine.sensor=True
+        with self.assertRaisesRegex(c.T0Error,'still reports MOUNTED'):
+            c.record_sensor(store=self.store,expected_revision=self.store.rev,
+                name='gcode_button carriage_t0',condition='empty',
+                acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        self.assertTrue(c.status(self.store)['first_dropoff_pending_empty'])
+        self.assertFalse(c.status(self.store)['sensor_calibrated'])
+
+    def test_initial_dropoff_stops_if_switch_never_changes(self):
+        self.machine.sensor=True
+        c.record_sensor(store=self.store,expected_revision=self.store.rev,
+            name='gcode_button carriage_t0',condition='mounted',
+            acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        c.motion(store=self.store,expected_revision=self.store.rev,kind='stage',
+            acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        # Freeze sensor at the MOUNTED state throughout the dropoff motion.
+        def frozen(path,payload=None):
+            result=self.machine.rpc(path,payload)
+            if path=='/printer/gcode/script':self.machine.sensor=True
+            return result
+        with patch.object(c,'_rpc',side_effect=frozen):
+            with self.assertRaisesRegex(c.T0Error,'did not change sensor'):
+                c.motion(store=self.store,expected_revision=self.store.rev,kind='dropoff',
+                    acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertIsNone(c.SESSION['stage'])
+        self.assertFalse(c.status(self.store)['first_dropoff_ready'])
 
     def test_no_pickup_from_unpowered_or_unhomed(self):
         for attr,value in [('enabled',False),('axes','xy')]:
