@@ -48,6 +48,7 @@ async function launch(count){
     config:{globals:{tool_count:count},tools:profiles}};
   const context={
     document:{getElementById:id=>nodes[id]??null,
+      createElement:tag=>element(),
       querySelector:selector=>pages[selector]??null},
     window:{confirm:()=>true,addEventListener(){}},
     fetch:async(url,options)=>{calls.push({url,options});return{
