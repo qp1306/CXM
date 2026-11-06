@@ -104,6 +104,7 @@ async function homeAndLift(){
     const result=await call('/home',{tool:n,expected_revision:snapshot.revision,
       acknowledgement:'I_CONFIRM_CLEAR_G28_AND_Z20_PATH'});
     if(result.status!=='HOMED_Z20_CENTRE')throw Error('Printer readiness confirmation failed');
+    busy=false;
     await preflight();
     el('cxmLineuxHomeStatus').textContent='HOMED · Z20 · X195/Y170. Next: Release X/Y.';
   }catch(e){
