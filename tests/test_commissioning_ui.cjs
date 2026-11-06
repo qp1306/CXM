@@ -34,15 +34,24 @@ test('reviewer fails closed on bad counters, impossible travel and cross-axis dr
  assert.throws(()=>math.parseMCU(sample.start+'\n'+sample.afterY),/exactly one MCU/);
  assert.throws(()=>math.parseMCU('mcu: stepper_x:2 stepper_y:3 stepper_y:4'),/duplicated/);
 });
-test('Testing page has live reads, restart evidence and real input controls',()=>{
+test('Testing page has live diagnostics and restart proof; dock maths lives only on Dock Calibration',()=>{
  assert.match(html,/data-panel="tests"/);
- for(const id of ['cxmTestRun','cxmTestBaseline','cxmTestCompare','cxmTestXYReview',
-                   'cxmTestStart','cxmTestAfterY','cxmTestAfterX','cxmTestEndX',
-                   'cxmTestEndY','cxmTestLoadKnown','cxmTestDownload',
-                   'cxmTestHomed','cxmTestHoming','cxmTestThermistor','cxmTestRestartResult'])
+ for(const id of ['cxmTestRun','cxmTestBaseline','cxmTestCompare',
+                   'cxmTestDownload','cxmTestHomed','cxmTestHoming',
+                   'cxmTestThermistor','cxmTestRestartResult'])
   assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/cxm-testing\.js\?v=0\.9\.0/);
- assert.match(html,/cxm-test-math\.js\?v=0\.9\.0/);
+ assert.match(html,/cxm-testing\.js\?v=0\.9\.1/);
+ assert.match(html,/cxm-test-math\.js\?v=0\.9\.1/);
+ assert.match(html,/cxm-dock-review\.js\?v=0\.9\.1/);
+ const dockSection=html.split('<section data-panel="calibration" hidden>')[1].split('</section>')[0];
+ const diagnostics=html.split('<section data-panel="tests" hidden>')[1].split('</section>')[0];
+ for(const id of ['cxmTestXYReview','cxmTestStart','cxmTestAfterY',
+  'cxmTestAfterX','cxmTestEndX','cxmTestEndY','cxmTestLoadKnown',
+  'cxmDockCaptureNew','cxmDockCaptureToDraft','cxmDockCaptureAck']){
+   assert.match(dockSection,new RegExp('id="'+id+'"'));
+   assert.doesNotMatch(diagnostics,new RegExp('id="'+id+'"'));
+ }
+ assert.doesNotMatch(js,/cxmTestXYReview|cxmTestLoadKnown|readInput\(\)|reviewResult/);
  assert.match(js,/getJSON\('\/cxm\/api\/v1\/runtime'\)/);
  assert.match(js,/getJSON\('\/cxm\/api\/v1\/config'\)/);
  assert.match(js,/getJSON\('\/printer\/info'\)/);
@@ -53,4 +62,23 @@ test('Testing page has live reads, restart evidence and real input controls',()=
  assert.match(js,/Mainsail homing override|homing_override/);
  assert.doesNotMatch(js,/method:\s*['"]POST|\/printer\/gcode|(?:^|\\n)\\s*(?:G28|SET_KINEMATIC_POSITION|FIRMWARE_RESTART)(?:\\s|$)/m);
  assert.doesNotMatch(html,/planned for later release/i);
+});
+
+test('dock reviewer never issues movement or persistent saves and blocks copying demo reference',()=>{
+ const controller=fs.readFileSync(path.join(__dirname,'../web/cxm-dock-review.js'),'utf8');
+ const editor=fs.readFileSync(path.join(__dirname,'../web/cxm-dock.js'),'utf8');
+ assert.match(controller,/mode='example'/);
+ assert.match(controller,/mode==='manual'/);
+ assert.match(controller,/r\.known_reference_errors_mm===null/);
+ assert.match(controller,/get\('cxmDockCaptureAck'\)\.checked===true/);
+ assert.match(controller,/source:'manual-mcu-review'/);
+ assert.match(controller,/No movement or save/);
+ assert.match(editor,/cxm-dock-provisional-xy/);
+ assert.match(editor,/proposal\.source!=='manual-mcu-review'/);
+ assert.match(editor,/if \(busy\|\|!canEdit\(\)\)/);
+ assert.match(editor,/xInput\.value=Number\(proposal\.x\)\.toFixed\(5\)/);
+ assert.match(editor,/yInput\.value=Number\(proposal\.y\)\.toFixed\(5\)/);
+ assert.match(editor,/markDraft\(\)/);
+ assert.doesNotMatch(controller,/\/printer\/gcode|postJSON|\/v1\/dock|FIRMWARE_RESTART/);
+ assert.match(html,/id="cxmDockCaptureToDraft" disabled/);
 });
