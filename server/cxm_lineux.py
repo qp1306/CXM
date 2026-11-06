@@ -343,9 +343,15 @@ def release_xy_for_dock(*, tool, expected_revision, acknowledgement, store):
         _rpc('/printer/gcode/script',{'script':
             'SET_STEPPER_ENABLE STEPPER=stepper_x ENABLE=0\n'
             'SET_STEPPER_ENABLE STEPPER=stepper_y ENABLE=0'})
-        post=query_readiness(tool=tool,saved=store.read(),mode='dock')
-        if not post['ready']:
-            raise MeasurementError('XY release confirmation failed: '+'; '.join(post['blockers']))
+        # Confirm the actual motor-enable state, not the idle_timeout state.
+        # Klipper may report "Printing" briefly after the command completes.
+        status=_rpc('/printer/objects/query?stepper_enable=steppers')['status']
+        steppers=status.get('stepper_enable',{}).get('steppers',{})
+        if (steppers.get('stepper_x') is not False or
+            steppers.get('stepper_y') is not False or
+            not all(steppers.get(z) is True for z in
+                    ('stepper_z','stepper_z1','stepper_z2','stepper_z3'))):
+            raise MeasurementError('XY release confirmation failed; verify power to all four Z motors before touching carriage')
         return {'status':'XY_RELEASED_Z_REMAINS_POWERED','tool':tool,
                 'release_confirmed':True,
                 'note':'Align carriage by hand. Reported XY is now stale; confirm +3mm physical clearance and full Y/Y/X homing route before measurement.'}
