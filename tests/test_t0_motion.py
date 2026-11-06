@@ -33,11 +33,15 @@ class Machine:
             return {'state':'ready','process_id':self.pid}
         if path=='/printer/objects/list':
             return {'objects':['idle_timeout','toolhead','stepper_enable',
-                               'gcode_button carriage_t0']}
+                               'gcode_button carriage_t0',
+                               'gcode_button cxm_tool_detect']}
         if path.startswith('/printer/objects/query?'):
             if 'gcode_button' in path:
-                return {'status':{'gcode_button carriage_t0':
-                                   {'state':'PRESSED' if self.sensor else 'RELEASED'}}}
+                state='PRESSED' if self.sensor else 'RELEASED'
+                return {'status':{
+                    'gcode_button carriage_t0':{'state':state},
+                    'gcode_button cxm_tool_detect':{'state':state},
+                }}
             return {'status':{
                 'idle_timeout':{'state':'Ready'},
                 'toolhead':{'homed_axes':self.axes,'position':[self.x,self.y,self.z,0]},
