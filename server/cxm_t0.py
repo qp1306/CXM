@@ -202,6 +202,20 @@ def _auto_snapshot(ctx, saved):
             'note':'Switch signal is a tool-presence indication, not independent mechanical-latch proof.'}
 
 
+def _automatic_script(path, kind, *, at_stage):
+    """Build ONE sequential XY script for staging and tool movement.
+
+    Keep the original tested path and feeds. M400 between stages guarantees
+    that the X positioning at Safe Y completes before entering dock Y.
+    Moonraker receives one /printer/gcode/script request for the whole cycle.
+    """
+    movement=_gcode(path[kind],kind).splitlines()
+    if at_stage:
+        return '\\n'.join(movement)
+    stage=_gcode(path['stage'],'stage').splitlines()
+    return '\\n'.join(stage+movement[1:])
+
+
 def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
     """One operator-confirmed T0 pickup or dropoff, with automatic staging.
 
@@ -237,23 +251,14 @@ def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
             _invalidate(ctx)
             SESSION['stage']=None
             SESSION['last_action']=None
-        if not auto['at_stage']:
-            movement_sent=True
-            _rpc('/printer/gcode/script',{'script':_gcode(p['stage'],'stage')})
-            new_saved=store.read()
-            if new_saved['revision']!=expected_revision:
-                raise T0Error('CXM configuration changed during staging')
-            # Do not attempt the next XY segment until Klipper has
-            # actually returned to Idle/Ready following the staging script.
-            staged=_wait_for_idle_after_move(new_saved,parked=True,
-                                             expected_pid=ctx['pid'])
-            if _sensor_value(AUTO_SENSOR,staged['objects'])!=expected:
-                raise T0Error('T0 presence signal changed unexpectedly during staging')
-        else:
-            # Recheck live position and motor power even when no stage jog.
-            staged=_safe_context(store.read(),require_in_park=True)
+        # One complete ordered Klipper script. The previous two-request
+        # handoff stopped at staging when Moonraker briefly reported Printing.
+        # Do not introduce an HTTP/API readiness dependency between XY moves.
+        # Preflight and the live switch state were checked immediately above;
+        # neither the stored stage flag nor manual switch sampling is needed.
+        script=_automatic_script(p,kind,at_stage=auto['at_stage'])
         movement_sent=True
-        _rpc('/printer/gcode/script',{'script':_gcode(p[kind],kind)})
+        _rpc('/printer/gcode/script',{'script':script})
         finished_saved=store.read()
         if finished_saved['revision']!=expected_revision:
             raise T0Error('CXM configuration changed during T0 test')
@@ -275,7 +280,8 @@ def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
     except Exception as exc:
         if movement_sent:
             with SESSION_LOCK:
-                AUTO_STATE['fault']='Movement or sensor verification failed. Inspect T0 and the dock, then clear the test fault in Advanced.'
+                AUTO_STATE['fault']=('T0 '+kind+' interrupted: '+str(exc)[:150]+
+                                     '. Inspect the carriage and dock before clearing this fault.')
         raise
     finally:
         MOVE_LOCK.release()
