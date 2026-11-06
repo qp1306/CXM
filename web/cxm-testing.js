@@ -1,10 +1,10 @@
-/* CXM V0.9.0 commissioning: read-only diagnostics, proof-of-process continuity,
-   and offline review of operator-supplied MCU counters. NEVER sends printer G-code. */
+/* CXM V0.9.1: Diagnostics and restart evidence only.
+   CoreXY dock review is now exclusively on Dock Calibration. No G-code. */
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id);
 if(!$('cxmTestRun'))return;
-let baseline=null,latest=null,reviewResult=null;
+let baseline=null,latest=null;
 async function getJSON(path) {
   const r=await fetch(path,{credentials:'same-origin',cache:'no-store'});
   if(!r.ok)throw Error(path+' returned HTTP '+r.status);
@@ -110,40 +110,6 @@ async function compareNow(){
       'ok');
   }catch(e){state('cxmTestRestartResult','Comparison inconclusive: '+e.message,'bad');}
 }
-const value=id=>$(id).value.trim();
-const readInput=()=>({
-  step_mm:value('cxmTestStep'),xA:value('cxmTestXA'),xB:value('cxmTestXB'),
-  yA:value('cxmTestYA'),yB:value('cxmTestYB'),
-  start:value('cxmTestStart'),afterY:value('cxmTestAfterY'),
-  afterX:value('cxmTestAfterX'),
-  endX:value('cxmTestEndX'),endY:value('cxmTestEndY'),
-  knownX:value('cxmTestKnownX'),knownY:value('cxmTestKnownY')
-});
-function review(){
-  try{
-    reviewResult=window.CXMTestMath.review(readInput());
-    const r=reviewResult,errors=r.known_reference_errors_mm;
-    const message='PROVISIONAL: X='+r.raw_dock_xy_mm.x.toFixed(5)+
-      ' mm, Y='+r.raw_dock_xy_mm.y.toFixed(5)+' mm'+
-      (errors?', reference errors X='+errors.x.toFixed(5)+
-      ', Y='+errors.y.toFixed(5)+' mm; known-position math '+(r.known_position_math_pass?'PASS':'FAIL'):
-      ' (no known-position comparison)')+
-      '. No position was saved or applied to Klipper.';
-    state('cxmTestXYResult',message,errors&&r.known_position_math_pass?'ok':'pending');
-  }catch(e){reviewResult=null;state('cxmTestXYResult','REJECTED: '+e.message,'bad');}
-}
-function loadKnown(){
-  const vals={
-    cxmTestStep:'5',cxmTestXA:'800',cxmTestXB:'800',
-    cxmTestYA:'800',cxmTestYB:'-800',cxmTestEndX:'335',
-    cxmTestEndY:'362',cxmTestKnownX:'295',cxmTestKnownY:'100',
-    cxmTestStart:'mcu: stepper_x:4814 stepper_y:27252 stepper_z:1877',
-    cxmTestAfterY:'mcu: stepper_x:46739 stepper_y:-14673 stepper_z:9877',
-    cxmTestAfterX:'mcu: stepper_x:53139 stepper_y:-8273 stepper_z:17877'
-  };
-  for(const [id,value] of Object.entries(vals))$(id).value=value;
-  review();
-}
 function download(){
   // Local-only diagnostic bundle for reproducible faultfinding; no credentials.
   const payload={format:'CXM_DIAGNOSTIC_V1',generated:new Date().toISOString(),
@@ -153,7 +119,7 @@ function download(){
        process_identity_available:latest.run.available,
        config_revision:latest.revision,
        saved_data_active_in_klipper:false}:null,
-    offline_review_input:readInput(),offline_review_result:reviewResult};
+    note:'Dock step-count calculation is found exclusively on Dock Calibration.'};
   const url=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));
   const a=document.createElement('a');a.href=url;a.download='CXM-diagnostic-'+new Date().toISOString().slice(0,10)+'.json';
   document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
@@ -161,8 +127,6 @@ function download(){
 $('cxmTestRun').addEventListener('click',refresh);
 $('cxmTestBaseline').addEventListener('click',baselineNow);
 $('cxmTestCompare').addEventListener('click',compareNow);
-$('cxmTestXYReview').addEventListener('click',review);
-$('cxmTestLoadKnown').addEventListener('click',loadKnown);
 $('cxmTestDownload').addEventListener('click',download);
 refresh();
 })();
