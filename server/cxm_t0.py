@@ -257,6 +257,8 @@ def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
         # Preflight and the live switch state were checked immediately above;
         # neither the stored stage flag nor manual switch sampling is needed.
         script=_automatic_script(p,kind,at_stage=auto['at_stage'])
+        if store.read()['revision']!=expected_revision:
+            raise T0Error('CXM settings changed before T0 movement; reload the controller')
         movement_sent=True
         _rpc('/printer/gcode/script',{'script':script})
         finished_saved=store.read()
