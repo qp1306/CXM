@@ -8,21 +8,22 @@ const dock=fs.readFileSync(path.join(__dirname,'../web/cxm-dock.js'),'utf8');
 const cards=fs.readFileSync(path.join(__dirname,'../web/cxm-tool-cards.js'),'utf8');
 
 test('dock wizard loads and includes required user controls',()=>{
-  for(const id of ['cxmDockTool','cxmDockX','cxmDockY','cxmDockZ',
+  for(const id of ['cxmDockTool','cxmDockX','cxmDockY',
                    'cxmDockAccept','cxmDockReset','cxmDockBackups',
                    'cxmDockFeedback']) {
     assert.match(html,new RegExp('id="'+id+'"'));
   }
-  assert.match(html,/cxm-dock\.js\?v=0\.9\.3/);
+  assert.match(html,/cxm-dock\.js\?v=0\.9\.4/);
+  assert.doesNotMatch(html,/id="cxmDockZ"/);
   assert.match(html,/data-panel="calibration"/);
   assert.match(cards,/data-cxm-calibrate/);
 });
-test('dock coordinates require three axes, deliberate approval and server validation',()=>{
-  assert.match(dock,/const axis = \['x','y','z'\]/);
+test('gantry dock coordinates require only X/Y, deliberate approval and server validation',()=>{
+  assert.match(dock,/const axis = \['x','y'\]/);
   assert.match(dock,/!Number\.isFinite\(Number\(v\)\)/);
   assert.match(dock,/window\.confirm\(/);
-  assert.match(dock,/postJSON\('\/dock',\{tool:selected,xyz,expected_revision:snapshot\.revision\}\)/);
-  assert.match(dock,/stored\['dock_'\+name\] === xyz\[name\]/);
+  assert.match(dock,/postJSON\('\/dock',\{tool:selected,xy,expected_revision:snapshot\.revision\}\)/);
+  assert.match(dock,/stored\['dock_'\+name\] === xy\[name\]/);
   assert.match(dock,/fill\(\); \/\/ Re-enable inputs after the request and show the saved values/);
 });
 test('V0.4 cannot issue motion or falsely verify hardware pickup',()=>{
@@ -43,10 +44,10 @@ test('accept button remains disabled for blank, invalid or unchanged drafts',()=
 test('successful save re-enables coordinate fields; failed save retains draft',()=>{
   assert.match(dock,/busy = false;[\s\S]*?if \(verified\) \{[\s\S]*?fill\(\)/);
   assert.match(dock,/for \(const name of axis\) get\('cxmDock'\+name\.toUpperCase\(\)\)\.disabled=!canEdit\(\)/);
-  assert.match(dock,/Discard unsaved dock XYZ draft and switch hotends/);
+  assert.match(dock,/Discard unsaved dock XY draft and switch hotends/);
 });
 
-test('all selected hotends remain visible; maintenance-locked tools cannot save XYZ',()=>{
+test('all selected hotends remain visible; maintenance-locked tools cannot save dock XY',()=>{
   const script=fs.readFileSync(path.join(__dirname,'../web/cxm-dock.js'),'utf8');
   assert.match(script,/\.filter\(p => p\.n < count\)/);
   assert.match(script,/get\('cxmDockStatus'\)\.textContent = [\s\S]*?'LOCKED \/ MIGRATION · read only'/);
