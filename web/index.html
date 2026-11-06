@@ -173,31 +173,43 @@
     <div><span>1 · CoreXY conversion</span><strong class="cxm-xy-lab-ok">Real 6 Nov maths test passed</strong></div>
     <div><span>2 · MCU step-count capture</span><strong class="cxm-xy-lab-pending" id="cxmLineuxEngineBadge">Checking live engine</strong></div>
     <div><span>3 · Y then X homing validation</span><strong class="cxm-xy-lab-pending">Homing Override V2.0 passed four tests</strong></div>
-    <div><span>4 · Accept measured dock XY</span><strong class="cxm-xy-lab-pending" id="cxmLineuxMeasureBadge">Known-position check required</strong></div>
+    <div><span>4 · Accept measured dock XY</span><strong class="cxm-xy-lab-pending" id="cxmLineuxMeasureBadge">Dock measurement not yet accepted</strong></div>
   </div>
   <div class="dock-warning"><strong>SUPERVISED MOVEMENT ONLY.</strong> The original Lineux module uses SET_KINEMATIC_POSITION and performs G28 Y followed by G28 X. CXM Homing V2.0 rehomes Y when X is requested. Confirm an empty safe path before starting. A successful measurement is not verified dock calibration.</div>
   <div class="cxm-lineux-live">
    <div class="panel-heading"><h3>Lineux · live dock measurement</h3><span class="panel-label">Unchanged Python engine · provisional XY only</span></div>
    <p class="helper" id="cxmLineuxStatus" role="status" aria-live="polite">Checking Lineux integration…</p>
-   <div class="cxm-lineux-known">
-    <div class="panel-heading"><h3>First · Verify known XY</h3><span class="panel-label">No dock coordinates saved</span></div>
-    <p class="helper">**This is ONLY for a freshly homed, motor-driven reference position.** Move using Mainsail to known X195 Y170 Z20 with both CoreXY and all four Z motors powered. This validates Lineux maths against real XY. **NEVER use this button after releasing X/Y motors or moving the carriage by hand**; the displayed coordinates are then stale. The operation homes Y/Y/X and moves the motors.</p>
-    <p id="cxmLineuxKnownStatus" role="status">Known-position check has not been completed.</p>
-    <label class="cxm-capture-ack"><input id="cxmLineuxKnownAck" type="checkbox"> I confirm the carriage has NOT been moved by hand since homing, X/Y and all four Z motors are powered, the commanded known XY position is physically correct, there is at least 20 mm actual Z clearance, the +3 mm X jog and Y/X homing path are clear, and no print is running.</label>
-    <div class="buttons"><button class="btn primary" id="cxmLineuxKnownStart" disabled>Validate Lineux at known XY</button></div>
-    <p class="cxm-test-result" id="cxmLineuxKnownResult" role="status">Readiness and known position not yet verified. No motion has occurred.</p>
-   </div>
-   <div class="panel-heading"><h3>Then · Measure selected dock</h3><span class="panel-label">Manually positioned unknown XY · provisional result only</span></div>
-   <p class="helper"><strong>This is the button for T0 after you move the carriage by hand.</strong> First validate Lineux at a known XY before releasing motors. Then position the carriage at a safe central reference by powered jog, keep all four Z motors powered, release X/Y only, and gently align the carriage at T0's physical dock reference. Check actual +3 mm X clearance and the Y/Y/X homing route. **Do not run Verify known XY after manual placement.** Klipper's displayed X/Y is stale and must not be treated as the actual dock position.</p>
+   <div class="panel-heading"><h3>1 · Home XYZ and raise to Z20</h3><span class="panel-label">Mainsail console · once per setup</span></div>
+   <p class="helper">With a clear and physically supported printer, home normally in Mainsail: <code>G28</code>. Then <code>G90</code> and <code>G1 Z20 F300</code>. Ensure the gantry is level and the entire Y-then-X homing path is clear. A reported Z20 does not itself prove actual clearance.</p>
+   <div class="panel-heading"><h3>2 · Release X/Y motors</h3><span class="panel-label">Four Z motors stay powered</span></div>
+   <label class="cxm-capture-ack"><input id="cxmLineuxReleaseAck" type="checkbox"> XYZ is homed, Z is physically at least 20 mm clear, the gantry is level and supported, and I can safely release the carriage.</label>
+   <div class="buttons"><button class="btn" id="cxmLineuxReleaseXY" disabled>Release X/Y motors only</button></div>
+   <p class="helper" id="cxmLineuxReleaseStatus" role="status">Checking motor-release readiness…</p>
+   <div class="panel-heading"><h3>3 · Position at dock by hand</h3><span class="panel-label">X/Y off · Z motors on</span></div>
+   <p class="helper">Gently align the carriage to the selected hotend's physical dock reference. <strong>Do not jog the carriage using Mainsail afterward.</strong> Klipper's displayed X/Y is now stale; Lineux reconstructs the real position from the motor travel to the endstops. Verify clearance for the original +3 mm X jog and subsequent Y/Y/X movements.</p>
+   <div class="panel-heading"><h3>4 · Measure selected dock</h3><span class="panel-label">One-click Lineux calculation · provisional XY</span></div>
+   <p class="helper">After hand-aligning T0 at its dock datum, press <strong>Refresh readiness</strong>. If ready, confirm the physical +3 mm X jog and Y/Y/X endstop travel path are free, then calculate.</p>
    <div class="buttons"><button class="btn" id="cxmLineuxPreflight">Check printer &amp; engine</button></div>
-   <label class="cxm-capture-ack"><input id="cxmLineuxAck" type="checkbox"> I confirm X/Y motors are OFF, all four Z motors remain ON and the gantry is level, I manually aligned the selected dock reference, and the actual +3 mm X jog plus Y/Y/X homing route are clear with at least 15 mm real Z clearance. Klipper XY is stale; I am using the DOCK measurement, not known XY validation. No print is active.</label>
+   <label class="cxm-capture-ack"><input id="cxmLineuxAck" type="checkbox"> I confirm X/Y motors are OFF, all four Z motors remain ON and the gantry is level, I manually aligned the selected dock reference, and the actual +3 mm X jog plus Y/Y/X homing route are clear with at least 20 mm real Z clearance. Klipper XY is stale; I am using the DOCK measurement, not known XY validation. No print is active.</label>
    <div class="buttons">
-    <button class="btn primary" id="cxmLineuxStart" disabled>Start Lineux XY measurement</button>
+    <button class="btn primary" id="cxmLineuxStart" disabled>Measure dock XY</button>
    </div>
    <p class="cxm-test-result" id="cxmLineuxResult" role="status">Awaiting live readiness check. No motion has occurred.</p>
    <label class="cxm-capture-ack"><input id="cxmLineuxApplyAdjust" type="checkbox"> Include the separately configured X docking adjustment when copying to the draft (off by default)</label>
    <div class="buttons"><button class="btn" id="cxmLineuxToDraft" disabled>Copy measured X/Y to dock draft</button></div>
    <p class="helper">The Start button performs movement only when the engine is installed, Klipper is idle, tool is not locked out and you confirm physical clearance. Copying X/Y never saves; enter and review Z separately, then use Step 2 Accept XYZ · AutoSave. Verification and pickup remain blocked.</p>
+   <details class="cxm-lineux-known">
+    <summary>Advanced diagnostic · known-position Lineux accuracy check (optional)</summary>
+   <div class="cxm-lineux-known">
+    <div class="panel-heading"><h3>Optional · Verify known XY</h3><span class="panel-label">No dock coordinates saved</span></div>
+    <p class="helper">**This is ONLY for a freshly homed, motor-driven reference position.** Move using Mainsail to known X195 Y170 Z20 with both CoreXY and all four Z motors powered. This validates Lineux maths against real XY. **NEVER use this button after releasing X/Y motors or moving the carriage by hand**; the displayed coordinates are then stale. The operation homes Y/Y/X and moves the motors.</p>
+    <p id="cxmLineuxKnownStatus" role="status">Optional diagnostic, already previously tested on physical CXM.</p>
+    <label class="cxm-capture-ack"><input id="cxmLineuxKnownAck" type="checkbox"> I confirm the carriage has NOT been moved by hand since homing, X/Y and all four Z motors are powered, the commanded known XY position is physically correct, there is at least 20 mm actual Z clearance, the +3 mm X jog and Y/X homing path are clear, and no print is running.</label>
+    <div class="buttons"><button class="btn primary" id="cxmLineuxKnownStart" disabled>Validate Lineux at known XY</button></div>
+    <p class="cxm-test-result" id="cxmLineuxKnownResult" role="status">Readiness and known position not yet verified. No motion has occurred.</p>
+   </div>
+
+   </details>
   </div>
   <p class="helper">Below: independent offline CoreXY counter reviewer. It never sends movement commands.</p>
 </div>
@@ -585,7 +597,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.3" defer></script>
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.3" defer></script>
-<script src="cxm-lineux.js?v=0.9.7" defer></script>
+<script src="cxm-lineux.js?v=0.9.8" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
