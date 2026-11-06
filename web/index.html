@@ -153,17 +153,29 @@
 <p class="helper" id="cxmDockLiveUpdated" role="status" aria-live="polite">Read-only Moonraker status check pending. This does not validate physical clearances, stepper directions or the dock position.</p>
 </div>
 <div class="panel cxm-xy-lab">
-  <div class="panel-heading"><h3>1 · Automatic XY dock measurement</h3><span class="panel-label">Offline maths ready · live measurement not yet integrated</span></div>
-  <p class="muted">Use the real CoreXY capture reviewer directly below, without leaving Dock Calibration. The Python math engine and browser reviewer calculate a provisional XY from actual GET_POSITION MCU motor steps. Automated capture/homing is still locked until the complete machine movement has been verified.</p>
+  <div class="panel-heading"><h3>1 · Automatic XY dock measurement</h3><span class="panel-label">Lineux engine · supervised live calibration</span></div>
+  <p class="muted">CXM can use the unchanged Lineux Klipper extension for supervised XY dock measurement. Use the controls below to confirm hardware readiness, run the original command only when the travel path is physically clear, and copy a PROVISIONAL result into the existing draft. No measurement is saved automatically. The independent offline CoreXY reviewer remains below.</p>
   <div class="cxm-xy-lab-grid">
     <div><span>1 · CoreXY conversion</span><strong class="cxm-xy-lab-ok">Real 6 Nov maths test passed</strong></div>
-    <div><span>2 · MCU step-count capture</span><strong class="cxm-xy-lab-pending">Live capture adapter not installed</strong></div>
-    <div><span>3 · Y then X homing validation</span><strong class="cxm-xy-lab-pending">Known-position math passed · Z homing fault remains</strong></div>
+    <div><span>2 · MCU step-count capture</span><strong class="cxm-xy-lab-pending">Original Lineux module required</strong></div>
+    <div><span>3 · Y then X homing validation</span><strong class="cxm-xy-lab-pending">Homing Override V2.0 passed four tests</strong></div>
     <div><span>4 · Accept measured dock XY</span><strong class="cxm-xy-lab-pending">Not authorised</strong></div>
   </div>
-  <div class="dock-warning"><strong>DO NOT USE FOR MOTION.</strong> A successful mathematical result is not verified calibration. We still need motor, endstop, clearance and repeatability tests before accepting any XY coordinates.</div>
-  <div class="buttons"><button class="btn" disabled title="Requires MCU, safe homing and verified capture adapter">Measure dock XY · unavailable</button></div>
-  <p class="helper">Below: working manual capture reviewer using the exact data from our physical test. No switch to Testing required. Automatic G28 motion is deliberately unavailable.</p>
+  <div class="dock-warning"><strong>SUPERVISED MOVEMENT ONLY.</strong> The original Lineux module uses SET_KINEMATIC_POSITION and performs G28 Y followed by G28 X. CXM Homing V2.0 rehomes Y when X is requested. Confirm an empty safe path before starting. A successful measurement is not verified dock calibration.</div>
+  <div class="cxm-lineux-live">
+   <div class="panel-heading"><h3>Lineux · live dock measurement</h3><span class="panel-label">Unchanged Python engine · provisional XY only</span></div>
+   <p class="helper" id="cxmLineuxStatus" role="status" aria-live="polite">Checking Lineux integration…</p>
+   <div class="buttons"><button class="btn" id="cxmLineuxPreflight">Check printer &amp; engine</button></div>
+   <label class="cxm-capture-ack"><input id="cxmLineuxAck" type="checkbox"> I have physically positioned the selected hotend's dock reference, confirmed the toolhead has at least 15 mm safe Z clearance, verified the full Y-then-X path and confirmed that no print or host-streamed G-code is active. I understand the script sets a temporary kinematic position and that CXM homes Y twice.</label>
+   <div class="buttons">
+    <button class="btn primary" id="cxmLineuxStart" disabled>Start Lineux XY measurement</button>
+   </div>
+   <p class="cxm-test-result" id="cxmLineuxResult" role="status">Awaiting live readiness check. No motion has occurred.</p>
+   <label class="cxm-capture-ack"><input id="cxmLineuxApplyAdjust" type="checkbox"> Include the separately configured X docking adjustment when copying to the draft (off by default)</label>
+   <div class="buttons"><button class="btn" id="cxmLineuxToDraft" disabled>Copy measured X/Y to dock draft</button></div>
+   <p class="helper">The Start button performs movement only when the engine is installed, Klipper is idle, tool is not locked out and you confirm physical clearance. Copying X/Y never saves; enter and review Z separately, then use Step 2 Accept XYZ · AutoSave. Verification and pickup remain blocked.</p>
+  </div>
+  <p class="helper">Below: independent offline CoreXY counter reviewer. It never sends movement commands.</p>
 </div>
 <div class="panel cxm-dock-capture">
  <div class="panel-heading"><h3>1A · Review real CoreXY motor-step captures</h3><span class="panel-label">Working offline calculator · no motion</span></div>
@@ -192,7 +204,7 @@
  </div>
  <label class="cxm-capture-ack"><input id="cxmDockCaptureAck" type="checkbox"> I have checked the actual dock capture is from the selected tool, the complete physical Y-then-X path was safe, and the homing Z issue has been resolved.</label>
  <p class="cxm-test-result" id="cxmTestXYResult" role="status">Awaiting actual MCU snapshot lines.</p>
- <div class="dock-warning">Automatic capture/homing is still NOT integrated. Do not run G28 from a dock until the existing Z homing override has been separately corrected and retested. No pickup or dropoff commands are authorised.</div>
+ <div class="dock-warning">This manual MCU reviewer never issues movement commands. The separate Lineux live measurement above is supervised and requires its own preflight. No pickup or dropoff commands are authorised.</div>
 </div>
 <div class="dock-columns">
 <div class="panel">
@@ -549,6 +561,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.3" defer></script>
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.3" defer></script>
+<script src="cxm-lineux.js?v=0.9.4" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
