@@ -6,13 +6,14 @@
 const el=id=>document.getElementById(id);
 if(!el('cxmLineuxPreflight'))return;
 const api='/cxm/api/v1/lineux';
-let state=null,knownState=null,releaseState=null,result=null,tool=null,busy=false;
+let state=null,knownState=null,releaseState=null,homeState=null,result=null,tool=null,busy=false;
 function feedback(message,kind='pending'){
   const e=el('cxmLineuxResult');e.textContent=message;e.dataset.testState=kind;
 }
 function selected(){return Number(el('cxmDockTool')?.value);}
 function controls(){
   const matching=result && Number.isInteger(tool) && selected()===tool;
+  el('cxmLineuxHome').disabled=busy || !homeState?.ready || !el('cxmLineuxHomeAck').checked;
   el('cxmLineuxStart').disabled=busy || !state?.ready ||
     !el('cxmLineuxAck').checked;
   el('cxmLineuxReleaseXY').disabled=busy || !releaseState?.ready ||
@@ -36,22 +37,27 @@ async function call(path,body){
 async function preflight(){
   if(busy)return;
   const n=selected();
-  state=null;knownState=null;releaseState=null;result=null;tool=null;
+  state=null;knownState=null;releaseState=null;homeState=null;result=null;tool=null;
   el('cxmLineuxAck').checked=false;
   el('cxmLineuxKnownAck').checked=false;
   el('cxmLineuxReleaseAck').checked=false;
+  el('cxmLineuxHomeAck').checked=false;
   controls();
   el('cxmLineuxStatus').textContent='Checking hardware integration…';
   try{
     if(!Number.isInteger(n)||n<0||n>11)throw Error('Select a valid hotend');
-    const [dock,known,release]=await Promise.all([
+    const [dock,known,release,home]=await Promise.all([
       call('/status?tool='+n+'&mode=dock'),
       call('/status?tool='+n+'&mode=known'),
-      call('/status?tool='+n+'&mode=prepare')
+      call('/status?tool='+n+'&mode=prepare'),
+      call('/status?tool='+n+'&mode=home')
     ]);
-    state=dock;knownState=known;releaseState=release;
+    state=dock;knownState=known;releaseState=release;homeState=home;
     el('cxmLineuxEngineBadge').textContent=dock.engine_present?'Lineux module registered':'Module unavailable';
     el('cxmLineuxMeasureBadge').textContent='Live measurement · provisional until independently verified';
+    el('cxmLineuxHomeStatus').textContent=home.ready
+      ? 'Ready to home · confirm physical clearance.'
+      : 'Homing unavailable: '+home.blockers.join('; ');
     el('cxmLineuxReleaseStatus').textContent=release.ready
       ? 'XYZ homed, Z >=20 mm, four Z motors powered. Release X/Y when physically safe.'
       : 'X/Y release unavailable: '+release.blockers.join('; ');
@@ -73,11 +79,37 @@ async function preflight(){
   }catch(e){
     el('cxmLineuxStatus').textContent='NOT READY · '+e.message;
     el('cxmLineuxKnownStatus').textContent='Known-position diagnostic unavailable · '+e.message;
+    el('cxmLineuxHomeStatus').textContent='Homing status unavailable · '+e.message;
     el('cxmLineuxReleaseStatus').textContent='X/Y release status unavailable · '+e.message;
     el('cxmLineuxEngineBadge').textContent='Status unknown';
     feedback('Could not confirm engine readiness. No motion is authorised.','bad');
   }
   controls();
+}
+
+async function homeAndLift(){
+  if(busy || !homeState?.ready || !el('cxmLineuxHomeAck').checked)return;
+  const n=selected();
+  if(n!==homeState.tool)return;
+  if(!window.confirm('HOME AND PREPARE T'+n+' DOCK MEASUREMENT?\\n\\n'+
+    'Runs G28, G90, Z20, then parks X195/Y170.\\n'+
+    'The printer WILL MOVE. Check all real XYZ clearances, gantry level and the full travel path.\\n\\n'+
+    'Only proceed if no print is running and the path is physically clear.'))return;
+  busy=true;controls();
+  el('cxmLineuxHomeStatus').textContent='Homing and raising to Z20…';
+  try{
+    const snapshot=await fetch('/cxm/api/v1/config',
+      {credentials:'same-origin',cache:'no-store'}).then(r=>r.json());
+    if(!snapshot?.revision)throw Error('CXM configuration revision unavailable');
+    const result=await call('/home',{tool:n,expected_revision:snapshot.revision,
+      acknowledgement:'I_CONFIRM_CLEAR_G28_AND_Z20_PATH'});
+    if(result.status!=='HOMED_Z20_CENTRE')throw Error('Printer readiness confirmation failed');
+    await preflight();
+    el('cxmLineuxHomeStatus').textContent='HOMED · Z20 · X195/Y170. Next: Release X/Y.';
+  }catch(e){
+    el('cxmLineuxHomeStatus').textContent='HOME NOT VERIFIED: '+e.message+
+      '. Inspect the printer before repeating.';
+  }finally{busy=false;controls();}
 }
 
 async function releaseXY(){
@@ -243,6 +275,8 @@ async function copy(){
   controls();
 }
 el('cxmLineuxPreflight').addEventListener('click',preflight);
+el('cxmLineuxHome').addEventListener('click',homeAndLift);
+el('cxmLineuxHomeAck').addEventListener('change',controls);
 el('cxmLineuxReleaseXY').addEventListener('click',releaseXY);
 el('cxmLineuxReleaseAck').addEventListener('change',controls);
 el('cxmLineuxKnownStart').addEventListener('click',checkKnownPosition);
