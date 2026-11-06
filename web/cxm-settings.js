@@ -11,11 +11,7 @@
   const definitions = {
     global: [['tool_count', 'Configured tools', 1], ['safe_y', 'Safe Y position (mm)', 0.1],
              ['x_docking_adjust', 'X docking adjustment (mm)', 0.01]],
-    tool: [['dock_x', 'Dock X (mm)', 0.001],
-           ['dock_y', 'Dock Y (mm)', 0.001], ['dock_z', 'Dock Z (mm)', 0.001],
-           ['offset_x', 'X offset (mm)', 0.001], ['offset_y', 'Y offset (mm)', 0.001],
-           ['offset_z', 'Z offset (mm)', 0.001],
-           ['approach_speed', 'Approach speed (mm/min)', 1],
+    tool: [['approach_speed', 'Approach speed (mm/min)', 1],
            ['dock_speed', 'Dock speed (mm/min)', 1]]
   };
   const escape = val => String(val).replace(/[&<>"']/g, x => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
@@ -107,12 +103,12 @@
     const count=cfg.globals.tool_count;
     if (tool>=count || tool<0) tool=0;
     root.innerHTML=`<div class="panel" style="margin-top:16px">
-      <div class="panel-heading"><h3>CXM_variables.cfg</h3><span class="panel-label">AutoSave · backups · rollback</span></div>
-      <p class="muted">Every accepted field change is saved immediately. Values are on disk, <b>not yet active in Klipper</b>. Verification flags are protected from manual editing.</p>
+      <div class="panel-heading"><h3>Printer settings</h3><span class="panel-label">AutoSave · backups</span></div>
+      <p class="muted">Settings save to disk automatically with a backup. Dock XY and tool offsets are edited on their own pages.</p>
       <div style="margin-top:20px"><h3>Global settings</h3>${fields('global',cfg.globals)}</div>
       <div style="margin-top:20px;display:flex;align-items:center;gap:14px"><h3 style="margin:0">Hotend settings</h3><select id="cxmToolChoice" style="padding:9px;border-radius:6px;background:#161b23;border:1px solid #465061;color:white">${cfg.tools.slice(0,count).map((profile,i)=>`<option value="${i}" ${tool===i?'selected':''}>T${i}${profile.maintenance_lockout===true?' · locked out':''}</option>`).join('')}</select></div>
       ${lockoutControl(cfg.tools[tool])}
-      ${fields('tool',cfg.tools[tool])}
+      <details class="cxm-advanced"><summary>Advanced motion speeds</summary>${fields('tool',cfg.tools[tool])}</details>
       <p class="helper" id="cxmReadiness">Readiness requires hardware verification.</p>
       <div class="cxm-migration-slot" id="cxmMigrateSlot"></div>
       <div class="buttons"><button id="cxmReload" class="btn">Refresh settings</button><button id="cxmHistory" class="btn">Backup history / rollback</button></div>

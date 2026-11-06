@@ -34,12 +34,12 @@ test('only selected tool count appears and zero offset formatting is clearly sto
  assert.deepEqual(z.rows({config:{globals:{tool_count:20},tools:snap.config.tools}}),[]);
 });
 test('distinct Z Calibration tab, T0 and all-hotend comparison are visible',()=>{
- assert.match(html,/data-tab="z-calibration">Z Calibration<\/button>/);
+ assert.match(html,/data-tab="z-calibration">Tool Z<\/button>/);
  assert.match(html,/data-panel="z-calibration"/);
  for(const id of ['cxmZTool','cxmZSaved','cxmZStatus','cxmZTable','cxmZProgress','cxmZFeedback'])
   assert.ok(html.includes('id="'+id+'"'),'Missing '+id);
- assert.match(html,/T0 nozzle-to-bed reference · T1–T11 nozzle heights relative to T0/);
- assert.match(html,/Z calibration and dock Z are different/);
+ assert.match(html,/Nozzle height difference relative to T0/);
+ assert.match(html,/The dock rides on the gantry/);
  assert.match(html,/PHYSICAL Z CALIBRATION REMAINS DISABLED/);
  assert.match(html,/id="cxmZTool" disabled/);
  assert.match(html,/Start Z calibration · unavailable<\/button>/);
@@ -52,7 +52,7 @@ test('no runtime motion, writes, fabricated optical measurements, or automatic v
  assert.match(script,/CXMToolPicker\?\.sync/);
  assert.match(script,/status\.textContent=.*read-only|Read-only saved profiles/);
  assert.match(html,/cxm-z\.js\?v=0\.9\.3/);
- assert.match(html,/CXM starter <span>v0\.9\.3<\/span>/);
+ assert.match(html,/CXM <span>Control Centre<\/span>/);
 });
 
 test('V0.8.0 Touch statistics and offline test are visible, but physical Z is locked',()=>{
