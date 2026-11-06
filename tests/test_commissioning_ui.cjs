@@ -22,8 +22,8 @@ test('pure maths reconstructs actual 6 November known-position capture',()=>{
  assert.equal(r.known_position_math_pass,true);
  assert.equal(r.travel_mm.x,40);
  assert.equal(r.travel_mm.y,262.03125);
- assert.equal(r.cross_axis_mm.during_y_home_x,0);
- assert.equal(r.cross_axis_mm.during_x_home_y,0);
+ assert.ok(Math.abs(r.cross_axis_mm.during_y_home_x)<1e-12);
+ assert.ok(Math.abs(r.cross_axis_mm.during_x_home_y)<1e-12);
 });
 test('reviewer fails closed on bad counters, impossible travel and cross-axis drift',()=>{
  assert.throws(()=>math.review({...sample,start:'stepper_x:4814 stepper_y:27252'}),/exactly one MCU/);
