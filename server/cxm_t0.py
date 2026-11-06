@@ -19,6 +19,21 @@ TEST_FEED=240
 LATCH_FEED=180
 POSITION_TOL=0.2
 
+# T0's physically trialled settings. Never apply to dock coordinate storage.
+AUTO_SENSOR='gcode_button cxm_tool_detect'
+AUTO_MOUNTED='PRESSED'
+AUTO_EMPTY='RELEASED'
+AUTO_SHIFT_X=-4.8
+AUTO_DODGE_Y=14.0
+AUTO_STATE={'pid':None,'revision':None,'fault':None,'last_success':None}
+
+def _auto_invalidate(ctx):
+    # Backend lifetime does not attest to hardware tool attachment: always
+    # read the physical signal again before each operation.
+    if AUTO_STATE['pid']!=ctx['pid'] or AUTO_STATE['revision']!=ctx['revision']:
+        AUTO_STATE.update(pid=ctx['pid'],revision=ctx['revision'],fault=None,last_success=None)
+
+
 class T0Error(MeasurementError):
     pass
 
@@ -126,6 +141,139 @@ def plan(saved,shift_x=-3.0,dodge_y=14.0):
             'dropoff':[(x,y),(x+dx,y),(x+dx,y+dy),(x,y+dy),(x,safe)],
             'shift_x':dx,'dodge_y':dy,'safe_y':safe}
 
+def _auto_snapshot(ctx, saved):
+    """Actual Klipper sensor state; never derived from staging history."""
+    with SESSION_LOCK:
+        _auto_invalidate(ctx)
+        fault=AUTO_STATE['fault']
+        last=AUTO_STATE['last_success']
+    p=plan(saved,AUTO_SHIFT_X,AUTO_DODGE_Y)
+    if AUTO_SENSOR not in ctx['objects']:
+        return {'enabled':False,'sensor':AUTO_SENSOR,
+                'reason':'T0 carriage switch is not registered in Klipper'}
+    signal=_sensor_value(AUTO_SENSOR,ctx['objects'])
+    if signal not in (AUTO_MOUNTED,AUTO_EMPTY):
+        raise T0Error('Unknown T0 presence switch state')
+    attached=(signal==AUTO_MOUNTED)
+    at_stage=(abs(ctx['position'][0]-ctx['x'])<=POSITION_TOL
+              and abs(ctx['position'][1]-ctx['safe_y'])<=POSITION_TOL)
+    # If already at the start of dock approach, no staging movement needed.
+    # Otherwise never cross from inside the dock region blindly.
+    can_stage=at_stage or ctx['position'][1]>=ctx['safe_y']-POSITION_TOL
+    reason=(fault if fault else
+            None if can_stage else
+            'Carriage is inside the dock approach zone; safely reposition before running an automatic test')
+    return {'enabled':not bool(reason),'reason':reason,'fault':fault,
+            'sensor':AUTO_SENSOR,'signal':signal,'attached':attached,
+            'action':'dropoff' if attached else 'pickup',
+            'at_stage':at_stage,
+            'staging_x_mm':ctx['x'],'staging_y_mm':ctx['safe_y'],
+            'shift_x_mm':AUTO_SHIFT_X,'dodge_y_mm':AUTO_DODGE_Y,
+            'plan':p,'last_success':last,
+            'note':'Switch signal is a tool-presence indication, not independent mechanical-latch proof.'}
+
+
+def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
+    """One operator-confirmed T0 pickup or dropoff, with automatic staging.
+
+    Only the verified T0 carriage switch decides the allowed action.
+    Every move is at reduced commissioning speed; no heaters, Z movement,
+    external tool selection or permanent configuration writes.
+    """
+    if kind not in ('pickup','dropoff'):
+        raise T0Error('Only T0 pickup or dropoff can be commanded')
+    if acknowledgement!='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE':
+        raise T0Error('Physically confirm the complete T0 approach path before movement')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise T0Error('Another printer motion operation is in progress')
+    movement_sent=False
+    ctx=None
+    try:
+        saved=store.read()
+        if saved['revision']!=expected_revision:
+            raise T0Error('T0 coordinates changed; refresh the controller')
+        ctx=_safe_context(saved)
+        auto=_auto_snapshot(ctx,saved)
+        if not auto['enabled']:
+            raise T0Error(auto.get('reason') or 'T0 automatic test blocked')
+        expected=AUTO_MOUNTED if kind=='dropoff' else AUTO_EMPTY
+        after_signal=AUTO_EMPTY if kind=='dropoff' else AUTO_MOUNTED
+        if auto['signal']!=expected:
+            raise T0Error('T0 switch indicates '+('attached' if auto['attached'] else 'empty')+
+                          '; '+kind+' is the wrong operation')
+        p=plan(saved,AUTO_SHIFT_X,AUTO_DODGE_Y)
+        with SESSION_LOCK:
+            # Ordinary test session does not determine hardware state.
+            # Clear obsolete staging state to avoid cross-workflow approval.
+            _invalidate(ctx)
+            SESSION['stage']=None
+            SESSION['last_action']=None
+        if not auto['at_stage']:
+            movement_sent=True
+            _rpc('/printer/gcode/script',{'script':_gcode(p['stage'],'stage')})
+            new_saved=store.read()
+            if new_saved['revision']!=expected_revision:
+                raise T0Error('CXM configuration changed during staging')
+            staged=_safe_context(new_saved,require_in_park=True)
+            if staged['pid']!=ctx['pid']:
+                raise T0Error('Klipper instance changed during staging')
+            if _sensor_value(AUTO_SENSOR,staged['objects'])!=expected:
+                raise T0Error('T0 presence signal changed unexpectedly during staging')
+        else:
+            # Recheck live position and motor power even when no stage jog.
+            staged=_safe_context(store.read(),require_in_park=True)
+        movement_sent=True
+        _rpc('/printer/gcode/script',{'script':_gcode(p[kind],kind)})
+        finished_saved=store.read()
+        if finished_saved['revision']!=expected_revision:
+            raise T0Error('CXM configuration changed during T0 test')
+        end=_safe_context(finished_saved,require_in_park=True)
+        if end['pid']!=ctx['pid']:
+            raise T0Error('Klipper instance changed during T0 test')
+        actual=_sensor_value(AUTO_SENSOR,end['objects'])
+        if actual!=after_signal:
+            raise T0Error('T0 '+kind+' failed: presence switch still reports '+
+                          str(actual)+', expected '+after_signal+
+                          '. Inspect the physical carriage and dock.')
+        with SESSION_LOCK:
+            AUTO_STATE['last_success']=kind
+            AUTO_STATE['fault']=None
+        return {'status':'T0_'+kind.upper()+'_SENSOR_CONFIRMED',
+                'kind':kind,'signal':actual,'at_stage':True,
+                'position_mm':end['position'],
+                'staging_performed':not auto['at_stage'],
+                'note':'Physical switch transition confirmed. Visually inspect hotend seating; this does not certify full tool commissioning.'}
+    except Exception as exc:
+        if movement_sent:
+            with SESSION_LOCK:
+                AUTO_STATE['fault']='Movement or sensor verification failed. Inspect T0 and the dock, then clear the test fault in Advanced.'
+        raise
+    finally:
+        MOVE_LOCK.release()
+
+
+def clear_automatic_fault(*,store,expected_revision,acknowledgement):
+    if acknowledgement!='I_PHYSICALLY_INSPECTED_T0_AND_PATH_AFTER_TEST_FAILURE':
+        raise T0Error('Physical carriage and dock inspection is required')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise T0Error('Another printer motion operation is in progress')
+    try:
+        saved=store.read()
+        if saved['revision']!=expected_revision:
+            raise T0Error('T0 coordinates changed; refresh')
+        ctx=_safe_context(saved)
+        if AUTO_SENSOR not in ctx['objects']:
+            raise T0Error('T0 switch is unavailable')
+        _sensor_value(AUTO_SENSOR,ctx['objects'])
+        with SESSION_LOCK:
+            _auto_invalidate(ctx)
+            AUTO_STATE['fault']=None
+        return {'status':'T0_TEST_FAULT_CLEARED_NO_MOVEMENT',
+                'note':'Operator confirmed physical inspection; no G-code issued.'}
+    finally:
+        MOVE_LOCK.release()
+
+
 def status(store):
     saved=store.read()
     try:
@@ -165,11 +313,13 @@ def status(store):
                 'can_confirm_staging':can_confirm_staging,
                 'first_dropoff_ready':first_dropoff_ready,
                 'first_dropoff_pending_empty':last=='first_dropoff_pending',
+                'automatic':_auto_snapshot(ctx,saved),
                 'blockers':[],
                 'warning':'T0 test moves the carriage. All waypoints require physical clearance; tool pickup is not inferred from coordinates.'}
     except (T0Error,ValueError,KeyError,TypeError) as e:
         return {'ready':False,'tool':0,'blockers':[str(e)],'stage':None,'sensor_candidates':[],
-                'sensor_calibrated':False}
+                'sensor_calibrated':False,
+                'automatic':{'enabled':False,'reason':str(e)}}
 
 def _invalidate(ctx):
     if SESSION['pid']!=ctx['pid'] or SESSION['revision']!=ctx['revision']:

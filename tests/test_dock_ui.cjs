@@ -100,9 +100,10 @@ test('dock layout follows measure → save and optional T0 tests, with all safet
                    .split('</section>')[0];
  const auto=section.indexOf('<h3>Measure dock position</h3>');
  const align=section.indexOf('<h3>Save dock XY</h3>');
- const verify=section.indexOf('T0 pickup &amp; dropoff tests');
+ const verify=section.indexOf('T0 · Pickup / Dropoff');
+ const advanced=section.indexOf('Advanced T0 motion &amp; sensor tests');
  const recovery=section.indexOf('Recovery and backups');
- assert.ok(auto>=0 && align>auto && verify>align && recovery>verify);
+ assert.ok(auto>=0 && align>auto && verify>align && advanced>verify && recovery>advanced);
  assert.match(section,/Check the measured X\/Y values, then save/);
  assert.match(section,/id="cxmLineuxStart" disabled/);
  assert.match(section,/id="cxmLineuxToDraft" disabled/);
@@ -144,6 +145,15 @@ test('T0 test controls are hardware-gated and never mark a tool verified',()=>{
  assert.match(t0,/state\?\.stage==='staged'/);
  assert.match(t0,/I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH/);
  assert.match(t0,/first_dropoff_ready/);
+ const auto=fs.readFileSync(path.join(__dirname,'../web/cxm-t0-auto.js'),'utf8');
+ assert.match(html,/cxm-t0-auto\.js\?v=1\.0\.0/);
+ for(const id of ['cxmT0AutoPickup','cxmT0AutoDropoff','cxmT0AutoStatus',
+   'cxmT0AutoFaultBox','cxmT0AutoClearFault'])
+   assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(auto,/request|send\('\/auto'/);
+ assert.match(auto,/setInterval/);
+ assert.match(html,/value="-4\.8"/);
+ assert.doesNotMatch(auto,/SET_GCODE_OFFSET|SET_HEATER_TEMPERATURE|G1 Z|printer\/gcode\/script/);
  assert.match(t0,/can_confirm_staging/);
  assert.match(t0,/request\('\/confirm-stage'/);
  assert.match(t0,/I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED/);

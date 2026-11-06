@@ -33,11 +33,15 @@ class Machine:
             return {'state':'ready','process_id':self.pid}
         if path=='/printer/objects/list':
             return {'objects':['idle_timeout','toolhead','stepper_enable',
-                               'gcode_button carriage_t0']}
+                               'gcode_button carriage_t0',
+                               'gcode_button cxm_tool_detect']}
         if path.startswith('/printer/objects/query?'):
             if 'gcode_button' in path:
-                return {'status':{'gcode_button carriage_t0':
-                                   {'state':'PRESSED' if self.sensor else 'RELEASED'}}}
+                state='PRESSED' if self.sensor else 'RELEASED'
+                return {'status':{
+                    'gcode_button carriage_t0':{'state':state},
+                    'gcode_button cxm_tool_detect':{'state':state},
+                }}
             return {'status':{
                 'idle_timeout':{'state':'Ready'},
                 'toolhead':{'homed_axes':self.axes,'position':[self.x,self.y,self.z,0]},
@@ -62,6 +66,7 @@ class T0Test(unittest.TestCase):
         self.machine=Machine()
         c.SESSION.update(pid=None,revision=None,stage=None,sensor=None,
                          samples={},last_action=None,xy=None,path=None)
+        c.AUTO_STATE.update(pid=None,revision=None,fault=None,last_success=None)
         self.patch=patch.object(c,'_rpc',side_effect=self.machine.rpc)
         self.patch.start()
         self.addCleanup(self.patch.stop)
@@ -194,6 +199,119 @@ class T0Test(unittest.TestCase):
             c.confirm_staging(store=self.store,expected_revision=self.store.rev,
                 acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
         self.assertEqual(self.machine.scripts,[])
+
+    def test_one_click_dropoff_and_pickup_auto_stage_and_check_sensor(self):
+        # No selected sensor, manual recording, or Approach button required.
+        self.machine.sensor=True
+        self.store.data['tools'][0]['dock_x']=302.19
+        self.store.data['tools'][0]['dock_y']=65.97
+        status=c.status(self.store)
+        self.assertTrue(status['automatic']['enabled'])
+        self.assertEqual(status['automatic']['signal'],'PRESSED')
+        self.assertEqual(status['automatic']['action'],'dropoff')
+        result=c.automatic_toolchange(store=self.store,
+            expected_revision=self.store.rev,kind='dropoff',
+            acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(result['status'],'T0_DROPOFF_SENSOR_CONFIRMED')
+        self.assertEqual(result['signal'],'RELEASED')
+        self.assertTrue(result['staging_performed'])
+        self.assertEqual(len(self.machine.scripts),2)
+        self.assertEqual(self.machine.scripts[0].splitlines(),
+            ['G90','G1 Y120.00000 F600','G1 X302.19000 F600','M400'])
+        self.assertEqual(self.machine.scripts[1].splitlines(),
+            ['G90','G1 X302.19000 Y65.97000 F240',
+             'G1 X297.39000 Y65.97000 F180',
+             'G1 X297.39000 Y79.97000 F240',
+             'G1 X302.19000 Y79.97000 F240',
+             'G1 X302.19000 Y120.00000 F240','M400'])
+        self.assertTrue(all(' Z' not in x for x in self.machine.scripts))
+        status=c.status(self.store)
+        self.assertEqual(status['automatic']['action'],'pickup')
+        self.assertTrue(status['automatic']['enabled'])
+        result=c.automatic_toolchange(store=self.store,
+            expected_revision=self.store.rev,kind='pickup',
+            acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(result['signal'],'PRESSED')
+        self.assertFalse(result['staging_performed'])
+        self.assertEqual(len(self.machine.scripts),3)
+        self.assertEqual(c.status(self.store)['automatic']['action'],'dropoff')
+        self.assertEqual(c.SESSION['samples'],{})
+
+    def test_one_click_action_uses_live_switch_not_session_samples(self):
+        self.machine.sensor=True
+        self.assertEqual(c.status(self.store)['automatic']['action'],'dropoff')
+        self.machine.sensor=False
+        self.assertEqual(c.status(self.store)['automatic']['action'],'pickup')
+        with self.assertRaisesRegex(c.T0Error,'wrong operation'):
+            c.automatic_toolchange(store=self.store,
+                expected_revision=self.store.rev,kind='dropoff',
+                acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(self.machine.scripts,[])
+        self.assertEqual(c.SESSION['samples'],{})
+
+    def test_one_click_requires_homed_safe_power_clear_path_and_actual_switch(self):
+        self.machine.sensor=True
+        for attr,bad,good in (('axes','xy','xyz'),('enabled',False,True),
+                              ('z',19.0,20.0),('y',80.0,170.0)):
+            setattr(self.machine,attr,bad)
+            with self.assertRaises(c.T0Error):
+                c.automatic_toolchange(store=self.store,
+                    expected_revision=self.store.rev,kind='dropoff',
+                    acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+            setattr(self.machine,attr,good)
+        self.machine.sensor=True
+        with self.assertRaisesRegex(c.T0Error,'Physically confirm'):
+            c.automatic_toolchange(store=self.store,expected_revision=self.store.rev,
+                kind='dropoff',acknowledgement='INVALID')
+        with self.assertRaisesRegex(c.T0Error,'coordinates changed'):
+            c.automatic_toolchange(store=self.store,expected_revision='0'*64,
+                kind='dropoff',
+                acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(self.machine.scripts,[])
+
+    def test_failed_switch_transition_locks_out_until_physical_inspection(self):
+        self.machine.sensor=True
+        def frozen(path,payload=None):
+            reply=self.machine.rpc(path,payload)
+            if path=='/printer/gcode/script':
+                self.machine.sensor=True
+            return reply
+        with patch.object(c,'_rpc',side_effect=frozen):
+            with self.assertRaisesRegex(c.T0Error,'presence switch still reports'):
+                c.automatic_toolchange(store=self.store,
+                    expected_revision=self.store.rev,kind='dropoff',
+                    acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(len(self.machine.scripts),2)
+        status=c.status(self.store)
+        self.assertFalse(status['automatic']['enabled'])
+        self.assertIsNotNone(status['automatic']['fault'])
+        with self.assertRaisesRegex(c.T0Error,'Movement or sensor verification failed'):
+            c.automatic_toolchange(store=self.store,
+                expected_revision=self.store.rev,kind='dropoff',
+                acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        with self.assertRaisesRegex(c.T0Error,'Physical carriage'):
+            c.clear_automatic_fault(store=self.store,
+                expected_revision=self.store.rev,acknowledgement='NO')
+        result=c.clear_automatic_fault(store=self.store,
+            expected_revision=self.store.rev,
+            acknowledgement='I_PHYSICALLY_INSPECTED_T0_AND_PATH_AFTER_TEST_FAILURE')
+        self.assertEqual(result['status'],'T0_TEST_FAULT_CLEARED_NO_MOVEMENT')
+        self.assertEqual(len(self.machine.scripts),2)
+        self.assertTrue(c.status(self.store)['automatic']['enabled'])
+
+    def test_one_click_preserves_other_hotends_and_nozzle_z(self):
+        self.store.data['globals']['tool_count']=6
+        self.store.data['tools'][1]['dock_x']=44.0
+        self.store.data['tools'][1]['dock_y']=55.0
+        self.store.data['tools'][0]['offset_z']=0.75
+        before=self.store.read()['config']['tools'][0].copy()
+        self.machine.sensor=True
+        c.automatic_toolchange(store=self.store,expected_revision=self.store.rev,
+            kind='dropoff',acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(self.store.read()['config']['tools'][0],before)
+        self.assertEqual(self.store.read()['config']['tools'][1]['dock_x'],44.0)
+        self.assertTrue(all('X44.00000' not in z for z in self.machine.scripts))
+        self.assertTrue(all(' Z' not in z for z in self.machine.scripts))
 
     def test_t0_ready_after_cxm_service_session_reset(self):
         # Regression: service updates must not force a second G28.
