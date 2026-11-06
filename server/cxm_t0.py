@@ -7,9 +7,8 @@ The tested Lineux dock X/Y is used without x_docking_adjust correction.
 from __future__ import annotations
 import math
 import threading
-import time
 import urllib.parse
-from cxm_lineux import _rpc, MOVE_LOCK, MeasurementError, CXM_HOME_SESSION
+from cxm_lineux import _rpc, MOVE_LOCK, MeasurementError
 
 SESSION_LOCK=threading.Lock()
 SESSION={'pid':None,'revision':None,'stage':None,'sensor':None,
@@ -79,10 +78,12 @@ def _safe_context(saved, *, require_homed=True, require_in_park=False):
         raise T0Error('Home XYZ and maintain at least Z20 physical clearance')
     if require_homed and not all(motors.get(name) is True for name in MOTORS):
         raise T0Error('All X/Y and four Z steppers must be powered; rehome after manual positioning')
-    if require_homed and not (CXM_HOME_SESSION['pid']==info['process_id'] and
-        CXM_HOME_SESSION['revision']==saved['revision'] and
-        time.monotonic()-CXM_HOME_SESSION['at']<=1800):
-        raise T0Error('Home and Z20 verification needed for T0 test')
+    # XYZ homing and stepper power are read directly from Klipper above.
+    # Do not require a transient CXM-service memory token: source updates and
+    # backend reloads invalidate that token without changing Klipper homing.
+    # Operators must never hand-move/re-enable X/Y after homing and then trust
+    # stale Klipper coordinates. Every motion still needs physical clearance
+    # acknowledgement plus powered motors, Z>=20 and idle printer.
     if require_in_park and (abs(pos[0]-x)>POSITION_TOL or abs(pos[1]-safe)>POSITION_TOL):
         raise T0Error('Carriage must be at verified staging X/Y before pickup/dropoff')
     return {'pid':info['process_id'],'x':x,'y':y,'safe_y':safe,

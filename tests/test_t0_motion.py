@@ -62,10 +62,30 @@ class T0Test(unittest.TestCase):
         self.machine=Machine()
         c.SESSION.update(pid=None,revision=None,stage=None,sensor=None,
                          samples={},last_action=None,xy=None,path=None)
-        c.CXM_HOME_SESSION.update(pid=self.machine.pid,revision=self.store.rev,at=c.time.monotonic())
         self.patch=patch.object(c,'_rpc',side_effect=self.machine.rpc)
         self.patch.start()
         self.addCleanup(self.patch.stop)
+
+    def test_t0_ready_after_cxm_service_session_reset(self):
+        # Regression: service updates must not force a second G28.
+        import cxm_lineux
+        cxm_lineux.CXM_HOME_SESSION.update(pid=None,revision=None,at=0.0)
+        status=c.status(self.store)
+        self.assertTrue(status['ready'],status['blockers'])
+        self.assertEqual(status['saved_xy_mm'],{'x':298.98,'y':65.88})
+        self.assertEqual(self.machine.scripts,[])
+
+    def test_t0_rejects_missing_homing_or_z20_or_power(self):
+        self.machine.axes='xy'
+        self.assertFalse(c.status(self.store)['ready'])
+        self.machine.axes='xyz'
+        self.machine.z=19.9
+        self.assertFalse(c.status(self.store)['ready'])
+        self.machine.z=20.0
+        self.machine.enabled=False
+        self.assertFalse(c.status(self.store)['ready'])
+        self.machine.enabled=True
+        self.assertTrue(c.status(self.store)['ready'])
 
     def test_saved_xy_and_xy_only_plan(self):
         s=c.status(self.store)
