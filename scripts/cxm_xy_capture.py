@@ -129,9 +129,23 @@ class Moonraker:
         return raw.get('result',raw)
 
     def status(self):
-        query=urlencode({'toolhead':'position,homed_axes',
-                         'print_stats':'state', 'configfile':'settings'})
-        raw=self.request('/printer/objects/query?'+query)
+        # Discover optional status objects.  A machine with no print_stats
+        # status must not be mistaken for a printing (or idle) machine.
+        available=self.request('/printer/objects/list').get('objects')
+        if not isinstance(available,list):
+            raise CaptureError('Cannot identify Klipper status objects')
+        required={'toolhead','configfile','idle_timeout'}
+        if not required.issubset(available):
+            raise CaptureError('Required Klipper status object missing: '
+                               + ', '.join(sorted(required-set(available))))
+        query={'toolhead':'position,homed_axes', 'configfile':'settings',
+               'idle_timeout':'state'}
+        for name,fields in (('print_stats','state'),
+                            ('virtual_sdcard','is_active'),
+                            ('pause_resume','is_paused')):
+            if name in available:
+                query[name]=fields
+        raw=self.request('/printer/objects/query?'+urlencode(query))
         return raw['status']
 
     def gcode(self, lines):
@@ -150,17 +164,32 @@ class Moonraker:
 
 def validate_preflight(status):
     try:
-        th=status['toolhead']; ps=status['print_stats']
+        th=status['toolhead']; idle=status['idle_timeout']['state']
         cfg=status['configfile']['settings']
         xcfg=cfg['stepper_x']; ycfg=cfg['stepper_y']
         override=cfg['homing_override']
     except (KeyError,TypeError) as exc:
         raise CaptureError('Missing printer/override configuration: '+str(exc)) from exc
     axes=th.get('homed_axes','')
+    ps=status.get('print_stats',{})
     state=ps.get('state')
     xyz=th['position']
-    if state not in ('standby','complete','cancelled','error'):
-        raise CaptureError('Printer must be idle; print_stats.state='+str(state))
+    if idle not in ('Idle','Ready'):
+        raise CaptureError('Printer is not idle; idle_timeout.state='+str(idle))
+    if state not in (None,'standby','complete','cancelled','error'):
+        raise CaptureError('Printer print job not idle; print_stats.state='+str(state))
+    vs=status.get('virtual_sdcard')
+    if vs is not None and vs.get('is_active') is not False:
+        raise CaptureError('Virtual SD activity is active or unknown')
+    pause=status.get('pause_resume')
+    if pause is not None and pause.get('is_paused') is not False:
+        raise CaptureError('Printer paused state is active or unknown')
+    # Klipper may not expose print_stats on an unused printer, or may
+    # return null.  In that case an Idle state is acceptable; a Ready
+    # state requires an explicit inactive virtual-SD signal.
+    if state is None and idle == 'Ready' and vs is None:
+        raise CaptureError('Cannot confirm no print is active: '
+                           'print_stats is absent and virtual_sdcard unavailable')
     if not all(a in axes for a in 'xyz'):
         raise CaptureError('Home and verify XYZ safely before the known-position check')
     if len(xyz)<3 or xyz[2] < 10:
@@ -182,6 +211,8 @@ def validate_preflight(status):
         bounds[axis]=dict(min_mm=lo,max_mm=hi,endstop_mm=end)
     return {'known_xy_mm':[float(xyz[0]),float(xyz[1])],
             'z_mm':float(xyz[2]),'homed_axes':axes,'print_state':state,
+            'idle_timeout_state':idle,'virtual_sd_active':None if vs is None else vs['is_active'],
+            'paused':None if pause is None else pause['is_paused'],
             'bounds':bounds,'homing_override_present':True}
 
 
