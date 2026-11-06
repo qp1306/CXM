@@ -1,10 +1,10 @@
 # CXM Control Centre
 
-**CXM V0.8.2 development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
+**CXM V0.9.0 commissioning development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.2 or V0.3? Upgrade to V0.8.2
+## Already installed V0.2 or V0.3? Upgrade to V0.9.0
 
 Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. V0.5.1 retains a guided **Dock Calibration** tab. Select any enabled T0–T11, enter or nudge proposed X/Y/Z, then **Accept XYZ · AutoSave**. The three numbers are committed atomically with a backup and optimistic revision check. The tool-card Calibrate button now opens the editor, but **never initiates motion**. **No new terminal installation or Klipper restart is required.** The Tools page has a **Hotends in use (1–12)** selector which AutoSaves the global tool count. It shows **all selected hotend cards** from T0 up to the chosen count, including individually disabled profiles. Disabled tools are clearly labelled, remain protected from calibration commands and can be enabled deliberately in Settings. Reducing the count hides higher-numbered cards without modifying any of their saved calibration settings or Enabled flags. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
 
@@ -198,3 +198,32 @@ Fixed misleading static text from MCU-free development:
 **Still intentionally unavailable:** automatic Y-then-X XY dock capture, motor movement, approach dock, Test Pickup, Repeat Test, and any hotend commissioning. No G-code is issued; the current V0.7.0 XY calculations remain offline. Manual provisional XYZ editing still requires all **three** valid coordinates, deliberate acceptance, and the backend's existing Klipper idle safety gate. No changes to Klipper macros, `printer.cfg`, active tool, hardware or Z math. The working V0.8.1 release remains the rollout baseline.
 
 **Acceptance:** install through the existing Updates page while Klipper is idle. Open Dock Calibration. If Klipper reports Ready and XYZ homed, expect live indicators `Ready (reported)`, `XYZ homed (reported)`, current XYZ position from Moonraker, and a separate `physical validation pending` label. Confirm `Measure dock XY`, `Approach dock` and `Test pickup` remain disabled. No invented dock XYZ should be saved.
+
+## V0.9.0 - actual commissioning workbench; NO printer motion
+
+This release makes the previous empty **Testing** page usable for live diagnostics and offline analysis of real hardware data. It does not yet implement unattended physical toolchanging.
+
+**New Testing page:**
+1. **Live machine preflight** reads Klipper info, object availability, reported toolhead homing and XYZ, idle/print state, extruder thermistor and local CXM config revision. It inspects any available `configfile` homing-override settings and warns about the specific CXM issue: `set_position_z: 0` combined with unconditional `G1 Z10`. This is a diagnostic warning, not certification of a different override.
+2. **Prove AutoSave without a Klipper process restart:** first capture process evidence and the config revision, change a harmless disk-only field while idle, then compare. Backend GET `/cxm/api/v1/runtime` combines Moonraker's `/printer/info.process_id` with Linux `/proc/<pid>/stat` start ticks and the kernel boot ID, then returns a truncated hash of that identity. A changed disk revision AND identical process identity supports **the same running Klipper process** before and after AutoSave. If either item is unavailable or unchanged, the result is explicitly inconclusive/incomplete. It **does not** prove that runtime Klipper macro variables were updated and cannot exclude every possible in-process reload.
+3. **Real CoreXY MCU-step reviewer:** paste the three `GET_POSITION` `mcu:` lines (before Y, after Y, after X), known +X and +Y calibration steps, configured positive endstop coordinates and optional known starting XY. The pure client-side reviewer computes the motor transform, rejects singular transforms, wrong homing sign, cross-axis drift above 0.15 mm and out-of-bounds results, and displays provisional reconstructed XY only. No calls to G-code endpoints, heaters or movement. A `Load real 6 Nov reference data` button reproduces our actual known-position test with measured +X=(800,800) steps/5 mm, +Y=(800,-800) steps/5 mm, starting motors (4814,27252), Y-home (46739,-14673), X-home (53139,-8273), X endstop 335, Y endstop 362. It reconstructs X295.00000/Y99.96875 from known X295/Y100, a 0.03125 mm Y difference. This is one sample, not demonstrated repeatability.
+4. **Export diagnostic JSON:** records the current read-only machine snapshot, optional real-counter inputs and review result for reproducible faultfinding; no credentials and no motion calls.
+
+**Not commissioned:** no automatic motor counter capture/homing, no physical approach or tool pickup/dropoff, no reliable coupling-sensor verification, no heating, no live tool variable synchronisation, no automatic Touch Z probing. The shared extruder thermistor is currently disconnected; it must be verified before any heater test.
+
+**Why G28 motion is locked:** the current printer.cfg supplied by the operator contains `[homing_override]`, `axes: xyz`, `set_position_z: 0`, and an unconditional `G91; G1 Z10; G90` before every XY home. Actual GET_POSITION snapshots showed +8000 Z motor steps after `G28 Y` and another +8000 steps after `G28 X`. This can add physical Z movement despite the apparent Z coordinate. Do not run an automatic dock-calibration G28 from a dock until the active homing configuration has been backed up, reviewed, corrected and physically tested. **Changing printer.cfg necessarily requires a deliberate Klipper configuration reload.**
+
+### Operator no-restart evidence test
+
+1. Install V0.9.0 through the existing CXM-only Updates page while Klipper is idle. Refresh the browser after the updater reports the new installed source.
+2. Open **Testing**, click **Refresh real diagnostics** and confirm live status can be obtained.
+3. Click **A - Capture baseline**. A valid process identity and configuration revision are required.
+4. For the current uncommissioned T0 bench only, change **Hotends in use** in Tools from 1 to 2 while idle. Wait for the disk AutoSave confirmation.
+5. Return to Testing and click **C - Compare after AutoSave**. PASS requires the new disk revision and the exact same Linux Klipper process identity. It is a test of process continuity and disk persistence only. If identity is missing, report INCONCLUSIVE; if revision is unchanged, report INCOMPLETE.
+6. Restore Hotends in use to 1. No G-code, Klipper restart or manual macro edit should be involved in this disk-only test.
+
+**Runtime boundary:** Disk config updates and CXM webpage source upgrades do not require a Klipper restart merely to be stored or shown. A separate explicitly verified runtime sync stage is still needed for updated tool variables to take effect in active macros. Editing printer.cfg, loaded Klipper macro definitions or MCU pin assignments **does** require a deliberate Klipper RESTART (firmware restart only when specifically required), ideally after an idle backup. Neither CXM's update workflow nor this testing page automatically restarts Klipper.
+
+**Documentation:** The 16-page illustrated CXM Control Centre Operator Guide V0.9.0 contains the seven-tab walkthrough, real 6 November screenshots (some historical UI versions), a schematic of the new Testing page, restart evidence workflow, actual XY step-count example and staged T0 commissioning sequence. The guide is delivered separately as a PDF in the ChatGPT conversation; this repository documents the supported actions and limitations as text.
+
+**Validation:** `python3 -m unittest discover -s tests -v`, `node --check web/cxm-testing.js`, `node --check web/cxm-test-math.js`, and `node --test tests/test_commissioning_ui.cjs`, plus existing project CI. All Testing actions fail closed and do not make a tool READY.
