@@ -96,14 +96,14 @@ async function checkKnownPosition(){
       tool:n, expected_revision:snapshot.revision,
       acknowledgement:'I_CONFIRM_HOMED_KNOWN_XY_CLEAR_PATH'
     });
-    const e=r.jog_corrected_error_mm;
+    const e=r.known_position_error_mm;
     if(!e||!Number.isFinite(e.x)||!Number.isFinite(e.y))throw Error('Invalid known-check report');
     feedbackKnown(r.status+': known X'+r.known_start_xy_mm.x.toFixed(3)+
       ' / Y'+r.known_start_xy_mm.y.toFixed(3)+
-      '; raw Lineux X'+r.lineux_raw_xy_mm.x.toFixed(3)+
+      '; original Lineux X'+r.lineux_raw_xy_mm.x.toFixed(3)+
       ' / Y'+r.lineux_raw_xy_mm.y.toFixed(3)+
-      '; corrected errors X'+e.x.toFixed(3)+
-      ' Y'+e.y.toFixed(3)+' mm. '+(r.passed
+      '; position errors X'+e.x.toFixed(3)+
+      ' Y'+e.y.toFixed(3)+' mm. No second X jog compensation. '+(r.passed
          ? 'PASS · no coordinates saved; now check dock readiness.'
          : 'FAIL · dock measurement remains locked.'),r.passed?'ok':'bad');
   }catch(err){

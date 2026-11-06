@@ -207,28 +207,32 @@ def _report_between(events, start, end):
 
 def evaluate_known_position(*, raw_xy, known_xy, calibration_move_x,
                             tolerance=KNOWN_TOLERANCE_MM):
-    """Test original Lineux report against a genuine, previously homed XY datum.
+    """Compare the ORIGINAL Lineux report directly with homed starting XY.
 
-    The original routine includes its X jog in counted motor travel. Comparing
-    both raw and jog-corrected output exposes that bias without silently
-    modifying Lineux or interpreting docking adjustment as compensation.
+    Real CXM observation on 2026-11-06: from X195/Y170 with a +3mm
+    calibration jog, the original Lineux module correctly returned
+    X195.01/Y170.05. The built-in calculation ALREADY incorporates
+    the jog; adding it again produces a false +3mm error.
+
+    The separate x_docking_adjust setting is a mechanical docking
+    adjustment, NOT an accuracy correction or part of this validation.
     """
     if len(known_xy) != 2:
         raise MeasurementError('Known XY datum missing')
     start={axis:_num(known_xy[i], 'known '+axis.upper()) for i,axis in enumerate('xy')}
-    raw={axis:_num(raw_xy[axis], 'raw '+axis.upper()) for axis in 'xy'}
-    corrected={'x':raw['x']+_num(calibration_move_x,'calibration X jog'),
-               'y':raw['y']}
-    err={axis:round(corrected[axis]-start[axis],4) for axis in 'xy'}
-    raw_err={axis:round(raw[axis]-start[axis],4) for axis in 'xy'}
+    raw={axis:_num(raw_xy[axis], 'Lineux '+axis.upper()) for axis in 'xy'}
+    jog=_num(calibration_move_x,'calibration X jog')
+    if not 0.5 <= abs(jog) <= 5:
+        raise MeasurementError('Unexpected calibration jog')
+    err={axis:round(raw[axis]-start[axis],4) for axis in 'xy'}
     passed=max(abs(e) for e in err.values()) <= tolerance
     return {'status':'KNOWN_POSITION_PASSED' if passed else 'KNOWN_POSITION_FAILED',
             'passed':passed,'known_start_xy_mm':start,'lineux_raw_xy_mm':raw,
-            'lineux_x_jog_corrected_xy_mm':corrected,
-            'raw_error_mm':raw_err,'jog_corrected_error_mm':err,
+            'known_position_error_mm':err,'raw_error_mm':err,
+            'calibration_move_x_mm':jog,
             'tolerance_mm':tolerance,'save_permitted':False,
             'dock_measurement_permitted':passed,
-            'note':'This validates maths against a homed coordinate only. It does not validate manual dock seating, pickup or physical step loss.'}
+            'note':'Unmodified Lineux coordinates evaluated as reported. The internal 3mm move must not be added a second time. This single test does not prove repeatability, manual dock seating, pickup or physical step loss.'}
 
 
 def _run_original_lineux(pre):
