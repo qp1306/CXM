@@ -88,7 +88,7 @@ def query_readiness(*, tool, saved, mode='dock'):
     reasons = []
     engine = False
     meta = {}
-    if mode not in ('dock','known','prepare'):
+    if mode not in ('dock','known','prepare','home'):
         raise MeasurementError('Unknown measurement mode')
     known_verified = False
     if type(tool) is not int or not 0 <= tool < saved['config']['globals']['tool_count']:
@@ -136,7 +136,7 @@ def query_readiness(*, tool, saved, mode='dock'):
         # of a globally exclusive printer lock.
         axes = status.get('toolhead',{}).get('homed_axes','')
         position = status.get('toolhead',{}).get('position',[])
-        if 'z' not in axes or len(position) < 3 or type(position[2]) not in (int,float) or position[2] < 20:
+        if mode != 'home' and ('z' not in axes or len(position) < 3 or type(position[2]) not in (int,float) or position[2] < 20):
             reasons.append('Home Z and establish at least 20 mm actual clearance before dock positioning')
         settings = status.get('configfile',{}).get('settings',{})
         if not isinstance(settings, dict):
@@ -148,9 +148,14 @@ def query_readiness(*, tool, saved, mode='dock'):
         if not isinstance(enabled,dict):
             enabled={}
         z_steppers=('stepper_z','stepper_z1','stepper_z2','stepper_z3')
-        if not all(enabled.get(name) is True for name in z_steppers):
+        if mode != 'home' and not all(enabled.get(name) is True for name in z_steppers):
             reasons.append('All four Z steppers must be powered and physically level')
-        if mode == 'known':
+        if mode == 'home':
+            # A full home may begin with unhomed or released motors.
+            # Runtime status, print lockout, engine configuration and the
+            # operator's clear-travel acknowledgement still apply.
+            pass
+        elif mode == 'known':
             # Klipper SET_STEPPER_ENABLE ENABLE=0 does not clear homing state.
             # After hand repositioning, displayed XY is stale and must never
             # be used as the ground truth of a "known position" test.
@@ -322,6 +327,43 @@ def perform_known_check(*, tool, expected_revision, acknowledgement, store):
         result.update(tool=tool,expected_revision=expected_revision,
                       known_verified_in_session=bool(result['passed'] and KNOWN_SESSION['pid']))
         return result
+
+
+def home_and_lift_for_dock(*, tool, expected_revision, acknowledgement, store):
+    """Full verified CXM G28, lift to Z20 and park central to permit XY release.
+
+    Does not touch firmware, Klipper configurations, T0 offsets, or Z leveling.
+    All moves use the commissioned printer G28 and ordinary Klipper limits.
+    """
+    if acknowledgement != 'I_CONFIRM_CLEAR_G28_AND_Z20_PATH':
+        raise MeasurementError('Confirm safe XYZ homing, level gantry and clear central travel')
+    with MOVE_LOCK:
+        snap=store.read()
+        if type(expected_revision) is not str or snap['revision'] != expected_revision:
+            raise MeasurementError('CXM settings changed; refresh before homing')
+        pre=query_readiness(tool=tool,saved=snap,mode='home')
+        if not pre['ready']:
+            raise MeasurementError('Home and lift blocked: '+'; '.join(pre['blockers']))
+        # Home first. Raise Z20, and centre XY *while Z20 is maintained*
+        # to leave software space for Lineux's original initial +3 mm jog.
+        _rpc('/printer/gcode/script',{'script':
+            'G28\nG90\nG1 Z20 F300\nG1 X195 Y170 F3000'})
+        # After Moonraker gcode/script returns, the idle_timeout state may
+        # briefly be "Printing"; verify physical motor flags/coordinates, not
+        # a premature idle_timeout transition.
+        status=_rpc('/printer/objects/query?toolhead=homed_axes,position&stepper_enable=steppers')['status']
+        h=status.get('toolhead',{})
+        pos=h.get('position',[])
+        motors=status.get('stepper_enable',{}).get('steppers',{})
+        if (not all(a in h.get('homed_axes','') for a in 'xyz')
+            or len(pos)<3 or any(type(n) not in (int,float) for n in pos[:3])
+            or abs(pos[0]-195)>0.2 or abs(pos[1]-170)>0.2
+            or abs(pos[2]-20)>0.2
+            or not all(motors.get(n) is True for n in
+                ('stepper_x','stepper_y','stepper_z','stepper_z1','stepper_z2','stepper_z3'))):
+            raise MeasurementError('Homing completion not verified; inspect XYZ and all four Z motors before proceeding')
+        return {'status':'HOMED_Z20_CENTRE','tool':tool,'position_mm':[195,170,20],
+                'note':'CXM homed and parked X195 Y170 Z20. Check physical clearance before releasing XY.'}
 
 
 def release_xy_for_dock(*, tool, expected_revision, acknowledgement, store):
