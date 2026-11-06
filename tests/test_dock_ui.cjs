@@ -95,15 +95,15 @@ test('Lineux live measurement is gated, provisional, and separate from protected
  assert.match(dock,/\['manual-mcu-review','lineux-live'\]/);
 });
 
-test('dock layout follows measure → align → verify, with the same safety controls',()=>{
+test('dock layout follows measure → save and optional T0 tests, with all safety controls',()=>{
  const section=html.split('<section data-panel="calibration" hidden>')[1]
                    .split('</section>')[0];
  const auto=section.indexOf('<h3>Measure dock position</h3>');
  const align=section.indexOf('<h3>Save dock XY</h3>');
- const verify=section.indexOf('<h3>3 · Test and verify</h3>');
- const recovery=section.indexOf('<h3>Recovery</h3>');
+ const verify=section.indexOf('T0 pickup &amp; dropoff tests');
+ const recovery=section.indexOf('Recovery and backups');
  assert.ok(auto>=0 && align>auto && verify>align && recovery>verify);
- assert.match(section,/The dock moves with the gantry/);
+ assert.match(section,/Check the measured X\/Y values, then save/);
  assert.match(section,/id="cxmLineuxStart" disabled/);
  assert.match(section,/id="cxmLineuxToDraft" disabled/);
  assert.match(section,/id="cxmT0Stage" disabled/);
