@@ -145,6 +145,15 @@ def status(store):
         first_dropoff_ready=(stage=='staged' and last=='stage' and sensor is not None
                              and 'mounted' in samples and 'empty' not in samples
                              and live.get(sensor)==samples['mounted'])
+        # Reconciliation is available only in a fresh, untouched first cycle,
+        # with the real carriage already physically at the saved staging point.
+        # It never infers that a pickup or dropoff succeeded.
+        can_confirm_staging=(
+            stage is None and last is None and
+            sensor in candidate and 'mounted' in samples and 'empty' not in samples and
+            live.get(sensor)==samples['mounted'] and
+            abs(ctx['position'][0]-ctx['x'])<=POSITION_TOL and
+            abs(ctx['position'][1]-ctx['safe_y'])<=POSITION_TOL)
         return {'ready':True,'tool':0,'saved_xy_mm':{'x':ctx['x'],'y':ctx['y']},
                 'safe_y_mm':ctx['safe_y'],'position_mm':ctx['position'],
                 'plan':p,'sensor_candidates':candidate,'sensor_states':live,
@@ -152,6 +161,7 @@ def status(store):
                 'sensor_calibrated':sensor is not None and 'empty' in samples
                                     and 'mounted' in samples and samples['empty']!=samples['mounted'],
                 'stage':stage,'last_action':last,
+                'can_confirm_staging':can_confirm_staging,
                 'first_dropoff_ready':first_dropoff_ready,
                 'first_dropoff_pending_empty':last=='first_dropoff_pending',
                 'blockers':[],
@@ -164,6 +174,50 @@ def _invalidate(ctx):
     if SESSION['pid']!=ctx['pid'] or SESSION['revision']!=ctx['revision']:
         SESSION.update(pid=ctx['pid'],revision=ctx['revision'],stage=None,
                        last_action=None,sensor=None,samples={},xy=None,path=None)
+
+def confirm_staging(*, store, expected_revision, acknowledgement):
+    """Reconfirm an already staged T0 without issuing printer movement.
+
+    A backend reload or a test-control page refresh can lose volatile stage
+    state. Do not jog the toolhead merely to reconstruct that bookkeeping.
+    Confirm the real Klipper position and the carriage-mounted sensor,
+    require an explicit physical operator check, then re-arm only the initial
+    mounted-T0 first-dropoff step. This never certifies pickup or creates an
+    EMPTY sensor sample.
+    """
+    if acknowledgement!='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED':
+        raise T0Error('Confirm physical T0 staging and that X/Y were not manually moved after homing')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise T0Error('Another printer motion operation is in progress')
+    try:
+        saved=store.read()
+        if saved['revision']!=expected_revision:
+            raise T0Error('T0 coordinates changed; refresh before confirming')
+        # Verifies Klipper truly ready and idle, XYZ homed, Z>=20, all 6 motors
+        # energized, valid stored dock XY, and current X/Y matches staging.
+        ctx=_safe_context(saved,require_in_park=True)
+        plan(saved)
+        with SESSION_LOCK:
+            _invalidate(ctx)
+            if SESSION['stage'] is not None or SESSION['last_action'] is not None:
+                raise T0Error('Only a fresh first-cycle staging record can be restored')
+            sensor=SESSION['sensor']
+            samples=SESSION['samples']
+            if (sensor is None or sensor not in _candidates(ctx['objects'])
+                or 'mounted' not in samples or 'empty' in samples):
+                raise T0Error('Record the actual T0 MOUNTED sensor first')
+            live=_sensor_value(sensor,ctx['objects'])
+            if live!=samples['mounted']:
+                raise T0Error('T0 presence switch does not match recorded MOUNTED')
+            SESSION.update(stage='staged',last_action='stage',
+                           xy=[ctx['x'],ctx['safe_y']],path=None)
+        return {'status':'SUPERVISED_T0_STAGING_CONFIRMED_NO_MOVEMENT',
+                'position_mm':ctx['position'],
+                'note':'Live X/Y, motor power, homing and MOUNTED switch checked. '
+                       'No G-code issued. Physically verify dropoff travel before moving.'}
+    finally:
+        MOVE_LOCK.release()
+
 
 def record_sensor(*,store,expected_revision,name,condition,acknowledgement):
     if acknowledgement!='I_CHECKED_THE_PHYSICAL_T0_SENSOR':
