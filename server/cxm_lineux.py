@@ -102,6 +102,8 @@ def query_readiness(*, tool, saved, mode='dock'):
         if info.get('state') != 'ready':
             reasons.append('Klipper is not ready')
         pid = info.get('process_id')
+        if mode == 'known' and (type(pid) is not int or pid <= 1):
+            reasons.append('Cannot verify Klipper process identity for known-position evidence')
         known_verified = (type(pid) is int and pid > 1
                           and KNOWN_SESSION['pid'] == pid
                           and time.monotonic() - KNOWN_SESSION['at'] <= KNOWN_MAX_AGE_SEC)
