@@ -28,8 +28,9 @@ test('gantry dock coordinates require only X/Y, deliberate approval and server v
 });
 test('V0.4 cannot issue motion or falsely verify hardware pickup',()=>{
   assert.doesNotMatch(dock,/\/printer\/gcode\/script|\/printer\/gcode\/help|postJSON\('\/printer\//);
-  assert.match(html,/button class="btn" disabled title="Requires safe Klipper macros">Approach dock/);
-  assert.match(html,/button class="btn" disabled title="Requires physical pickup sensor testing">Test pickup/);
+  assert.match(html,/id="cxmT0Stage" disabled/);
+  assert.match(html,/id="cxmT0Pickup" disabled/);
+  assert.match(html,/id="cxmT0Dropoff" disabled/);
   assert.match(html,/Crosshair is a visual reference only/);
   assert.match(dock,/NOT physically verified/);
 });
@@ -105,8 +106,8 @@ test('dock layout follows measure → align → verify, with the same safety con
  assert.match(section,/The dock moves with the gantry/);
  assert.match(section,/id="cxmLineuxStart" disabled/);
  assert.match(section,/id="cxmLineuxToDraft" disabled/);
- assert.match(section,/button class="btn" disabled title="Requires safe Klipper macros"/);
- assert.match(section,/button class="btn" disabled title="Requires physical pickup sensor testing"/);
+ assert.match(section,/id="cxmT0Stage" disabled/);
+ assert.match(section,/id="cxmT0Pickup" disabled/);
  for(const id of ['cxmDockTool','cxmDockAccept','cxmDockReset','cxmDockBackups','cxmDockFeedback'])
    assert.equal(section.split('id="'+id+'"').length-1,1);
 });
@@ -129,5 +130,18 @@ test('V0.8.2 dock preflight reads real Klipper status but cannot authorise motio
  assert.match(dock,/no motion or verification is authorised/i);
  assert.doesNotMatch(dock,/\/printer\/gcode\/script|\/printer\/gcode\/help|CARTOGRAPHER_TOUCH|SET_GCODE_OFFSET/);
  assert.match(html,/id="cxmLineuxStart" disabled/);
- assert.match(html,/button class="btn" disabled title="Requires safe Klipper macros">Approach dock/);
+ assert.match(html,/id="cxmT0Stage" disabled/);
 });
+
+test('T0 test controls are hardware-gated and never mark a tool verified',()=>{
+ const t0=fs.readFileSync(path.join(__dirname,'../web/cxm-t0.js'),'utf8');
+ assert.match(html,/cxm-t0\.js\?v=0\.9\.10/);
+ for(const id of ['cxmT0Sensor','cxmT0RecordEmpty','cxmT0RecordMounted',
+   'cxmT0Stage','cxmT0Pickup','cxmT0Dropoff','cxmT0Plan'])
+   assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(t0,/state\.sensor_calibrated===true/);
+ assert.match(t0,/state\?\.stage==='staged'/);
+ assert.match(t0,/I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH/);
+ assert.doesNotMatch(t0,/SET_GCODE_OFFSET|SET_HEATER_TEMPERATURE|G1 Z|printer\/gcode\/script/);
+});
+
