@@ -149,9 +149,10 @@ test('T0 test controls are hardware-gated and never mark a tool verified',()=>{
  assert.match(t0,/I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH/);
  assert.match(t0,/first_dropoff_ready/);
  const auto=fs.readFileSync(path.join(__dirname,'../web/cxm-t0-auto.js'),'utf8');
- assert.match(html,/cxm-t0-auto\.js\?v=1\.0\.1/);
+ assert.match(html,/cxm-t0-auto\.js\?v=1\.1\.0/);
  for(const id of ['cxmT0AutoPickup','cxmT0AutoDropoff','cxmT0AutoStatus',
-   'cxmT0AutoFaultBox','cxmT0AutoClearFault'])
+   'cxmT0AutoFaultBox','cxmT0AutoClearFault',
+   'cxmT0Cycles','cxmT0StartCycles','cxmT0StopCycles','cxmT0CycleStatus'])
    assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(auto,/request|send\('\/auto'/);
  assert.match(auto,/setInterval/);

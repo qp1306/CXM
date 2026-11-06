@@ -171,6 +171,10 @@
 .cxm-t0-auto-fault{padding:10px 0}
 .cxm-t0-auto-fault .btn{min-height:40px}
 .cxm-t0-auto [hidden]{display:none!important}
+.cxm-t0-repeat{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:18px}
+.cxm-t0-repeat label{font-size:13px;color:#b7cde1}
+.cxm-t0-repeat input{width:76px;border:1px solid #4e6881;background:#141f2d;color:#e6f1ff;border-radius:8px;padding:10px;font-size:15px}
+.cxm-t0-repeat .btn{min-height:42px}
 @media(max-width:560px){.cxm-t0-auto-buttons{flex-direction:column}.cxm-t0-auto-buttons .btn{width:100%}}
 </style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
@@ -294,6 +298,13 @@
   <button class="btn primary" id="cxmT0AutoPickup" disabled><span aria-hidden="true">↗</span> Pick up T0</button>
   <button class="btn primary" id="cxmT0AutoDropoff" disabled><span aria-hidden="true">↘</span> Drop off T0</button>
  </div>
+ <div class="cxm-t0-repeat">
+  <label for="cxmT0Cycles">Repeat pickup + dropoff</label>
+  <input id="cxmT0Cycles" type="number" min="1" max="20" step="1" value="3" aria-label="Complete pickup and dropoff cycles">
+  <button class="btn" id="cxmT0StartCycles" disabled>Run cycles</button>
+  <button class="btn" id="cxmT0StopCycles" hidden disabled>Stop after current cycle</button>
+ </div>
+ <p id="cxmT0CycleStatus" class="helper" role="status" aria-live="polite">Each cycle picks up T0 and drops it off; ends with carriage empty.</p>
  <p class="helper" id="cxmT0AutoGeometry">Dock coordinates loading…</p>
  <p class="helper">One click runs the complete XY sequence, then checks the carriage switch. Supervise test movements until T0 is proven reliable.</p>
  <p id="cxmT0AutoResult" class="helper" role="status" aria-live="polite"></p>
@@ -707,7 +718,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.4" defer></script>
 <script src="cxm-lineux.js?v=0.9.10" defer></script><script src="cxm-t0.js?v=0.9.13" defer></script>
-<script src="cxm-t0-auto.js?v=1.0.1" defer></script>
+<script src="cxm-t0-auto.js?v=1.1.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>

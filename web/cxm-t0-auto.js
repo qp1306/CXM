@@ -6,16 +6,22 @@ const root=get('cxmT0Auto');
 if(!root)return;
 const API='/cxm/api/v1/t0';
 let live=null,busy=false,checking=false,lastError='';
+let cycle=null,cycleChecking=false,cycleStopping=false;
 const onlyT0=()=>get('cxmDockTool')?.value==='0';
 function say(id,message){get(id).textContent=message;}
 function updateButtons(){
   const auto=live?.automatic;
-  const good=!busy&&onlyT0()&&live?.ready===true&&auto?.enabled===true;
+  const good=!busy&&!cycle?.running&&onlyT0()&&live?.ready===true&&auto?.enabled===true;
   get('cxmT0AutoPickup').disabled=!good||auto?.signal!=='RELEASED';
   get('cxmT0AutoDropoff').disabled=!good||auto?.signal!=='PRESSED';
   get('cxmT0AutoFaultBox').hidden=!(auto?.fault);
-  get('cxmT0AutoClearFault').disabled=busy||!auto?.fault;
-  root.setAttribute('aria-busy',busy?'true':'false');
+  get('cxmT0AutoClearFault').disabled=busy||!!cycle?.running||!auto?.fault;
+  const count=Number(get('cxmT0Cycles').value);
+  get('cxmT0StartCycles').disabled=!good||!Number.isInteger(count)||count<1||count>20;
+  get('cxmT0StopCycles').hidden=!cycle?.running;
+  get('cxmT0StopCycles').disabled=!cycle?.running||cycleStopping;
+  get('cxmT0Cycles').disabled=busy||!!cycle?.running;
+  root.setAttribute('aria-busy',busy||cycle?.running?'true':'false');
 }
 async function getJSON(url){
   const r=await fetch(url,{cache:'no-store',credentials:'same-origin'});
@@ -61,8 +67,87 @@ async function refresh(){
     updateButtons();
   }finally{checking=false;}
 }
+async function pollCycles(){
+  if(cycleChecking)return;
+  cycleChecking=true;
+  try{
+    cycle=await getJSON(API+'/cycles/status');
+    if(cycle.running){
+      say('cxmT0CycleStatus',
+        'Running: '+cycle.completed+'/'+cycle.requested+' completed · '+
+        cycle.phase+(cycle.stop_requested?' · Stop requested':''));
+    }else if(cycle.error){
+      say('cxmT0CycleStatus',
+        'Stopped after '+cycle.completed+'/'+cycle.requested+
+        ' cycles · '+cycle.error+'. Inspect T0 and the dock.');
+    }else if(cycle.last_result){
+      const r=cycle.last_result;
+      say('cxmT0CycleStatus',
+        r.status==='T0_REPEAT_COMPLETE'?'Complete · '+r.completed_cycles+
+        '/'+r.requested_cycles+' pickup/dropoff cycles verified; carriage EMPTY':
+        'Stopped · '+r.completed_cycles+'/'+r.requested_cycles+
+        ' complete cycles; carriage EMPTY');
+    }
+    updateButtons();
+  }catch(e){
+    say('cxmT0CycleStatus','Repeat status unavailable · '+e.message);
+  }finally{cycleChecking=false;}
+}
+async function runCycles(){
+  const count=Number(get('cxmT0Cycles').value);
+  if(busy||checking||cycle?.running||!onlyT0()||
+     live?.ready!==true||!live.automatic?.enabled||
+     !Number.isInteger(count)||count<1||count>20)return;
+  if(!window.confirm('RUN '+count+' T0 PICKUP + DROPOFF CYCLES?\\n\\n'+
+    'CXM uses the saved T0 dock and Safe Y settings.\\n'+
+    'If T0 is mounted, it drops it off first (not counted).\\n'+
+    'Every cycle then picks up and drops off T0 and checks the real switch.\\n'+
+    'Stay with the printer. Confirm the complete physical path is clear.\\n'+
+    'Stop button finishes the current cycle; use emergency stop immediately if unsafe.'))return;
+  busy=true;
+  updateButtons();
+  say('cxmT0CycleStatus','Starting '+count+' supervised cycles…');
+  try{
+    const result=await send('/cycles',{
+      expected_revision:await configRevision(),
+      cycles:count,
+      acknowledgement:'I_CONFIRMED_T0_REPEAT_PATH_CLEAR_AND_WILL_SUPERVISE'
+    });
+    say('cxmT0CycleStatus',result.status==='T0_REPEAT_COMPLETE'
+      ? 'Complete · '+result.completed_cycles+' of '+count+
+        ' pickup/dropoff cycles; carriage EMPTY'
+      : 'Stopped after '+result.completed_cycles+' of '+count+' full cycles');
+  }catch(e){
+    say('cxmT0CycleStatus','Repeat stopped · '+e.message+
+      ' · Inspect the carriage and dock before retrying.');
+  }finally{
+    busy=false;
+    await pollCycles();
+    await refresh();
+  }
+}
+async function stopCycles(){
+  if(!cycle?.running||cycleStopping)return;
+  cycleStopping=true;
+  updateButtons();
+  try{
+    await send('/cycles/stop',
+      {acknowledgement:'STOP_AFTER_CURRENT_T0_CYCLE'});
+    say('cxmT0CycleStatus',
+      'Stop requested · finishing current pickup/dropoff pair. '+
+      'Use emergency stop immediately if movement is unsafe.');
+    await pollCycles();
+  }catch(e){
+    say('cxmT0CycleStatus','Stop request failed · '+e.message+
+      '. Use emergency stop if needed.');
+  }finally{
+    cycleStopping=false;
+    updateButtons();
+  }
+}
+
 async function command(kind){
-  if(busy||checking||!onlyT0()||live?.ready!==true||live.automatic?.enabled!==true)return;
+  if(busy||checking||cycle?.running||!onlyT0()||live?.ready!==true||live.automatic?.enabled!==true)return;
   const signal=kind==='pickup'?'RELEASED':'PRESSED';
   if(live.automatic.signal!==signal)return;
   const physical=kind==='pickup'
@@ -95,7 +180,7 @@ async function command(kind){
   }
 }
 async function clearFault(){
-  if(busy||!live?.automatic?.fault)return;
+  if(busy||cycle?.running||!live?.automatic?.fault)return;
   if(!window.confirm('Have you physically inspected the actual carriage, dock and tool after the failed movement?\n\nClearing the test fault DOES NOT move the printer.'))return;
   busy=true;
   updateButtons();
@@ -111,12 +196,21 @@ async function clearFault(){
 get('cxmT0AutoPickup').addEventListener('click',()=>command('pickup'));
 get('cxmT0AutoDropoff').addEventListener('click',()=>command('dropoff'));
 get('cxmT0AutoClearFault').addEventListener('click',clearFault);
+get('cxmT0StartCycles').addEventListener('click',runCycles);
+get('cxmT0StopCycles').addEventListener('click',stopCycles);
+get('cxmT0Cycles').addEventListener('input',updateButtons);
 get('cxmDockTool')?.addEventListener('change',refresh);
 document.querySelector('[data-tab="calibration"]')?.addEventListener('click',refresh);
 window.addEventListener('cxm-dock-saved',refresh);
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden)refresh();
 });
-setInterval(()=>{if(!document.hidden&&onlyT0())refresh();},2500);
+setInterval(()=>{
+  if(!document.hidden&&onlyT0()){
+    pollCycles();
+    if(!busy&&!cycle?.running)refresh();
+  }
+},2500);
+pollCycles();
 refresh();
 })();

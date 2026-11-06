@@ -27,6 +27,31 @@ AUTO_EMPTY='RELEASED'
 AUTO_SHIFT_X=-4.8
 AUTO_DODGE_Y=14.0
 AUTO_STATE={'pid':None,'revision':None,'fault':None,'last_success':None}
+CYCLE_LOCK=threading.Lock()
+CYCLE_MAX=20
+CYCLE_STATE={'running':False,'requested':0,'completed':0,'phase':'idle',
+             'stop_requested':False,'error':None,'last_result':None}
+
+def cycle_status():
+    with CYCLE_LOCK:
+        return CYCLE_STATE.copy()
+
+def stop_cycles(*, acknowledgement):
+    if acknowledgement!='STOP_AFTER_CURRENT_T0_CYCLE':
+        raise T0Error('Invalid T0 cycle stop request')
+    with CYCLE_LOCK:
+        if CYCLE_STATE['running']:
+            CYCLE_STATE['stop_requested']=True
+        return CYCLE_STATE.copy()
+
+def _cycle_update(**changes):
+    with CYCLE_LOCK:
+        CYCLE_STATE.update(changes)
+
+def _cycle_stop_requested():
+    with CYCLE_LOCK:
+        return bool(CYCLE_STATE['stop_requested'])
+
 
 def _auto_invalidate(ctx):
     # Backend lifetime does not attest to hardware tool attachment: always
@@ -229,6 +254,16 @@ def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
         raise T0Error('Physically confirm the complete T0 approach path before movement')
     if not MOVE_LOCK.acquire(blocking=False):
         raise T0Error('Another printer motion operation is in progress')
+    try:
+        return _automatic_toolchange_locked(store=store,
+            expected_revision=expected_revision,kind=kind,
+            acknowledgement=acknowledgement)
+    finally:
+        MOVE_LOCK.release()
+
+
+def _automatic_toolchange_locked(*,store,expected_revision,kind,acknowledgement):
+    """Same tested one-script toolchange, with MOVE_LOCK already acquired."""
     movement_sent=False
     ctx=None
     try:
@@ -285,7 +320,76 @@ def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
                 AUTO_STATE['fault']=('T0 '+kind+' interrupted: '+str(exc)[:150]+
                                      '. Inspect the carriage and dock before clearing this fault.')
         raise
+
+
+def repeat_t0_cycles(*,store,expected_revision,cycles,acknowledgement):
+    """N complete T0 pickup+dropoff pairs. Start and finish with an empty carriage.
+
+    If T0 starts mounted, first drop it off as setup (not counted).
+    At most one cycle runs at a time. A Stop request is honoured only
+    between complete cycles, never in the middle of a physical movement.
+    """
+    if type(cycles) is not int or not 1<=cycles<=CYCLE_MAX:
+        raise T0Error('Choose 1 to '+str(CYCLE_MAX)+' complete cycles')
+    if acknowledgement!='I_CONFIRMED_T0_REPEAT_PATH_CLEAR_AND_WILL_SUPERVISE':
+        raise T0Error('Confirm the complete T0 motion path before starting repeated tests')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise T0Error('A different printer movement is already running')
+    started=False
+    initial_dropoff=False
+    try:
+        with CYCLE_LOCK:
+            if CYCLE_STATE['running']:
+                raise T0Error('T0 repeat test already running')
+            CYCLE_STATE.update(running=True,requested=cycles,completed=0,
+                phase='Checking T0',stop_requested=False,error=None,last_result=None)
+            started=True
+        current=store.read()
+        if current['revision']!=expected_revision:
+            raise T0Error('CXM settings changed; refresh before repeating T0')
+        ctx=_safe_context(current)
+        auto=_auto_snapshot(ctx,current)
+        if not auto['enabled']:
+            raise T0Error(auto.get('reason') or 'T0 not ready')
+        # Work from the actual filament/presence signal; never assume T0
+        # starts mounted or empty based on a stale web-page status.
+        if auto['signal']==AUTO_MOUNTED:
+            _cycle_update(phase='Initial dropoff · preparing empty carriage')
+            _automatic_toolchange_locked(store=store,expected_revision=expected_revision,
+                kind='dropoff',
+                acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+            initial_dropoff=True
+        for i in range(cycles):
+            if _cycle_stop_requested():
+                break
+            _cycle_update(phase='Cycle '+str(i+1)+'/'+str(cycles)+' · picking up')
+            _automatic_toolchange_locked(store=store,expected_revision=expected_revision,
+                kind='pickup',
+                acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+            _cycle_update(phase='Cycle '+str(i+1)+'/'+str(cycles)+' · dropping off')
+            _automatic_toolchange_locked(store=store,expected_revision=expected_revision,
+                kind='dropoff',
+                acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+            _cycle_update(completed=i+1)
+        stopped=_cycle_stop_requested()
+        result={'status':'T0_REPEAT_STOPPED' if stopped else 'T0_REPEAT_COMPLETE',
+                'requested_cycles':cycles,
+                'completed_cycles':cycle_status()['completed'],
+                'initial_dropoff':initial_dropoff,
+                'stop_requested':stopped,
+                'final_sensor':AUTO_EMPTY,
+                'note':'Carriage reported empty after each complete pickup/dropoff pair.'}
+        _cycle_update(phase='Stopped after complete cycle' if stopped else 'Complete',
+                      last_result=result)
+        return result
+    except Exception as exc:
+        if started:
+            _cycle_update(phase='Stopped · inspection required',
+                          error=str(exc)[:250])
+        raise
     finally:
+        if started:
+            _cycle_update(running=False)
         MOVE_LOCK.release()
 
 

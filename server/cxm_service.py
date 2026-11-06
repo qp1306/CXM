@@ -14,7 +14,8 @@ from cxm_config import Store
 from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
                     motion as t0_motion, confirm_staging as t0_confirm_staging,
                     automatic_toolchange as t0_automatic, clear_automatic_fault as t0_clear_fault,
-                    T0Error)
+                    repeat_t0_cycles as t0_repeat, cycle_status as t0_cycle_status,
+                    stop_cycles as t0_stop_cycles, T0Error)
 from cxm_lineux import (query_readiness, perform_measurement, perform_known_check,
                         release_xy_for_dock, home_and_lift_for_dock, MeasurementError)
 from urllib.parse import parse_qs, urlsplit
@@ -120,6 +121,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,runtime_evidence())
             elif self.path == '/v1/t0/status':
                 self.output(200,t0_status(self.server.store))
+            elif self.path == '/v1/t0/cycles/status':
+                self.output(200,t0_cycle_status())
             elif self.path.startswith('/v1/lineux/status?'):
                 url=urlsplit(self.path)
                 args=parse_qs(url.query)
@@ -155,8 +158,18 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault'):
+            if self.path not in ('/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/t0/cycles':
+                if set(body) != {'expected_revision','cycles','acknowledgement'}:
+                    raise ValueError('Unexpected T0 repeat-cycle request')
+                self.output(200,t0_repeat(store=self.server.store,**body))
+                return
+            if self.path == '/v1/t0/cycles/stop':
+                if set(body) != {'acknowledgement'}:
+                    raise ValueError('Unexpected T0 stop request')
+                self.output(200,t0_stop_cycles(**body))
                 return
             if self.path == '/v1/t0/auto':
                 if set(body) != {'expected_revision','kind','acknowledgement'}:
