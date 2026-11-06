@@ -74,7 +74,7 @@ test('dock reviewer never issues movement or persistent saves and blocks copying
  assert.match(controller,/source:'manual-mcu-review'/);
  assert.match(controller,/No movement or save/);
  assert.match(editor,/cxm-dock-provisional-xy/);
- assert.match(editor,/proposal\.source!=='manual-mcu-review'/);
+ assert.match(editor,/\['manual-mcu-review','lineux-live'\]/);
  assert.match(editor,/if \(busy\|\|!canEdit\(\)\)/);
  assert.match(editor,/xInput\.value=Number\(proposal\.x\)\.toFixed\(5\)/);
  assert.match(editor,/yInput\.value=Number\(proposal\.y\)\.toFixed\(5\)/);
