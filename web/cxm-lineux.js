@@ -6,15 +6,17 @@
 const el=id=>document.getElementById(id);
 if(!el('cxmLineuxPreflight'))return;
 const api='/cxm/api/v1/lineux';
-let state=null,knownState=null,result=null,tool=null,busy=false;
+let state=null,knownState=null,releaseState=null,result=null,tool=null,busy=false;
 function feedback(message,kind='pending'){
   const e=el('cxmLineuxResult');e.textContent=message;e.dataset.testState=kind;
 }
 function selected(){return Number(el('cxmDockTool')?.value);}
 function controls(){
   const matching=result && Number.isInteger(tool) && selected()===tool;
-  el('cxmLineuxStart').disabled=busy || !state?.ready || !state?.known_verified ||
+  el('cxmLineuxStart').disabled=busy || !state?.ready ||
     !el('cxmLineuxAck').checked;
+  el('cxmLineuxReleaseXY').disabled=busy || !releaseState?.ready ||
+    !el('cxmLineuxReleaseAck').checked;
   el('cxmLineuxKnownStart').disabled=busy || !knownState?.ready || !el('cxmLineuxKnownAck').checked;
   el('cxmLineuxToDraft').disabled=busy || !matching ||
     el('cxmDockX')?.disabled!==false || el('cxmDockY')?.disabled!==false;
@@ -34,22 +36,25 @@ async function call(path,body){
 async function preflight(){
   if(busy)return;
   const n=selected();
-  state=null;knownState=null;result=null;tool=null;
+  state=null;knownState=null;releaseState=null;result=null;tool=null;
   el('cxmLineuxAck').checked=false;
   el('cxmLineuxKnownAck').checked=false;
+  el('cxmLineuxReleaseAck').checked=false;
   controls();
   el('cxmLineuxStatus').textContent='Checking hardware integration…';
   try{
     if(!Number.isInteger(n)||n<0||n>11)throw Error('Select a valid hotend');
-    const [dock,known]=await Promise.all([
+    const [dock,known,release]=await Promise.all([
       call('/status?tool='+n+'&mode=dock'),
-      call('/status?tool='+n+'&mode=known')
+      call('/status?tool='+n+'&mode=known'),
+      call('/status?tool='+n+'&mode=prepare')
     ]);
-    state=dock;knownState=known;
+    state=dock;knownState=known;releaseState=release;
     el('cxmLineuxEngineBadge').textContent=dock.engine_present?'Lineux module registered':'Module unavailable';
-    el('cxmLineuxMeasureBadge').textContent=dock.known_verified
-      ? 'Known-position maths validated · dock provisional'
-      : 'Known-position validation required';
+    el('cxmLineuxMeasureBadge').textContent='Live measurement · provisional until independently verified';
+    el('cxmLineuxReleaseStatus').textContent=release.ready
+      ? 'XYZ homed, Z >=20 mm, four Z motors powered. Release X/Y when physically safe.'
+      : 'X/Y release unavailable: '+release.blockers.join('; ');
     if(known.ready){
       const xy=known.status?.known_start_xy_mm||[];
       el('cxmLineuxKnownStatus').textContent='KNOWN TEST READY · X'+
@@ -60,18 +65,53 @@ async function preflight(){
     }
     if(dock.ready){
       el('cxmLineuxStatus').textContent='ENGINE READY · T'+n+' · dock confirmation required';
-      feedback('Known-position check passed in this Klipper session. You may prepare a supervised dock measurement.');
+      feedback('Carriage manually aligned and motors correctly configured: ready to measure selected dock. Check physical clearance and confirm.');
     }else{
       el('cxmLineuxStatus').textContent='DOCK LOCKED · '+dock.blockers.join('; ');
-      feedback('Dock measurement locked: '+dock.blockers.join('; ')+'. For hand-seated dock alignment do NOT use the known XY button.');
+      feedback('Not ready to measure: '+dock.blockers.join('; ')+'. Home, raise Z20, release X/Y and align your dock first.');
     }
   }catch(e){
     el('cxmLineuxStatus').textContent='NOT READY · '+e.message;
-    el('cxmLineuxKnownStatus').textContent='KNOWN TEST NOT READY · '+e.message;
+    el('cxmLineuxKnownStatus').textContent='Known-position diagnostic unavailable · '+e.message;
+    el('cxmLineuxReleaseStatus').textContent='X/Y release status unavailable · '+e.message;
     el('cxmLineuxEngineBadge').textContent='Status unknown';
     feedback('Could not confirm engine readiness. No motion is authorised.','bad');
   }
   controls();
+}
+
+async function releaseXY(){
+  if(busy || !releaseState?.ready || !el('cxmLineuxReleaseAck').checked)return;
+  const n=selected();
+  if(n!==releaseState.tool)return;
+  if(!window.confirm('RELEASE COREXY X/Y MOTORS FOR T'+n+'?\n\n'+
+    'Only stepper_x and stepper_y will be released. All four Z motors remain powered.\n'+
+    'The carriage will be free to move by hand. Confirm Z is physically supported, '+ 
+    'the gantry is level and you have at least 20 mm actual clearance.\n\n'+
+    'Do not jog X/Y after hand-positioning. Continue with Measure selected dock.'))return;
+  busy=true;controls();
+  el('cxmLineuxReleaseStatus').textContent='Releasing X/Y only; Z motors stay powered…';
+  try{
+    const snapshot=await fetch('/cxm/api/v1/config',
+      {credentials:'same-origin',cache:'no-store'}).then(r=>r.json());
+    if(!snapshot?.revision)throw Error('CXM configuration revision unavailable');
+    const r=await call('/release-xy',{tool:n,expected_revision:snapshot.revision,
+      acknowledgement:'I_CONFIRM_Z_SUPPORTED_RELEASE_XY'});
+    if(r.status!=='XY_RELEASED_Z_REMAINS_POWERED'||r.release_confirmed!==true)
+      throw Error('Motor state confirmation failed');
+    await preflightAfterRelease();
+  }catch(e){
+    el('cxmLineuxReleaseStatus').textContent='RELEASE NOT CONFIRMED: '+e.message+
+      '. Inspect motors before manually moving the carriage.';
+  }finally{
+    busy=false;controls();
+  }
+}
+async function preflightAfterRelease(){
+  await preflight();
+  el('cxmLineuxReleaseStatus').textContent='X/Y RELEASED · four Z motors remain powered. '+
+    'Hand-align the carriage at T'+selected()+' dock, verify actual +3 mm X clearance '+
+    'and the complete homing path, then check measurement readiness.';
 }
 
 async function checkKnownPosition(){
@@ -122,7 +162,7 @@ function feedbackKnown(message,kind='pending'){
   e.dataset.testState=kind;
 }
 async function measure(){
-  if(busy || !state?.ready || !state?.known_verified || !el('cxmLineuxAck').checked)return;
+  if(busy || !state?.ready || !el('cxmLineuxAck').checked)return;
   const n=selected();
   if(n!==state.tool)return;
   if(!window.confirm('START LINEUX DOCK MEASUREMENT FOR T'+n+'?\n\n'+
@@ -185,6 +225,8 @@ async function copy(){
   controls();
 }
 el('cxmLineuxPreflight').addEventListener('click',preflight);
+el('cxmLineuxReleaseXY').addEventListener('click',releaseXY);
+el('cxmLineuxReleaseAck').addEventListener('change',controls);
 el('cxmLineuxKnownStart').addEventListener('click',checkKnownPosition);
 el('cxmLineuxKnownAck').addEventListener('change',controls);
 el('cxmLineuxStart').addEventListener('click',measure);
