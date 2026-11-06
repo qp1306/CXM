@@ -275,7 +275,7 @@
 </div>
 <details class="panel cxm-dock-optional cxm-advanced">
  <summary>T0 pickup &amp; dropoff tests</summary>
- <p class="helper">Slow, supervised tests. Confirm physical docking geometry and the carriage sensor before moving.</p>
+ <p class="helper">Slow, supervised tests. Home XYZ first and keep X/Y motors powered; do not hand-move the carriage after homing.</p>
  <strong id="cxmDockLiveHomingTest" hidden>No live status</strong>
   <div class="cxm-t0-test" id="cxmT0TestPanel">
    <div class="panel-heading"><h3>T0 · Supervised XY motion test</h3><span class="panel-label">Slow speed · one action at a time</span></div>
@@ -676,7 +676,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.4" defer></script>
-<script src="cxm-lineux.js?v=0.9.9" defer></script><script src="cxm-t0.js?v=0.9.10" defer></script>
+<script src="cxm-lineux.js?v=0.9.9" defer></script><script src="cxm-t0.js?v=0.9.11" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
