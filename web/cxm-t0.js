@@ -34,7 +34,7 @@ function controls(){
   const staged=state?.stage==='staged';
   byId('cxmT0Stage').disabled=!ready;
   byId('cxmT0Pickup').disabled=!ready||!calibrated||!staged||
-    ![null,'staged','dropoff'].includes(state.last_action);
+    ![null,'stage','dropoff'].includes(state.last_action);
   byId('cxmT0Dropoff').disabled=!ready||!calibrated||!staged||state.last_action!=='pickup';
   byId('cxmT0Refresh').disabled=busy;
   byId('cxmT0Sensor').disabled=busy||selected()!==0||!state?.ready;
