@@ -6,7 +6,7 @@
   if (!root) return;
   const base = '/cxm/api/v1';
   const get = id => document.getElementById(id);
-  const axis = ['x','y','z'];
+  const axis = ['x','y'];
   let snapshot = null, selected = 0, busy = false, dirty = false, activeAxis = 'x';
 
   const report = (message, error = false) => {
@@ -20,30 +20,30 @@
       .filter(p => p.n < count);
   };
   // Selection is decided by tool_count. Only explicit maintenance lockout,
-  // pending migration or an unavailable config prevents editing provisional XYZ.
+  // pending migration or an unavailable config prevents editing provisional XY.
   const canEdit = () => !!snapshot && !snapshot.migration_required
     && selected < snapshot.config.globals.tool_count
     && snapshot.config.tools[selected]?.maintenance_lockout !== true;
   function readDraft() {
-    const xyz = {};
+    const xy = {};
     for (const name of axis) {
       const el = get('cxmDock' + name.toUpperCase());
       const v = el.value.trim();
       if (v === '' || !Number.isFinite(Number(v))) throw new Error('Enter a finite number for '+name.toUpperCase());
-      xyz[name] = Number(v);
+      xy[name] = Number(v);
     }
-    return xyz;
+    return xy;
   }
   function current() { return snapshot?.config?.tools?.[selected]; }
   // Match the backend's dock coordinate bounds. Backend validation remains
   // authoritative; this only prevents invalid or incomplete UI submissions.
-  const limits = {x:[-50,600],y:[-50,600],z:[-20,600]};
+  const limits = {x:[-50,600],y:[-50,600]};
   function validDraft() {
     if (!snapshot || busy || !dirty || !canEdit()) return false;
     try {
-      const xyz=readDraft();
-      return axis.every(name=>xyz[name]>=limits[name][0] && xyz[name]<=limits[name][1])
-        && axis.some(name=>xyz[name]!==current()['dock_'+name]);
+      const xy=readDraft();
+      return axis.every(name=>xy[name]>=limits[name][0] && xy[name]<=limits[name][1])
+        && (axis.some(name=>xy[name]!==current()['dock_'+name]) || current().dock_z != null);
     } catch { return false; }
   }
   function updateActions() {
@@ -54,8 +54,8 @@
     dirty = true;
     updateActions();
     report(validDraft()
-      ? 'Valid XYZ draft ready. Accept all three coordinates to AutoSave; no motion will occur.'
-      : 'Enter complete X/Y/Z coordinates within X/Y −50…600 mm and Z −20…600 mm before saving.', !validDraft());
+      ? 'X/Y dock coordinates ready to save. No motion will occur.'
+      : 'Enter valid X/Y coordinates within −50…600 mm before saving.', !validDraft());
   }
   function fill() {
     const tool = current();
@@ -70,7 +70,7 @@
       : !canEdit() ? 'LOCKED / MIGRATION · read only'
       : hasValues ? 'Saved · unverified' : 'Dock not calibrated';
     get('cxmDockSummary').textContent = tool
-      ? 'T'+selected+' saved dock XYZ: '+axis.map(name => nice(tool['dock_'+name])).join(' / ')+
+      ? 'T'+selected+' saved dock XY: '+axis.map(name => nice(tool['dock_'+name])).join(' / ')+
         ' mm · source: CXM_variables.cfg · not active in Klipper'
       : 'No profile selected. Choose a tool from the configured count.';
     updateActions(); // Never enable Save for empty or unchanged coordinates.
@@ -98,7 +98,7 @@
       ? 'No selected hotends. Configure the count in Tools.'
       : !canEdit()
       ? 'T'+selected+' has a maintenance lockout or requires configuration migration. Saved coordinates are read-only.'
-      : 'T'+selected+' is selected but NOT READY. Draft XYZ may be saved; physical verification is still required.', !options.length || !canEdit());
+      : 'T'+selected+' selected. Dock XY may be saved; physical pickup remains unverified.', !options.length || !canEdit());
   }
   async function getJSON(path) {
     const response = await fetch(base+path,{credentials:'same-origin',cache:'no-store'});
@@ -194,7 +194,7 @@
 
   async function load() {
     if (busy) return;
-    if (dirty && !window.confirm('Discard unsaved dock XYZ draft and reload the saved coordinates?')) return;
+    if (dirty && !window.confirm('Discard unsaved dock XY draft and reload the saved coordinates?')) return;
     try {
       snapshot = await getJSON('/config');
       render();
@@ -210,25 +210,25 @@
   }
   async function accept() {
     if (!validDraft()) {
-      report('Complete and validate all three XYZ coordinates before accepting.',true);
+      report('Enter valid X/Y dock coordinates before accepting.',true);
       return;
     }
-    let xyz;
-    try { xyz = readDraft(); }
+    let xy;
+    try { xy = readDraft(); }
     catch (e) { report(e.message,true); return; }
-    if (!window.confirm('Accept provisional XYZ for T'+selected+'? All three coordinates will be saved together and backed up.\n\nThis does NOT verify a pickup or move the printer.')) return;
+    if (!window.confirm('Save provisional dock XY for T'+selected+'? A configuration backup will be created.\n\nThis does NOT verify pickup or move the printer.')) return;
     busy = true;
     const save = get('cxmDockAccept');
     save.disabled = true;
     get('cxmDockTool').disabled = true;
-    report('Validating and saving all three axes atomically…');
+    report('Validating and saving dock X/Y atomically…');
     let verified=false;
     try {
-      const reply = await postJSON('/dock',{tool:selected,xyz,expected_revision:snapshot.revision});
+      const reply = await postJSON('/dock',{tool:selected,xy,expected_revision:snapshot.revision});
       if (!reply.saved) throw new Error('The service did not confirm the save');
       const fresh = await getJSON('/config');
       const stored = fresh.config.tools[selected];
-      if (!axis.every(name => stored['dock_'+name] === xyz[name]))
+      if (!axis.every(name => stored['dock_'+name] === xy[name]) || stored.dock_z !== null)
         throw new Error('Disk verification did not match the requested coordinates');
       snapshot = fresh;
       dirty = false;
@@ -242,7 +242,7 @@
       get('cxmDockTool').disabled = !snapshot || !configured(snapshot.config).length;
       if (verified) {
         fill(); // Re-enable inputs after the request and show the saved values.
-        report('T'+selected+' dock XYZ saved and verified on disk · backup created if changed · NOT verified in Klipper.');
+        report('T'+selected+' dock X/Y saved on disk · no dock Z required · NOT physically verified.');
       } else {
         // On failure, retain the user's draft and make its inputs editable.
         for (const name of axis) get('cxmDock'+name.toUpperCase()).disabled=!canEdit();
@@ -253,7 +253,7 @@
   get('cxmDockRefresh').addEventListener('click',load);
   get('cxmDockTool').addEventListener('change',e => {
     if (busy) return;
-    if (dirty && !window.confirm('Discard unsaved dock XYZ draft and switch hotends?')) {
+    if (dirty && !window.confirm('Discard unsaved dock XY draft and switch hotends?')) {
       e.currentTarget.value=String(selected);
       return;
     }
@@ -280,7 +280,7 @@
     markDraft();
   }));
   // The independent read-only dock reviewer may propose raw XY for this
-  // selected tool. Draft only; never save, move, unlock or modify Z automatically.
+  // selected tool. Draft only; never save, move, or unlock the printer.
   window.addEventListener('cxm-dock-provisional-xy',event=>{
     const proposal=event.detail||{},n=proposal.tool;
     if (!['manual-mcu-review','lineux-live'].includes(proposal.source)||!Number.isInteger(n)||n!==selected
@@ -297,11 +297,11 @@
     const xInput=get('cxmDockX'),yInput=get('cxmDockY');
     if (dirty && (xInput.value.trim()!==''||yInput.value.trim()!=='') &&
         !window.confirm('Replace the existing unsaved X/Y draft for T'+selected+
-          '? The separately entered Z coordinate will remain untouched.')) return;
+          '? This will replace the current unsaved XY values.')) return;
     xInput.value=Number(proposal.x).toFixed(5);
     yInput.value=Number(proposal.y).toFixed(5);
     markDraft();
-    report('T'+selected+' provisional X/Y copied into draft. Z is unchanged. '+
+    report('T'+selected+' provisional X/Y copied into draft. '+
       (proposal.source==='manual-mcu-review'
         ? 'No X docking adjustment applied; offline review performed no motion. '
         : 'Lineux measurement may have moved the printer; review whether the separate X adjustment was selected. ')+
@@ -319,7 +319,7 @@
   window.addEventListener('cxm-calibrate-tool',event=>{
     const n=event.detail?.tool;
     if (!Number.isInteger(n)||n<0||n>=12) return;
-    if (dirty && n!==selected && !window.confirm('Discard unsaved dock XYZ draft and switch hotends?')) return;
+    if (dirty && n!==selected && !window.confirm('Discard unsaved dock XY draft and switch hotends?')) return;
     if (n!==selected) { selected=n; dirty=false; }
     document.querySelector('[data-tab="calibration"]')?.click();
     if (snapshot && !dirty) render(); // Preserve same-tool unsaved draft.

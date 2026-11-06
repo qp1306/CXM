@@ -15,19 +15,29 @@ test('selected tool with missing dock is red NOT READY and remains editable',()=
  const result=cards.card(make(),10,12);
  assert.equal(result.state,'NOT_CALIBRATED');
  assert.match(result.html,/NOT CALIBRATED/);
- assert.match(result.html,/Dock XYZ and tool offsets require calibration/);
+ assert.match(result.html,/Dock XY and tool offsets require calibration/);
  assert.match(result.html,/data-cxm-calibrate="10"/);
  assert.match(result.html,/data-cxm-edit="10"/);
  assert.match(result.html,/disabled title="Pickup unavailable/);
 });
-test('saved XYZ and zero offsets never assert physical calibration',()=>{
- const x=cards.card(make({dock_x:172.00625,dock_y:175.00625,dock_z:291.5,offset_x:0.03}),2,12);
+test('saved gantry dock XY and zero offsets never assert physical calibration',()=>{
+ const x=cards.card(make({dock_x:172.00625,dock_y:175.00625,offset_x:0.03}),2,12);
  assert.equal(x.state,'INCOMPLETE');
- assert.match(x.html,/172\.006 \/ 175\.006 \/ 291\.500/);
+ assert.match(x.html,/172\.006 \/ 175\.006/);
+ assert.match(x.html,/Dock XY \(mm\)/);
  assert.match(x.html,/0\.030 \/ 0\.000 \/ 0\.000/);
  assert.match(x.html,/CALIBRATION INCOMPLETE/);
  assert.doesNotMatch(x.html,/Verified pickup|Tool on carriage/);
 });
+test('dock Z is not required for gantry-mounted tool classification',()=>{
+ const tool=make({dock_x:298.62,dock_y:65.57,dock_z:null,
+   offset_xy_accepted:true,offset_z_accepted:true});
+ const result=status.classify(tool,0,6);
+ assert.equal(result.code,'AWAITING_VERIFICATION');
+ assert.match(cards.card(tool,0,6).html,/298\.620 \/ 65\.570/);
+ assert.doesNotMatch(cards.card(tool,0,6).html,/Dock XYZ \(mm\)/);
+});
+
 test('lockout blocks editing and calibration; unselected is never active',()=>{
  const locked=cards.card(make({maintenance_lockout:true}),4,12);
  assert.equal(locked.state,'LOCKED_OUT');
@@ -62,7 +72,7 @@ test('red overlay, preserved palette and control count',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
  assert.match(html,/\.tool-card\.cxm-needs-attention::after\{content:"NOT READY"/);
  assert.match(html,/pointer-events:none/);
- assert.match(html,/cxm-tool-state\.js\?v=0\.9\.3/);
+ assert.match(html,/cxm-tool-state\.js\?v=0\.9\.4/);
  assert.match(html,/cxm-tool-picker\.js\?v=0\.9\.3/);
  assert.match(html,/id="cxmCountSelect"/);
  assert.match(html,/<option value="12">12<\/option>/);
@@ -74,7 +84,7 @@ test('red overlay, preserved palette and control count',()=>{
  assert.doesNotMatch(script,/\['enabled', 'Enabled'/);
 });
 test('generic card policy and pure state module agree',()=>{
- const result=status.classify(make({dock_x:2,dock_y:3,dock_z:4}),4,12);
+ const result=status.classify(make({dock_x:2,dock_y:3}),4,12);
  assert.equal(result.code,'INCOMPLETE');
- assert.equal(cards.card(make({dock_x:2,dock_y:3,dock_z:4}),4,12).state,result.code);
+ assert.equal(cards.card(make({dock_x:2,dock_y:3}),4,12).state,result.code);
 });

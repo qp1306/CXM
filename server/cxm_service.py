@@ -194,7 +194,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected setting parameters')
                 result=self.server.store.set_value(**body)
             elif self.path=='/v1/dock':
-                if set(body) != {'tool','xyz','expected_revision'}:
+                if set(body) != {'tool','xy','expected_revision'}:
                     raise ValueError('Unexpected dock parameters')
                 result=self.server.store.save_dock(**body)
             elif self.path=='/v1/migrate':

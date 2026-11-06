@@ -30,7 +30,7 @@ FIELDS = {
     "commissioned": ("bool", None, None),
     "dock_x": ("float", -50, 600),
     "dock_y": ("float", -50, 600),
-    "dock_z": ("float", -20, 600),
+    "dock_z": ("float", -20, 600),  # Legacy field; gantry docks use XY only
     "offset_x": ("float", -20, 20),
     "offset_y": ("float", -20, 20),
     "offset_z": ("float", -10, 10),
@@ -45,7 +45,7 @@ LEGACY_FIELDS = {"enabled": ("bool", None, None), **{
         "commissioned"}
 }}
 EDITABLE_TOOL_FIELDS = {
-    "maintenance_lockout","dock_x","dock_y","dock_z",
+    "maintenance_lockout","dock_x","dock_y",
     "offset_x","offset_y","offset_z","approach_speed","dock_speed",
 }
 VERIFICATION_FLAGS = set(FIELDS) - EDITABLE_TOOL_FIELDS
@@ -309,22 +309,25 @@ class Store:
             if new == old:
                 return {'saved': True, 'unchanged': True, 'revision': self._hash(old), 'active_in_klipper': False}
             return self._commit(old, new)
-    def save_dock(self, tool, xyz, expected_revision):
-        """Save all three provisional dock coordinates as ONE validated commit.
+    def save_dock(self, tool, xy, expected_revision):
+        """Save X/Y of a gantry-mounted dock atomically with backup.
 
-        A partly entered dock must never overwrite the previous complete dock.
-        'saved' is not 'calibrated' or 'active in Klipper'.
+        The physical dock moves with the gantry: there is no independent dock
+        Z position. Preserve the legacy nullable dock_z schema field for old
+        files, but deliberately clear it on an accepted XY calibration to
+        avoid retaining a fictitious Z docking target. This does not touch
+        nozzle/tool relative offset_z or any motion configuration.
         """
         if type(tool) is not int or not 0 <= tool < TOOL_MAX:
             raise ValueError('Invalid tool index')
-        if type(xyz) is not dict or set(xyz) != {'x','y','z'}:
-            raise ValueError('Exactly X, Y, and Z are required')
+        if type(xy) is not dict or set(xy) != {'x','y'}:
+            raise ValueError('Exactly X and Y are required for gantry-mounted docks')
         if type(expected_revision) is not str or not re.fullmatch(r'[0-9a-f]{64}', expected_revision):
             raise ValueError('Valid expected revision required')
         values = {
-            'dock_x': check_value('dock_x', xyz['x'], FIELDS['dock_x']),
-            'dock_y': check_value('dock_y', xyz['y'], FIELDS['dock_y']),
-            'dock_z': check_value('dock_z', xyz['z'], FIELDS['dock_z']),
+            'dock_x': check_value('dock_x', xy['x'], FIELDS['dock_x']),
+            'dock_y': check_value('dock_y', xy['y'], FIELDS['dock_y']),
+            'dock_z': None,  # Compatibility-only: never an absolute Z target
         }
         with self.lock.open('a+') as f:
             fcntl.flock(f, fcntl.LOCK_EX)

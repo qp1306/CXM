@@ -8,7 +8,7 @@
   const stateApi=typeof require==='function'?require('./cxm-tool-state.js'):window.CXMToolState;
   function card(tool,n,count,runtime={}) {
     const s=stateApi.classify(tool,n,count,runtime);
-    const dock=tool?[tool.dock_x,tool.dock_y,tool.dock_z].map(format).join(' / '):'— / — / —';
+    const dock=tool?[tool.dock_x,tool.dock_y].map(format).join(' / '):'— / —';
     const offsets=tool?[tool.offset_x,tool.offset_y,tool.offset_z].map(format).join(' / '):'— / — / —';
     const label=s.code==='LOCKED_OUT'?'LOCKED OUT':s.code==='READY'?'READY':
       s.code==='CONFIG_UNAVAILABLE'?'CONFIG UNAVAILABLE':
@@ -26,7 +26,7 @@
       '<span class="dock-label cxm-readiness-label">'+label+'</span></div>'+
       '<div class="tool-sub">Hotend '+n+(n===0?' · reference':'')+'</div>'+
       '<div class="cxm-tool-readiness-detail">'+s.reason+'</div>'+
-      row('Dock XYZ (mm)',dock)+row('Tool offsets XYZ (mm)',offsets)+
+      row('Dock XY (mm)',dock)+row('Tool offsets XYZ (mm)',offsets)+
       row('Approach speed',tool?speed(tool.approach_speed)+' mm/min':'—')+
       row('Dock speed',tool?speed(tool.dock_speed)+' mm/min':'—')+
       row('Temperature','— (not connected)')+

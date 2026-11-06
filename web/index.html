@@ -202,7 +202,7 @@
    <p class="cxm-test-result" id="cxmLineuxResult" role="status">Awaiting live readiness check. No motion has occurred.</p>
    <details class="cxm-advanced"><summary>Advanced X adjustment (optional)</summary><label class="cxm-capture-ack"><input id="cxmLineuxApplyAdjust" type="checkbox"> Include the separately configured X docking adjustment when copying to the draft (off by default)</label></details>
    <div class="buttons"><button class="btn" id="cxmLineuxToDraft" disabled>Copy measured X/Y to dock draft</button></div>
-   <p class="helper">Measure dock XY performs movement only when Lineux is installed, Klipper is idle, the selected tool is not locked out and you confirm physical clearance. Copying X/Y never saves; enter and review Z separately, then use Step 2 Accept XYZ · AutoSave. Verification and pickup remain blocked.</p>
+   <p class="helper">Measure dock XY performs movement only when Lineux is installed, Klipper is idle, the selected tool is not locked out and you confirm physical clearance. Copying X/Y creates an unsaved draft. Review it below and choose Save dock XY. Physical pickup is still a separate test.</p>
    <details class="cxm-lineux-known">
     <summary>Advanced diagnostic · known-position Lineux accuracy check (optional)</summary>
    <div class="cxm-lineux-known">
@@ -250,15 +250,15 @@
 </details>
 <div class="dock-columns">
 <div class="panel">
- <div class="panel-heading"><h3>2 · Align dock position</h3><span class="panel-label">Provisional coordinates</span></div>
- <div class="dock-steps" aria-label="Dock calibration stages"><span>Review saved XYZ</span><span>Edit draft</span><span>Accept &amp; save</span><span class="future">Hardware test — later</span></div>
- <p class="muted">After physically reviewing the provisional dock X/Y in step 1, transfer it into this draft, then enter separately established dock Z and fine-adjust if necessary. All three XYZ coordinates are saved together with a backup. Saved coordinates do not prove a successful pickup.</p>
+ <div class="panel-heading"><h3>Save dock XY</h3><span class="panel-label">Gantry-mounted dock · no Z coordinate</span></div>
+ <div class="dock-steps" aria-label="Dock calibration stages"><span>Review X/Y</span><span>Adjust if required</span><span>Save coordinates</span><span class="future">Pickup test — later</span></div>
+ <p class="muted">The dock moves with the gantry, so X/Y are the only dock position coordinates. Review the measured values, fine-adjust if needed and save with a backup. No dock Z value is needed; tool nozzle Z offsets are calibrated separately.</p>
  <div class="dock-inputs">
  <label>X (mm)<input id="cxmDockX" type="number" step="0.001" placeholder="Not measured" /></label>
  <label>Y (mm)<input id="cxmDockY" type="number" step="0.001" placeholder="Not measured" /></label>
- <label>Z (mm)<input id="cxmDockZ" type="number" step="0.001" placeholder="Not measured" /></label></div>
- <div class="dock-adjust"><strong>Fine adjust draft — does not move printer</strong><div class="buttons"><button class="btn" data-dock-adjust="-0.1">−0.100</button><button class="btn" data-dock-adjust="-0.01">−0.010</button><button class="btn" data-dock-adjust="0.01">+0.010</button><button class="btn" data-dock-adjust="0.1">+0.100</button></div><p class="helper">Select an X, Y or Z field before adjusting.</p></div>
- <div class="buttons"><button class="btn primary" id="cxmDockAccept" disabled>Accept XYZ · AutoSave</button><button class="btn" id="cxmDockReset">Reset draft</button></div>
+ </div>
+ <div class="dock-adjust"><strong>Fine adjust draft — does not move printer</strong><div class="buttons"><button class="btn" data-dock-adjust="-0.1">−0.100</button><button class="btn" data-dock-adjust="-0.01">−0.010</button><button class="btn" data-dock-adjust="0.01">+0.010</button><button class="btn" data-dock-adjust="0.1">+0.100</button></div><p class="helper">Select X or Y before adjusting.</p></div>
+ <div class="buttons"><button class="btn primary" id="cxmDockAccept" disabled>Save dock XY</button><button class="btn" id="cxmDockReset">Reset draft</button></div>
  <p id="cxmDockFeedback" class="helper" role="status" aria-live="polite">Waiting for configuration service.</p>
 </div>
 <div class="panel">
@@ -266,7 +266,7 @@
  <p class="muted">Live Klipper homing is now reported above. Physical endstop, motor direction, approach clearance, pickup and repeatability tests still require their own commissioning checks.</p>
  <div class="dock-checks"><div><span>XYZ homing</span><strong id="cxmDockLiveHomingTest">No live status</strong></div><div><span>Safe approach / clearance</span><strong>Not tested</strong></div><div><span>Hotend pickup confirmation</span><strong>Not tested</strong></div><div><span>Dropoff / repeat cycles</span><strong>Not tested</strong></div></div>
  <div class="buttons"><button class="btn" disabled title="Requires safe Klipper macros">Approach dock</button><button class="btn" disabled title="Requires physical pickup sensor testing">Test pickup</button><button class="btn" disabled title="Requires physical pickup sensor testing">Repeat test</button></div>
- <div class="dock-warning">Moonraker status reports do not independently verify endstops or physical clearance. Automatic Y-then-X dock measurement and pickup/dropoff movements remain locked until a verified capture and motion controller is commissioned.</div>
+ <div class="dock-warning">Moonraker status reports do not independently verify endstops or physical clearance. Lineux dock XY measurement is available separately above. Automatic pickup and dropoff remain disabled until their motion and sensors are commissioned.</div>
 </div></div>
 <div class="panel dock-bottom"><h3>Recovery</h3><p class="muted">The original settings can be restored using Settings → Backup history / rollback. Calibration writes and restores do not move motors.</p><button class="btn" id="cxmDockBackups">Open backup history</button></div>
 </section>
@@ -598,11 +598,11 @@ loadPrinterStatus();loadUpdateStatus();
 setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-panel="updates"]:not([hidden])'))loadUpdateStatus();}},15000);
 </script>
 <script src="cxm-tool-style.js?v=0.9.3" defer></script>
-<script src="cxm-tool-state.js?v=0.9.3" defer></script>
+<script src="cxm-tool-state.js?v=0.9.4" defer></script>
 <script src="cxm-tool-picker.js?v=0.9.3" defer></script>
-<script src="cxm-tool-cards.js?v=0.9.3" defer></script>
+<script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.3" defer></script>
-<script src="cxm-dock.js?v=0.9.3" defer></script>
+<script src="cxm-dock.js?v=0.9.4" defer></script>
 <script src="cxm-lineux.js?v=0.9.9" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
