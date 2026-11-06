@@ -31,7 +31,7 @@ test('V0.4 cannot issue motion or falsely verify hardware pickup',()=>{
   assert.match(html,/button class="btn" disabled title="Requires safe Klipper macros">Approach dock/);
   assert.match(html,/button class="btn" disabled title="Requires physical pickup sensor testing">Test pickup/);
   assert.match(html,/Crosshair is a visual reference only/);
-  assert.match(dock,/NOT verified in Klipper/);
+  assert.match(dock,/NOT physically verified/);
 });
  
 test('accept button remains disabled for blank, invalid or unchanged drafts',()=>{
@@ -98,11 +98,11 @@ test('dock layout follows measure → align → verify, with the same safety con
  const section=html.split('<section data-panel="calibration" hidden>')[1]
                    .split('</section>')[0];
  const auto=section.indexOf('<h3>Measure dock position</h3>');
- const align=section.indexOf('<h3>2 · Align dock position</h3>');
+ const align=section.indexOf('<h3>Save dock XY</h3>');
  const verify=section.indexOf('<h3>3 · Test and verify</h3>');
  const recovery=section.indexOf('<h3>Recovery</h3>');
  assert.ok(auto>=0 && align>auto && verify>align && recovery>verify);
- assert.match(section,/After physically reviewing the provisional dock X\/Y in step 1/);
+ assert.match(section,/The dock moves with the gantry/);
  assert.match(section,/id="cxmLineuxStart" disabled/);
  assert.match(section,/id="cxmLineuxToDraft" disabled/);
  assert.match(section,/button class="btn" disabled title="Requires safe Klipper macros"/);
