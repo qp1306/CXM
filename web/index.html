@@ -147,7 +147,7 @@
 .cxm-dock-capture{margin:16px 0}.cxm-capture-ack{display:flex;align-items:flex-start;gap:10px;color:#e9cb9a;font-size:12px;line-height:1.55;margin:14px 0}.cxm-capture-ack input{margin-top:3px;flex:0 0 auto;accent-color:#6c9ed5}
 .cxm-advanced{margin:9px 0;color:var(--muted);font-size:13px}.cxm-advanced>summary{cursor:pointer;padding:7px 3px}.cxm-advanced[open]{border-top:1px solid var(--stroke);padding-top:8px}.cxm-lineux-live>.panel-heading{margin-top:18px}.cxm-lineux-live>.panel-heading h3{font-size:18px}.cxm-lineux-live>.buttons .btn.primary{min-height:46px;padding:12px 24px;font-size:16px;font-weight:750}#cxmLineuxResult[data-test-state="pending"]{font-size:18px;line-height:1.5}#cxmLineuxResult[data-test-state="bad"]{color:var(--red)}
 .cxm-t0-test{margin-top:18px;padding:16px;border:1px solid #36526b;border-radius:10px;background:#1d2a39}.cxm-t0-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cxm-t0-grid label,.cxm-t0-test label{font-size:12px;color:#a8cde9}.cxm-t0-grid input,.cxm-t0-test select{display:block;width:100%;margin-top:6px;background:#131d2a;border:1px solid #49627b;border-radius:7px;color:#e6efff;font-size:14px;padding:9px}.cxm-t0-path{font-size:12px;color:#c5d8e9;background:#182230;border:1px solid #405369;border-radius:7px;padding:12px;white-space:pre-wrap;line-height:1.6}.cxm-t0-test .buttons{margin:12px 0}.cxm-t0-test .btn{font-size:13px;min-height:42px}@media(max-width:700px){.cxm-t0-grid{grid-template-columns:1fr}}
-.cxm-simple-editor{max-width:900px;margin:18px 0 22px;border-color:#466a90;padding:24px}.cxm-simple-editor .panel-heading h3{font-size:18px}.cxm-simple-fields{display:flex;flex-wrap:wrap;gap:16px;margin:20px 0}.cxm-simple-fields label{font-size:13px;font-weight:680;color:#bad6f4;display:flex;flex-direction:column;gap:8px;min-width:160px;flex:1}.cxm-simple-fields input,.cxm-simple-fields select{background:#172230;color:#f1f7fd;border:1px solid #516d8b;border-radius:8px;padding:12px 14px;font:inherit;font-size:16px;width:100%}.cxm-simple-editor .buttons .btn{min-height:46px;padding:12px 22px;font-size:14px}.cxm-optional-section{margin:20px 0 30px;border:1px solid #333c4a;border-radius:9px;padding:12px 18px}.cxm-optional-section>summary{font-size:13px;font-weight:670;color:#9baabf;cursor:pointer}.cxm-optional-section[open]>summary{margin-bottom:18px}.tabs .tab[hidden]{display:none!important}</style></head>
+.cxm-simple-editor{max-width:900px;margin:18px 0 22px;border-color:#466a90;padding:24px}.cxm-simple-editor .panel-heading h3{font-size:18px}.cxm-simple-fields{display:flex;flex-wrap:wrap;gap:16px;margin:20px 0}.cxm-simple-fields label{font-size:13px;font-weight:680;color:#bad6f4;display:flex;flex-direction:column;gap:8px;min-width:160px;flex:1}.cxm-simple-fields input,.cxm-simple-fields select{background:#172230;color:#f1f7fd;border:1px solid #516d8b;border-radius:8px;padding:12px 14px;font:inherit;font-size:16px;width:100%}.cxm-simple-editor .buttons .btn{min-height:46px;padding:12px 22px;font-size:14px}.cxm-optional-section{margin:20px 0 30px;border:1px solid #333c4a;border-radius:9px;padding:12px 18px}.cxm-optional-section>summary{font-size:13px;font-weight:670;color:#9baabf;cursor:pointer}.cxm-optional-section[open]>summary{margin-bottom:18px}.tabs .tab[hidden]{display:none!important}.dock-columns{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}.dock-columns>.panel{max-width:930px}.cxm-dock-optional{margin-top:16px;display:block;max-width:930px}.cxm-dock-optional>summary{font-size:15px;font-weight:730;color:#cee5fc;cursor:pointer}.cxm-dock-optional[open]>summary{margin-bottom:22px}.cxm-dock-optional[open] #cxmT0TestPanel{border-color:#466a91}</style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
 <header class="topbar"><div class="brand"><div class="brand-mark">C<span>X</span>M</div><div><strong>Control Centre</strong><small>Single extruder · multi-hotend</small></div></div><div class="top-actions"><span id="connection" class="status-indicator"><i></i><span>Connecting to Moonraker</span></span><span id="saveStatus" class="mini-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg> Config sync: not connected</span></div></header>
@@ -158,7 +158,7 @@
 <div id="message" class="notice" role="status" aria-live="polite">CXM V0.9.3 adds Y-before-X homing protection: G28 X must home Y first without repeating the Z lift. Install the backed-up homing fix and verify real step counters before enabling dock motion.</div>
 <section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected slots are shown; readiness requires calibration and physical verification</span><span>All displayed settings: saved on disk · not active in Klipper</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Pickup and automatic calibration are intentionally disabled until the CXM toolchange macros and physical pickup verification are tested. The Edit button opens the saved profile; it does not move the printer.</div></section>
 <section data-panel="calibration" hidden>
-<div class="section-title"><div><h2>Dock Calibration</h2><p>Select hotend → home → release X/Y → align by hand → measure</p></div><span class="count-pill">Provisional only</span></div>
+<div class="section-title"><div><h2>Dock XY</h2><p>Select hotend → home → release X/Y → align by hand → measure</p></div><span class="count-pill">Provisional only</span></div>
 <div class="panel dock-top"><div class="dock-toolbar"><label for="cxmDockTool">Hotend</label><select id="cxmDockTool" disabled></select><span class="dock-status" id="cxmDockStatus">Loading configuration</span><button class="btn" id="cxmDockRefresh">Refresh</button></div><p class="muted" id="cxmDockSummary">Reading saved dock position…</p><div class="dock-safety">Shared extruder · saved dock XY is provisional until pickup is checked</div>
 <details class="cxm-advanced"><summary>Printer diagnostics (optional)</summary><div class="dock-live-preflight" aria-label="Read-only Klipper hardware preflight">
   <div><small>Klipper</small><strong id="cxmDockLiveKlipper">Checking…</strong></div>
@@ -251,9 +251,9 @@
 </details>
 <div class="dock-columns">
 <div class="panel">
- <div class="panel-heading"><h3>Save dock XY</h3><span class="panel-label">Gantry-mounted dock · no Z coordinate</span></div>
- <div class="dock-steps" aria-label="Dock calibration stages"><span>Review X/Y</span><span>Adjust if required</span><span>Save coordinates</span><span class="future">Pickup test — later</span></div>
- <p class="muted">The dock moves with the gantry, so X/Y are the only dock position coordinates. Review the measured values, fine-adjust if needed and save with a backup. No dock Z value is needed; tool nozzle Z offsets are calibrated separately.</p>
+ <div class="panel-heading"><h3>Save dock XY</h3><span class="panel-label">No Z coordinate required</span></div>
+
+ <p class="muted">Check the measured X/Y values, then save. Dock Z is not required.</p>
  <div class="dock-inputs">
  <label>X (mm)<input id="cxmDockX" type="number" step="0.001" placeholder="Not measured" /></label>
  <label>Y (mm)<input id="cxmDockY" type="number" step="0.001" placeholder="Not measured" /></label>
@@ -262,11 +262,11 @@
  <div class="buttons"><button class="btn primary" id="cxmDockAccept" disabled>Save dock XY</button><button class="btn" id="cxmDockReset">Reset draft</button></div>
  <p id="cxmDockFeedback" class="helper" role="status" aria-live="polite">Waiting for configuration service.</p>
 </div>
-<div class="panel">
- <div class="panel-heading"><h3>3 · Test and verify</h3><span class="panel-label">Requires physical hardware</span></div>
- <p class="muted">Live Klipper homing is now reported above. Physical endstop, motor direction, approach clearance, pickup and repeatability tests still require their own commissioning checks.</p>
- <div class="dock-checks"><div><span>XYZ homing</span><strong id="cxmDockLiveHomingTest">No live status</strong></div><div><span>Safe approach / clearance</span><strong>Not tested</strong></div><div><span>Hotend pickup confirmation</span><strong>Not tested</strong></div><div><span>Dropoff / repeat cycles</span><strong>Not tested</strong></div></div>
- <div class="cxm-t0-test" id="cxmT0TestPanel">
+<details class="panel cxm-dock-optional cxm-advanced">
+ <summary>T0 pickup &amp; dropoff tests</summary>
+ <p class="helper">Slow, supervised tests. Confirm physical docking geometry and the carriage sensor before moving.</p>
+ <strong id="cxmDockLiveHomingTest" hidden>No live status</strong>
+  <div class="cxm-t0-test" id="cxmT0TestPanel">
    <div class="panel-heading"><h3>T0 · Supervised XY motion test</h3><span class="panel-label">Slow speed · one action at a time</span></div>
    <p class="helper" id="cxmT0Status" role="status">Checking T0 motion safety…</p>
    <div class="cxm-t0-grid">
@@ -296,9 +296,9 @@
    <p class="helper" id="cxmT0Result" role="status">Pickup/dropoff stays disabled until staging, physical path confirmation and both carriage-sensor states pass. Each run must be observed; stop the printer immediately if anything catches.</p>
    <p class="helper">These test commands do not mark T0 commissioned, connect a heater, or change saved dock offsets. The G-code only moves X/Y, at reduced speeds.</p>
   </div>
- <div class="dock-warning">Lineux has calculated dock XY. The new T0 approach and test sequence is independent of Lineux, requires a homed powered carriage, and never bypasses Klipper's travel limits. Pickup/dropoff remains guarded until switch and physical geometry checks pass.</div>
-</div></div>
-<div class="panel dock-bottom"><h3>Recovery</h3><p class="muted">The original settings can be restored using Settings → Backup history / rollback. Calibration writes and restores do not move motors.</p><button class="btn" id="cxmDockBackups">Open backup history</button></div>
+</details>
+</div>
+<details class="panel dock-bottom cxm-advanced cxm-dock-optional"><summary>Recovery and backups</summary><p class="helper">Restore earlier configuration without moving the printer.</p><button class="btn" id="cxmDockBackups">Open backup history</button></details>
 </section>
 <section data-panel="offsets" hidden>
 <div class="section-title"><div><h2>Tool XY offsets</h2><p>Relative nozzle X/Y position — T0 is the reference</p></div></div>
