@@ -283,7 +283,7 @@
   // selected tool. Draft only; never save, move, unlock or modify Z automatically.
   window.addEventListener('cxm-dock-provisional-xy',event=>{
     const proposal=event.detail||{},n=proposal.tool;
-    if (proposal.source!=='manual-mcu-review'||!Number.isInteger(n)||n!==selected
+    if (!['manual-mcu-review','lineux-live'].includes(proposal.source)||!Number.isInteger(n)||n!==selected
         ||!Number.isFinite(proposal.x)||!Number.isFinite(proposal.y)
         ||proposal.x<0||proposal.x>limits.x[1]
         ||proposal.y<0||proposal.y>limits.y[1]) {
@@ -301,8 +301,11 @@
     xInput.value=Number(proposal.x).toFixed(5);
     yInput.value=Number(proposal.y).toFixed(5);
     markDraft();
-    report('T'+selected+' provisional raw X/Y copied into draft. Z is unchanged. '+
-      'No X docking adjustment applied; no AutoSave, physical verification or motion occurred.');
+    report('T'+selected+' provisional X/Y copied into draft. Z is unchanged. '+
+      (proposal.source==='manual-mcu-review'
+        ? 'No X docking adjustment applied; offline review performed no motion. '
+        : 'Lineux measurement may have moved the printer; review whether the separate X adjustment was selected. ')+
+      'No AutoSave or physical verification occurred.');
   });
   get('cxmDockAccept').addEventListener('click',accept);
   get('cxmDockReset').addEventListener('click',()=>{if(!busy){fill();report('Draft reset to the last saved coordinates.');}});
