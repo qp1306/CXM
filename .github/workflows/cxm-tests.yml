@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Klipper-compatible Jinja template testing dependency
+        run: python3 -m pip install --user 'Jinja2==3.1.6'
       - name: Python configuration and HTTP API tests
         run: python3 -m unittest discover -s tests -v
       - name: JavaScript syntax
