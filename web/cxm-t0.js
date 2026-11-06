@@ -33,6 +33,9 @@ function controls(){
   const calibrated=state?.sensor_calibrated===true;
   const staged=state?.stage==='staged';
   byId('cxmT0Stage').disabled=!ready;
+  const confirm=ready&&state?.can_confirm_staging===true;
+  byId('cxmT0ConfirmStage').hidden=!confirm;
+  byId('cxmT0ConfirmStage').disabled=!confirm;
   byId('cxmT0Pickup').disabled=!ready||!calibrated||!staged||
     ![null,'stage','dropoff'].includes(state.last_action);
   const firstDropoff=state?.first_dropoff_ready===true;
@@ -70,7 +73,8 @@ async function refresh(){
     else if(state.ready){
       set('cxmT0Status','T0 X'+state.saved_xy_mm.x.toFixed(3)+
         ' Y'+state.saved_xy_mm.y.toFixed(3)+' · Safe Y'+state.safe_y_mm.toFixed(3)+
-        ' · '+(state.stage==='staged'?'At staging':'Ready for supervised staging')+
+        ' · '+(state.stage==='staged'?'At staging':
+        state.can_confirm_staging?'At staging · confirm without moving':'Ready for supervised staging')+
         ' · powered XYZ / Klipper idle.');
     }else{
       set('cxmT0Status','BLOCKED · '+state.blockers.join('; '));
@@ -101,6 +105,33 @@ async function refresh(){
     controls();
   }
 }
+async function confirmStage(){
+  if(busy||selected()!==0||state?.can_confirm_staging!==true)return;
+  const x=state.saved_xy_mm.x.toFixed(3),y=state.safe_y_mm.toFixed(3);
+  if(!window.confirm(
+    'CONFIRM T0 IS ALREADY AT STAGING?\\n\\n'+
+    'Physically check the carriage is at X'+x+' / Y'+y+' and T0 is attached.\\n'+
+    'Verify XYZ was genuinely homed and X/Y have NOT been moved by hand since homing.\\n'+
+    'The full dropoff path must be clear.\\n\\n'+
+    'This confirmation will NOT move the printer or start a toolchange.'
+  ))return;
+  busy=true;controls();
+  try{
+    const result=await request('/confirm-stage',{
+      expected_revision:await revision(),
+      acknowledgement:'I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED'
+    });
+    set('cxmT0Result',result.status+
+      ' · no printer movement. Check the dropoff path before testing.');
+  }catch(e){
+    set('cxmT0Result','STAGING NOT CONFIRMED: '+e.message+
+      '. No movement was commanded.');
+  }finally{
+    busy=false;
+    await refresh();
+  }
+}
+
 async function record(condition){
   if(busy||!state?.ready||!choice||selected()!==0)return;
   const prompt=condition==='empty'?
@@ -159,6 +190,7 @@ async function move(kind){
 }
 byId('cxmT0Refresh').addEventListener('click',refresh);
 byId('cxmT0Stage').addEventListener('click',()=>move('stage'));
+byId('cxmT0ConfirmStage').addEventListener('click',confirmStage);
 byId('cxmT0Pickup').addEventListener('click',()=>move('pickup'));
 byId('cxmT0Dropoff').addEventListener('click',()=>move('dropoff'));
 byId('cxmT0Sensor').addEventListener('change',e=>{choice=e.target.value;controls();});
