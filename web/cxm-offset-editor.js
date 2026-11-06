@@ -125,7 +125,7 @@ async function save(mode){
    dirty[mode]=false;
    // Update the other editor's data only if it had no unsaved changes.
    render(mode);
-   if(!dirty[mode==='xy'?'z':'xy'])render(mode==='xy'?'z');
+   if(!dirty[mode==='xy'?'z':'xy'])render(mode==='xy'?'z':'xy');
    say(mode,'T'+n+' '+mode.toUpperCase()+' offsets SAVED · backup protected · not yet verified or active in Klipper.');
    window.dispatchEvent(new Event('cxm-dock-saved'));
  }catch(e){
