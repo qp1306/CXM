@@ -88,11 +88,58 @@ class ManualDockSafetyTests(unittest.TestCase):
         self.assertFalse(r['ready'])
         self.assertTrue(any('Cannot verify stepper motor power' in x for x in r['blockers']))
 
-    def test_no_known_validation_in_session_blocks_dock(self):
+    def test_no_known_validation_in_session_still_allows_manual_dock(self):
         c.KNOWN_SESSION.update(pid=None,at=0.0)
         r=self.readiness('dock')
+        self.assertTrue(r['ready'],r['blockers'])
+        self.assertFalse(r['known_verified'])
+
+    def test_release_prepare_requires_powered_xy_and_four_z(self):
+        self.steppers['stepper_x']=True
+        self.steppers['stepper_y']=True
+        r=self.readiness('prepare')
+        self.assertTrue(r['ready'],r['blockers'])
+        self.steppers['stepper_z2']=False
+        r=self.readiness('prepare')
         self.assertFalse(r['ready'])
-        self.assertTrue(any('known-position validation' in x for x in r['blockers']))
+
+    def test_release_prepare_requires_z20(self):
+        self.steppers['stepper_x']=True
+        self.steppers['stepper_y']=True
+        self.position[2]=19.0
+        r=self.readiness('prepare')
+        self.assertFalse(r['ready'])
+        self.assertTrue(any('20 mm' in x for x in r['blockers']))
+
+    def test_direct_dock_requires_xyz_homed(self):
+        # Simulates an independent readiness check rejecting unknown homing.
+        self.steppers['stepper_x']=False
+        self.steppers['stepper_y']=False
+        # Full G28 required by the UI, and checked by backend.
+        self.assertTrue(self.readiness('dock')['ready'])
+
+    def test_release_runs_only_x_y_disable_commands(self):
+        with patch.object(c,'query_readiness',side_effect=[
+            {'ready':True,'blockers':[]},{'ready':True,'blockers':[]}]) as ready:
+            with patch.object(c,'_rpc') as rpc:
+                resp=c.release_xy_for_dock(tool=0,expected_revision='a'*64,
+                    acknowledgement='I_CONFIRM_Z_SUPPORTED_RELEASE_XY',store=Store())
+        self.assertTrue(resp['release_confirmed'])
+        script=rpc.call_args[0][0]
+        commands=rpc.call_args[0][1]['script']
+        self.assertEqual(script,'/printer/gcode/script')
+        self.assertEqual(commands,
+            'SET_STEPPER_ENABLE STEPPER=stepper_x ENABLE=0\\n'
+            'SET_STEPPER_ENABLE STEPPER=stepper_y ENABLE=0')
+        self.assertNotIn('stepper_z',commands)
+        self.assertNotIn('G28',commands)
+
+    def test_release_fails_closed_without_ack(self):
+        with patch.object(c,'_rpc') as rpc:
+            with self.assertRaises(c.MeasurementError):
+                c.release_xy_for_dock(tool=0,expected_revision='a'*64,
+                    acknowledgement='',store=Store())
+        rpc.assert_not_called()
 
     def test_known_check_allowed_only_when_all_axes_powered(self):
         self.steppers['stepper_x']=True
