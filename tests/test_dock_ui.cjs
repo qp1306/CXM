@@ -65,14 +65,22 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
 test('Lineux live measurement is gated, provisional, and separate from protected dock AutoSave',()=>{
  const lineux=fs.readFileSync(path.join(__dirname,'../web/cxm-lineux.js'),'utf8');
  assert.match(html,/1 · Automatic XY dock measurement/);
- assert.match(html,/cxm-lineux\.js\?v=0\.9\.7/);
+ assert.match(html,/cxm-lineux\.js\?v=0\.9\.8/);
  for(const id of ['cxmLineuxAck','cxmLineuxPreflight','cxmLineuxStart',
-                  'cxmLineuxResult','cxmLineuxToDraft','cxmLineuxApplyAdjust'])
+                  'cxmLineuxResult','cxmLineuxToDraft','cxmLineuxApplyAdjust',
+                  'cxmLineuxReleaseXY','cxmLineuxReleaseAck','cxmLineuxReleaseStatus'])
    assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/id="cxmLineuxStart" disabled/);
  assert.match(html,/id="cxmLineuxToDraft" disabled/);
  assert.match(html,/id="cxmLineuxKnownStart" disabled/);
  assert.match(html,/id="cxmLineuxKnownAck"/);
+ assert.match(html,/Advanced diagnostic · known-position Lineux accuracy check \(optional\)/);
+ assert.match(html,/1 · Home XYZ and raise to Z20/);
+ assert.match(html,/2 · Release X\/Y motors/);
+ assert.match(html,/3 · Position at dock by hand/);
+ assert.match(html,/4 · Measure selected dock/);
+ assert.match(lineux,/I_CONFIRM_Z_SUPPORTED_RELEASE_XY/);
+ assert.doesNotMatch(lineux,/!state\?\.known_verified/);
  assert.match(lineux,/I_CONFIRM_CLEAR_DOCK_PATH/);
  assert.match(lineux,/expected_revision:snapshot\.revision/);
  assert.match(lineux,/status!=='PROVISIONAL_LINEUX_UNVERIFIED'/);
