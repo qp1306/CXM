@@ -4,7 +4,7 @@
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.2 or V0.3? Upgrade to V0.9.1
+## Already installed V0.2 or V0.3? Upgrade to V0.9.3
 
 Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. V0.5.1 retains a guided **Dock Calibration** tab. Select any enabled T0–T11, enter or nudge proposed X/Y/Z, then **Accept XYZ · AutoSave**. The three numbers are committed atomically with a backup and optimistic revision check. The tool-card Calibrate button now opens the editor, but **never initiates motion**. **No new terminal installation or Klipper restart is required.** The Tools page has a **Hotends in use (1–12)** selector which AutoSaves the global tool count. It shows **all selected hotend cards** from T0 up to the chosen count, including individually disabled profiles. Disabled tools are clearly labelled, remain protected from calibration commands and can be enabled deliberately in Settings. Reducing the count hides higher-numbered cards without modifying any of their saved calibration settings or Enabled flags. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
 
@@ -241,6 +241,10 @@ In Dock Calibration, select T0–T11, view real Klipper status, load the 6 Novem
 **Verification:** install V0.9.1 using Updates, hard-refresh the page, open Dock Calibration and click Load 6 Nov reference test → Calculate provisional XY; expect X295.00000 / Y99.96875 and a disabled Copy proposed X/Y button. Click Start new T0 capture and confirm the three snapshot fields and known references are cleared. The Testing page must no longer contain the XY calculator.
 
 
+## Historical V0.9.2 note — superseded by V0.9.3
+
+**Do not apply the old V0.9.2 homing installer from a previously downloaded script.** It removed the automatic Y-before-X dependency when G28 X was requested. That violates CXM's mechanical safety requirement. The current `scripts/cxm_homing_fix.py` in V0.9.3 replaces it and supports conversion from either the original or previously applied V0.9.2 configuration.
+
 ## Hardware commissioning: homing override correction (X/Y-only G28 Z-drift fix)
 
 This **optional, operator-applied** patch addresses the CXM gantry rising another 10 mm on each \`G28 Y\` / \`G28 X\`. The existing \`printer.cfg\` has \`[homing_override]\`, \`axes: xyz\`, unconditional \`set_position_z: 0\`, and a 10 mm relative Z lift. The actual 6 November captures showed **+8,000 Z motor counts** on both an XY-only Y home and a subsequent X home.
@@ -259,3 +263,41 @@ The first command prints the exact proposed diff and **never edits**. The second
 **One deliberate Klipper \`RESTART\` is required** because this modifies \`printer.cfg\`, unlike ordinary CXM disk-only AutoSave. After safely parking and verifying clearance, use Mainsail Console \`RESTART\`. Confirm Klipper reconnects and a complete **full** \`G28\` still homes Y first, X second and Cartographer Z. **Do not** perform an uninspected full \`G28\` from a dock or when the physical 10 mm Z lift is unsafe. With the nozzle clear and Z homed, record \`GET_POSITION\`, run \`G28 Y\`, record \`GET_POSITION\`, then \`G28 X\` and record again. Neither individual XY homing operation should advance any Z MCU step counters. If Z changes unexpectedly, stop, do not enable the automatic dock measurement and investigate other macros or firmware. The full original backup can be restored manually after stopping Klipper; then a deliberate \`RESTART\` is needed again.
 
 This patch does **not** enable live endstop travel capture or pickup motion in CXM Control Centre, and does **not** solve extruder thermistor disconnection or independent Z-step loss. It is a necessary XY-only homing prerequisite before live dock-calibration motion.
+
+
+## V0.9.3 — G28 X MUST home Y before X, and XY-only G28 must not lift Z
+
+**Non-negotiable safety invariant:** All normal \`G28 X\` and \`G28 X Y\` commands must automatically home **Y then X**, with no operator-dependent sequence. Standalone \`G28 Y\` homes Y. Full \`G28\` continues the established 10 mm initial Z clearance, Y → X → Cartographer Z at X195/Y170, then Z5. Z-only commands retain the existing Cartographer homing override and home missing XY axes if necessary.
+
+This release corrects V0.9.2's unacceptable loss of the \`G28 X\`→Y-first dependency. The revised installer adds a public \`[gcode_macro G28]\` with \`rename_existing: G28.1\` and preserves a \`[homing_override]\` limited to \`axes: z\`. Both the Y and X native homing calls use the private \`G28.1\` alias so the forced \`set_position_z: 0\` and \`G1 Z10\` do **not** execute during XY-only homing. The Z override's own G28 commands are rewritten to call that private alias while executing under the override's recursion guard. This combination was checked against Klipper's actual \`homing_override.py\` and \`gcode_macro.py\` command-registration model.
+
+**Operator rule:** Do not enter \`G28.1\` directly; that is a private implementation alias. Use ordinary \`G28\`, \`G28 X\`, \`G28 Y\` or \`G28 Z\`. G28 X will execute a Y home first even if Y is already homed, as the user requires.
+
+**Important physical limitation:** The new XY-only homing deliberately does not generate a Z hop. Clear the *entire* Y-then-X travel path, not just the starting position, before any movement. Full/Z homing still uses the original forced initial Z clearance and must be independently verified at the actual gantry position. Do not enable live dock calibration until the hardware tests below pass.
+
+### Installer: use CURRENT v0.9.3 script, not a stale cached copy
+
+\`\`\`bash
+curl -fLsS https://raw.githubusercontent.com/qp1306/CXM/main/scripts/cxm_homing_fix.py \
+  -o /tmp/cxm_homing_fix_v093.py
+python3 /tmp/cxm_homing_fix_v093.py
+# Inspect the entire proposed diff; ensure [gcode_macro G28] is added.
+# Then, only if Klipper is ready/idle and the diff is correct:
+python3 /tmp/cxm_homing_fix_v093.py --apply
+\`\`\`
+
+Preflight is read-only; \`--apply\` fails closed unless Moonraker reports idle, the exact known original/v0.9.2 override is present, and no obvious duplicate public G28 macro exists in the main config or neighbouring config files. It backs up the current config with a timestamp, writes atomically, and verifies the file. It **does not** issue motion or restart Klipper.
+
+Since the change affects \`printer.cfg\`, a **single intentional Klipper \`RESTART\`** is required after applying, while physically parked and safe. No separate RESTART is required for the webpage update or normal disk-only CXM AutoSave.
+
+### Mandatory acceptance before enabling any dock motion
+
+1. Preflight must display a \`[gcode_macro G28]\` with \`rename_existing: G28.1\`, \`axes: z\` override, and changed internal \`G28.1 Y/X/Z\` calls.
+2. After a deliberate \`RESTART\`, physically verify a safe Z clearance path. Home safely under supervision.
+3. With XYZ homed and the entire XY path clear, record \`GET_POSITION\`, run **one normal \`G28 X\`**, and record \`GET_POSITION\`. Observe the carriage move **to Y endstop first and then X endstop**. The four Z MCU step counters must not change.
+4. Repeat once from a suitable safe reference point. Do not call G28.1 manually. Stop if the sequence, steps or physical clearances deviate.
+5. In Testing diagnostics, the new config is labelled \`Y-first wrapper installed · Z-only override · PHYSICAL TEST PENDING\`. A green hardware certification is **not** inferred from code alone.
+
+The new Jinja test suite renders command sequences for \`G28 X\`, \`G28 X Y\`, \`G28 Y\`, full \`G28\`, \`G28 Z\` with axes homed/unhomed, and mixed X/Z cases. These tests establish *intended command expansion*, not real-world motor clearance, repeatability or firmware integration.
+
+If an old v0.9.2 \`--apply\` was already used, the v0.9.3 installer supports upgrading that configuration, but Klipper must still be retested physically before dock calibration is unlocked.
