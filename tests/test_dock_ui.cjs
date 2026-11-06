@@ -135,7 +135,7 @@ test('V0.8.2 dock preflight reads real Klipper status but cannot authorise motio
 
 test('T0 test controls are hardware-gated and never mark a tool verified',()=>{
  const t0=fs.readFileSync(path.join(__dirname,'../web/cxm-t0.js'),'utf8');
- assert.match(html,/cxm-t0\.js\?v=0\.9\.10/);
+ assert.match(html,/cxm-t0\.js\?v=0\.9\.11/);
  for(const id of ['cxmT0Sensor','cxmT0RecordEmpty','cxmT0RecordMounted',
    'cxmT0Stage','cxmT0Pickup','cxmT0Dropoff','cxmT0Plan'])
    assert.match(html,new RegExp('id="'+id+'"'));
