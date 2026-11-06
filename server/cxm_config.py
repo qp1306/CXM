@@ -354,6 +354,57 @@ class Store:
             result = self._commit(old, new)
             result['verified_pickup'] = False
             return result
+    def save_offsets(self, tool, axes, values, expected_revision):
+        """Atomically store operator-measured relative offsets with backup.
+
+        Accepted *numbers* are not evidence of a nozzle measurement or
+        mechanical verification. Runtime Klipper offsets are not changed.
+        T0 is the mathematical reference and must remain exactly zero.
+        """
+        expected_keys={'xy':{'x','y'},'z':{'z'}}
+        if type(axes) is not str or axes not in expected_keys:
+            raise ValueError('Choose XY or Z offset')
+        if type(values) is not dict or set(values)!=expected_keys[axes]:
+            raise ValueError('Supply exactly the chosen axis values')
+        if type(tool) is not int or not 0<=tool<TOOL_MAX:
+            raise ValueError('Invalid tool index')
+        if type(expected_revision) is not str or not re.fullmatch(r'[0-9a-f]{64}',expected_revision):
+            raise ValueError('Valid expected revision required')
+        update={}
+        for axis,raw in values.items():
+            key='offset_'+axis
+            update[key]=check_value(key,raw,FIELDS[key])
+        if tool==0 and any(value!=0.0 for value in update.values()):
+            raise ValueError('T0 is the reference: relative offsets must remain zero')
+        with self.lock.open('a+') as f:
+            fcntl.flock(f,fcntl.LOCK_EX)
+            data,old=self._current()
+            if self._hash(old)!=expected_revision:
+                raise RuntimeError('Configuration changed; refresh first')
+            if schema_on_disk(old)!=SCHEMA:
+                raise RuntimeError('Configuration migration required')
+            if tool>=data['globals']['tool_count'] or data['tools'][tool]['maintenance_lockout']:
+                raise ValueError('Tool not selected or maintenance locked')
+            data=copy.deepcopy(data)
+            entry=data['tools'][tool]
+            changed=any(entry[key]!=value for key,value in update.items())
+            if changed:
+                entry.update(update)
+                if axes=='xy':
+                    entry['offset_xy_accepted']=False
+                    entry['offset_xy_verified']=False
+                else:
+                    entry['offset_z_accepted']=False
+                    entry['offset_z_verified']=False
+                entry['commissioned']=False
+            new=render(data)
+            if new==old:
+                return {'saved':True,'unchanged':True,'revision':self._hash(old),
+                        'active_in_klipper':False,'physically_verified':False}
+            result=self._commit(old,new)
+            result['physically_verified']=False
+            return result
+
     def rollback(self, name, expected_revision):
         if not isinstance(name, str) or not re.fullmatch(r'\d{8}T\d{12}Z-[0-9a-f]{12}\.cfg', name):
             raise ValueError('Invalid backup ID')
