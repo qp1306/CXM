@@ -152,7 +152,7 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion'):
+            if self.path not in ('/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion'):
                 self.output(404,{'error':'Not found'})
                 return
             if self.path == '/v1/t0/sensor':
@@ -206,6 +206,10 @@ class Handler(BaseHTTPRequestHandler):
                 if set(body) != {'tool','key','value','expected_revision'}:
                     raise ValueError('Unexpected setting parameters')
                 result=self.server.store.set_value(**body)
+            elif self.path=='/v1/offset':
+                if set(body)!={'tool','axes','values','expected_revision'}:
+                    raise ValueError('Unexpected offset parameters')
+                result=self.server.store.save_offsets(**body)
             elif self.path=='/v1/dock':
                 if set(body) != {'tool','xy','expected_revision'}:
                     raise ValueError('Unexpected dock parameters')
