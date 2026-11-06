@@ -146,6 +146,7 @@
 @media(max-width:550px){.cxm-test-grid,.cxm-test-capture-grid,.cxm-test-snapshot-grid{grid-template-columns:1fr}}
 .cxm-dock-capture{margin:16px 0}.cxm-capture-ack{display:flex;align-items:flex-start;gap:10px;color:#e9cb9a;font-size:12px;line-height:1.55;margin:14px 0}.cxm-capture-ack input{margin-top:3px;flex:0 0 auto;accent-color:#6c9ed5}
 .cxm-advanced{margin:9px 0;color:var(--muted);font-size:13px}.cxm-advanced>summary{cursor:pointer;padding:7px 3px}.cxm-advanced[open]{border-top:1px solid var(--stroke);padding-top:8px}.cxm-lineux-live>.panel-heading{margin-top:18px}.cxm-lineux-live>.panel-heading h3{font-size:18px}.cxm-lineux-live>.buttons .btn.primary{min-height:46px;padding:12px 24px;font-size:16px;font-weight:750}#cxmLineuxResult[data-test-state="pending"]{font-size:18px;line-height:1.5}#cxmLineuxResult[data-test-state="bad"]{color:var(--red)}
+.cxm-t0-test{margin-top:18px;padding:16px;border:1px solid #36526b;border-radius:10px;background:#1d2a39}.cxm-t0-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cxm-t0-grid label,.cxm-t0-test label{font-size:12px;color:#a8cde9}.cxm-t0-grid input,.cxm-t0-test select{display:block;width:100%;margin-top:6px;background:#131d2a;border:1px solid #49627b;border-radius:7px;color:#e6efff;font-size:14px;padding:9px}.cxm-t0-path{font-size:12px;color:#c5d8e9;background:#182230;border:1px solid #405369;border-radius:7px;padding:12px;white-space:pre-wrap;line-height:1.6}.cxm-t0-test .buttons{margin:12px 0}.cxm-t0-test .btn{font-size:13px;min-height:42px}@media(max-width:700px){.cxm-t0-grid{grid-template-columns:1fr}}
 </style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
@@ -265,8 +266,37 @@
  <div class="panel-heading"><h3>3 · Test and verify</h3><span class="panel-label">Requires physical hardware</span></div>
  <p class="muted">Live Klipper homing is now reported above. Physical endstop, motor direction, approach clearance, pickup and repeatability tests still require their own commissioning checks.</p>
  <div class="dock-checks"><div><span>XYZ homing</span><strong id="cxmDockLiveHomingTest">No live status</strong></div><div><span>Safe approach / clearance</span><strong>Not tested</strong></div><div><span>Hotend pickup confirmation</span><strong>Not tested</strong></div><div><span>Dropoff / repeat cycles</span><strong>Not tested</strong></div></div>
- <div class="buttons"><button class="btn" disabled title="Requires safe Klipper macros">Approach dock</button><button class="btn" disabled title="Requires physical pickup sensor testing">Test pickup</button><button class="btn" disabled title="Requires physical pickup sensor testing">Repeat test</button></div>
- <div class="dock-warning">Moonraker status reports do not independently verify endstops or physical clearance. Lineux dock XY measurement is available separately above. Automatic pickup and dropoff remain disabled until their motion and sensors are commissioned.</div>
+ <div class="cxm-t0-test" id="cxmT0TestPanel">
+   <div class="panel-heading"><h3>T0 · Supervised XY motion test</h3><span class="panel-label">Slow speed · one action at a time</span></div>
+   <p class="helper" id="cxmT0Status" role="status">Checking T0 motion safety…</p>
+   <div class="cxm-t0-grid">
+    <label>Lateral unlock X (mm)<input id="cxmT0Shift" type="number" min="-8" max="-1" step="0.1" value="-3.0"></label>
+    <label>Y dodge (mm)<input id="cxmT0Dodge" type="number" min="5" max="25" step="0.1" value="14.0"></label>
+   </div>
+   <p class="helper">These are <strong>unverified original CxChanger test-path starting values</strong>, not T0 calibration data. The approach uses saved T0 X/Y and configured Safe Y. Verify every waypoint has physical clearance. No Z or heater movement occurs.</p>
+   <p id="cxmT0Plan" class="cxm-t0-path" role="status">Motion path preview unavailable until readiness is checked.</p>
+   <div class="buttons">
+    <button class="btn" id="cxmT0Refresh">Refresh T0 status</button>
+    <button class="btn primary" id="cxmT0Stage" disabled>1 · Approach staging point</button>
+   </div>
+   <details class="cxm-advanced">
+    <summary>Carriage-presence switch setup (required for pickup/dropoff)</summary>
+    <p class="helper">Choose the <em>actual carriage-mounted hotend-presence switch</em>, not a dock-occupancy sensor. Manually confirm empty and mounted states. They must produce different live signals.</p>
+    <label>Klipper sensor <select id="cxmT0Sensor"><option value="">No validated sensor</option></select></label>
+    <p id="cxmT0SensorStatus" class="helper" role="status">Sensor not tested.</p>
+    <div class="buttons">
+     <button class="btn" id="cxmT0RecordEmpty" disabled>Record carriage EMPTY</button>
+     <button class="btn" id="cxmT0RecordMounted" disabled>Record T0 MOUNTED</button>
+    </div>
+   </details>
+   <div class="buttons">
+    <button class="btn" id="cxmT0Pickup" disabled>2 · Test T0 pickup</button>
+    <button class="btn" id="cxmT0Dropoff" disabled>3 · Test T0 dropoff</button>
+   </div>
+   <p class="helper" id="cxmT0Result" role="status">Pickup/dropoff stays disabled until staging, physical path confirmation and both carriage-sensor states pass. Each run must be observed; stop the printer immediately if anything catches.</p>
+   <p class="helper">These test commands do not mark T0 commissioned, connect a heater, or change saved dock offsets. The G-code only moves X/Y, at reduced speeds.</p>
+  </div>
+ <div class="dock-warning">Lineux has calculated dock XY. The new T0 approach and test sequence is independent of Lineux, requires a homed powered carriage, and never bypasses Klipper's travel limits. Pickup/dropoff remains guarded until switch and physical geometry checks pass.</div>
 </div></div>
 <div class="panel dock-bottom"><h3>Recovery</h3><p class="muted">The original settings can be restored using Settings → Backup history / rollback. Calibration writes and restores do not move motors.</p><button class="btn" id="cxmDockBackups">Open backup history</button></div>
 </section>
@@ -603,7 +633,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.4" defer></script>
-<script src="cxm-lineux.js?v=0.9.9" defer></script>
+<script src="cxm-lineux.js?v=0.9.9" defer></script><script src="cxm-t0.js?v=0.9.10" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
