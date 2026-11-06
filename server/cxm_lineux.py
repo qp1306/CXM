@@ -88,7 +88,7 @@ def query_readiness(*, tool, saved, mode='dock'):
     reasons = []
     engine = False
     meta = {}
-    if mode not in ('dock','known'):
+    if mode not in ('dock','known','prepare'):
         raise MeasurementError('Unknown measurement mode')
     known_verified = False
     if type(tool) is not int or not 0 <= tool < saved['config']['globals']['tool_count']:
@@ -107,8 +107,6 @@ def query_readiness(*, tool, saved, mode='dock'):
         known_verified = (type(pid) is int and pid > 1
                           and KNOWN_SESSION['pid'] == pid
                           and time.monotonic() - KNOWN_SESSION['at'] <= KNOWN_MAX_AGE_SEC)
-        if mode == 'dock' and not known_verified:
-            reasons.append('Run known-position validation first in this Klipper session')
         objects = _rpc('/printer/objects/list').get('objects', [])
         if not isinstance(objects, list) or not {'idle_timeout','toolhead','configfile'} <= set(objects):
             raise MeasurementError('Klipper status objects unavailable')
@@ -138,8 +136,8 @@ def query_readiness(*, tool, saved, mode='dock'):
         # of a globally exclusive printer lock.
         axes = status.get('toolhead',{}).get('homed_axes','')
         position = status.get('toolhead',{}).get('position',[])
-        if 'z' not in axes or len(position) < 3 or type(position[2]) not in (int,float) or position[2] < 15:
-            reasons.append('Home Z and establish at least 15 mm clear height before dock positioning')
+        if 'z' not in axes or len(position) < 3 or type(position[2]) not in (int,float) or position[2] < 20:
+            reasons.append('Home Z and establish at least 20 mm actual clearance before dock positioning')
         settings = status.get('configfile',{}).get('settings',{})
         if not isinstance(settings, dict):
             raise MeasurementError('Configfile settings unavailable')
@@ -172,11 +170,25 @@ def query_readiness(*, tool, saved, mode='dock'):
                     or z0 < 20):
                     reasons.append('Known check requires homed X/Y in central clear area and Z >= 20 mm')
         else:
-            # Dock measurement is from a manually positioned, unknown XY.
-            # It intentionally MUST NOT compare reported X/Y to real carriage XY.
-            # Both CoreXY motors must be released, while four Z remain powered.
-            if enabled.get('stepper_x') is not False or enabled.get('stepper_y') is not False:
-                reasons.append('Dock positioning requires X/Y steppers OFF; do not manually move against powered motors')
+            # Mode 'prepare' is the powered stage immediately before releasing XY.
+            # Mode 'dock' is the hand-positioned, unknown-XY measurement stage.
+            # Neither is contingent on a separate known-position test; that
+            # proof was already physically established during engineering.
+            if not all(axis in axes for axis in 'xyz'):
+                reasons.append('Home X/Y/Z before releasing motors for dock calibration')
+            if mode == 'prepare':
+                if enabled.get('stepper_x') is not True or enabled.get('stepper_y') is not True:
+                    reasons.append('Cannot release X/Y: axes must currently be powered after homing')
+                if len(position) >= 2 and (
+                    type(position[0]) not in (int,float) or
+                    type(position[1]) not in (int,float) or
+                    not math.isfinite(position[0]) or not math.isfinite(position[1]) or
+                    not expected['x']['position_min']+30 <= position[0] <= expected['x']['position_max']-30 or
+                    not expected['y']['position_min']+30 <= position[1] <= expected['y']['position_max']-30
+                ):
+                    reasons.append('Move carriage to a central safe XY before releasing motors')
+            elif enabled.get('stepper_x') is not False or enabled.get('stepper_y') is not False:
+                reasons.append('Release only X/Y motors, then hand-align the carriage to the dock')
             # Original Lineux issues G91 G1 X+3 before homing. Its current
             # logical X still has to leave room for that G-code move, even
             # though physical X was changed with motors released.
@@ -310,6 +322,33 @@ def perform_known_check(*, tool, expected_revision, acknowledgement, store):
         result.update(tool=tool,expected_revision=expected_revision,
                       known_verified_in_session=bool(result['passed'] and KNOWN_SESSION['pid']))
         return result
+
+
+def release_xy_for_dock(*, tool, expected_revision, acknowledgement, store):
+    """Release only CoreXY motors; never switch off Z or move the gantry.
+
+    Caller must confirm the safe homed-Z setup. No homing and no
+    kinematic-coordinate reset is performed here. Displayed XY becomes stale
+    immediately after a manual carriage movement.
+    """
+    if acknowledgement != 'I_CONFIRM_Z_SUPPORTED_RELEASE_XY':
+        raise MeasurementError('Confirm physically level Z20 and safe free carriage before releasing X/Y')
+    with MOVE_LOCK:
+        snap=store.read()
+        if type(expected_revision) is not str or expected_revision != snap['revision']:
+            raise MeasurementError('CXM settings changed; refresh before release')
+        pre=query_readiness(tool=tool,saved=snap,mode='prepare')
+        if not pre['ready']:
+            raise MeasurementError('XY release blocked: '+'; '.join(pre['blockers']))
+        _rpc('/printer/gcode/script',{'script':
+            'SET_STEPPER_ENABLE STEPPER=stepper_x ENABLE=0\n'
+            'SET_STEPPER_ENABLE STEPPER=stepper_y ENABLE=0'})
+        post=query_readiness(tool=tool,saved=store.read(),mode='dock')
+        if not post['ready']:
+            raise MeasurementError('XY release confirmation failed: '+'; '.join(post['blockers']))
+        return {'status':'XY_RELEASED_Z_REMAINS_POWERED','tool':tool,
+                'release_confirmed':True,
+                'note':'Align carriage by hand. Reported XY is now stale; confirm +3mm physical clearance and full Y/Y/X homing route before measurement.'}
 
 
 def perform_measurement(*, tool, expected_revision, acknowledgement, store):
