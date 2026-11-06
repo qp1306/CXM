@@ -87,6 +87,62 @@ async function preflight(){
   controls();
 }
 
+// Query live Klipper release readiness after Home, without resetting the
+// user's current page, selected hotend or other controls. Klipper can report
+// idle_timeout='Printing' briefly after a completed G-code script.
+let releaseRefreshBusy=false;
+async function refreshReleaseReadiness({retryTransient=true}={}){
+  if(releaseRefreshBusy)return;
+  releaseRefreshBusy=true;
+  const n=selected();
+  releaseState=null;
+  controls();
+  el('cxmLineuxReleaseStatus').textContent='Checking X/Y release readiness…';
+  try{
+    for(let attempt=0;attempt<(retryTransient?10:1);attempt++){
+      if(selected()!==n)return;
+      let response;
+      try{
+        response=await call('/status?tool='+n+'&mode=prepare');
+      }catch(err){
+        if(attempt===(retryTransient?9:0)){
+          el('cxmLineuxReleaseStatus').textContent=
+            'Cannot refresh release readiness: '+err.message+
+            '. Check printer & engine if this continues.';
+          return;
+        }
+        await new Promise(resolve=>setTimeout(resolve,500));
+        continue;
+      }
+      if(selected()!==n)return;
+      releaseState=response;
+      if(response.ready){
+        el('cxmLineuxReleaseStatus').textContent=
+          'XYZ homed, Z >=20 mm, all four Z motors powered. '+
+          'Confirm physical support above, then release only X/Y.';
+        return;
+      }
+      const reasons=response.blockers||[];
+      if(reasons.length!==1 || reasons[0]!=='Klipper motion state not idle'){
+        el('cxmLineuxReleaseStatus').textContent=
+          'X/Y release unavailable: '+reasons.join('; ');
+        return;
+      }
+      if(attempt===(retryTransient?9:0)){
+        el('cxmLineuxReleaseStatus').textContent=
+          'Waiting for Klipper to become idle. Recheck by ticking the release confirmation; no page reload required.';
+        return;
+      }
+      el('cxmLineuxReleaseStatus').textContent=
+        'Home finished · waiting for Klipper to become idle…';
+      await new Promise(resolve=>setTimeout(resolve,500));
+    }
+  }finally{
+    releaseRefreshBusy=false;
+    controls();
+  }
+}
+
 async function homeAndLift(){
   if(busy || !homeState?.ready || !el('cxmLineuxHomeAck').checked)return;
   const n=selected();
@@ -104,9 +160,16 @@ async function homeAndLift(){
     const result=await call('/home',{tool:n,expected_revision:snapshot.revision,
       acknowledgement:'I_CONFIRM_CLEAR_G28_AND_Z20_PATH'});
     if(result.status!=='HOMED_Z20_CENTRE')throw Error('Printer readiness confirmation failed');
-    busy=false;
-    await preflight();
-    el('cxmLineuxHomeStatus').textContent='HOMED · Z20 · X195/Y170. Next: Release X/Y.';
+    // Home succeeded and coordinates/motor states were verified by the
+    // backend. Do NOT run full preflight here: it clears acknowledgements and
+    // can cache a temporary Klipper-not-idle state until the page reloads.
+    // A new physical release acknowledgement is required after homing.
+    el('cxmLineuxReleaseAck').checked=false;
+    el('cxmLineuxHomeStatus').textContent=
+      'HOMED · Z20 · X195/Y170. Checking Release X/Y automatically…';
+    await refreshReleaseReadiness({retryTransient:true});
+    el('cxmLineuxHomeStatus').textContent=
+      'HOMED · Z20 · X195/Y170. Next: confirm physical support and release X/Y.';
   }catch(e){
     el('cxmLineuxHomeStatus').textContent='HOME NOT VERIFIED: '+e.message+
       '. Inspect the printer before repeating.';
@@ -279,7 +342,13 @@ el('cxmLineuxPreflight').addEventListener('click',preflight);
 el('cxmLineuxHome').addEventListener('click',homeAndLift);
 el('cxmLineuxHomeAck').addEventListener('change',controls);
 el('cxmLineuxReleaseXY').addEventListener('click',releaseXY);
-el('cxmLineuxReleaseAck').addEventListener('change',controls);
+el('cxmLineuxReleaseAck').addEventListener('change',async ()=>{
+  controls();
+  // Also handles someone homing via Mainsail: the live Klipper state is
+  // rechecked when the operator confirms release clearance, without reload.
+  if(el('cxmLineuxReleaseAck').checked && !busy)
+    await refreshReleaseReadiness({retryTransient:true});
+});
 el('cxmLineuxKnownStart').addEventListener('click',checkKnownPosition);
 el('cxmLineuxKnownAck').addEventListener('change',controls);
 el('cxmLineuxStart').addEventListener('click',measure);
