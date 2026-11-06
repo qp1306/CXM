@@ -67,7 +67,7 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
 test('Lineux live measurement is gated, provisional, and separate from protected dock AutoSave',()=>{
  const lineux=fs.readFileSync(path.join(__dirname,'../web/cxm-lineux.js'),'utf8');
  assert.match(html,/<h3>Measure dock position<\/h3>/);
- assert.match(html,/cxm-lineux\.js\?v=0\.9\.9/);
+ assert.match(html,/cxm-lineux\.js\?v=0\.9\.10/);
  for(const id of ['cxmLineuxAck','cxmLineuxPreflight','cxmLineuxStart',
                   'cxmLineuxResult','cxmLineuxToDraft','cxmLineuxApplyAdjust',
                   'cxmLineuxReleaseXY','cxmLineuxReleaseAck','cxmLineuxReleaseStatus',
@@ -86,6 +86,9 @@ test('Lineux live measurement is gated, provisional, and separate from protected
  assert.match(lineux,/I_CONFIRM_Z_SUPPORTED_RELEASE_XY/);
  assert.match(lineux,/I_CONFIRM_CLEAR_G28_AND_Z20_PATH/);
  assert.match(lineux,/call\('\/home'/);
+ assert.match(lineux,/refreshReleaseReadiness/);
+ assert.match(lineux,/mode=prepare/);
+ assert.doesNotMatch(lineux,/await preflight\(\);\s*el\('cxmLineuxHomeStatus'\)/);
  assert.doesNotMatch(lineux,/!state\?\.known_verified/);
  assert.match(lineux,/I_CONFIRM_CLEAR_DOCK_PATH/);
  assert.match(lineux,/expected_revision:snapshot\.revision/);
