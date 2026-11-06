@@ -11,7 +11,7 @@ import time
 import urllib.error
 import urllib.request
 from cxm_config import Store
-from cxm_lineux import query_readiness, perform_measurement, MeasurementError
+from cxm_lineux import query_readiness, perform_measurement, perform_known_check, MeasurementError
 from urllib.parse import parse_qs, urlsplit
 
 MAX_BODY = 4096
@@ -116,10 +116,13 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path.startswith('/v1/lineux/status?'):
                 url=urlsplit(self.path)
                 args=parse_qs(url.query)
-                if set(args) != {'tool'} or len(args['tool'])!=1 or not args['tool'][0].isdigit():
+                if not {'tool'} <= set(args) or set(args)-{'tool','mode'} or len(args['tool'])!=1 or not args['tool'][0].isdigit():
                     raise ValueError('Select one valid hotend number')
+                mode=args.get('mode',['dock'])
+                if len(mode)!=1 or mode[0] not in ('dock','known'):
+                    raise ValueError('Invalid Lineux preflight mode')
                 n=int(args['tool'][0])
-                self.output(200,query_readiness(tool=n,saved=self.server.store.read()))
+                self.output(200,query_readiness(tool=n,saved=self.server.store.read(),mode=mode[0]))
             elif self.path == '/v1/health':
                 self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
@@ -145,8 +148,17 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure'):
+            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/lineux/known-check':
+                if set(body) != {'tool','expected_revision','acknowledgement'}:
+                    raise ValueError('Unexpected Lineux known check parameters')
+                self.output(200,perform_known_check(
+                    tool=body['tool'],
+                    expected_revision=body['expected_revision'],
+                    acknowledgement=body['acknowledgement'],
+                    store=self.server.store))
                 return
             if self.path == '/v1/lineux/measure':
                 if set(body) != {'tool','expected_revision','acknowledgement'}:

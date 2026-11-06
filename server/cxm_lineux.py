@@ -10,6 +10,7 @@ import json
 import math
 import re
 import threading
+import time
 import uuid
 import urllib.error
 import urllib.parse
@@ -17,6 +18,10 @@ import urllib.request
 
 BASE = 'http://127.0.0.1:7125'
 MOVE_LOCK = threading.Lock()
+# In-memory known-position evidence. Reset on service restart and invalidated on Klipper PID change.
+KNOWN_SESSION = {'pid': None, 'at': 0.0}
+KNOWN_MAX_AGE_SEC = 3600
+KNOWN_TOLERANCE_MM = 0.25  # Initial commissioning threshold, not established accuracy
 NUMBER = r'([+-]?(?:\d+(?:\.\d*)?|\.\d+))'
 
 
@@ -78,11 +83,14 @@ def _endstop_settings(settings):
     return expected, resolution, move
 
 
-def query_readiness(*, tool, saved):
+def query_readiness(*, tool, saved, mode='dock'):
     """Read-only readiness check, returning an explicit list of blockers."""
     reasons = []
     engine = False
     meta = {}
+    if mode not in ('dock','known'):
+        raise MeasurementError('Unknown measurement mode')
+    known_verified = False
     if type(tool) is not int or not 0 <= tool < saved['config']['globals']['tool_count']:
         reasons.append('Tool outside active tool_count')
     elif saved['migration_required']:
@@ -93,6 +101,14 @@ def query_readiness(*, tool, saved):
         info = _rpc('/printer/info')
         if info.get('state') != 'ready':
             reasons.append('Klipper is not ready')
+        pid = info.get('process_id')
+        if mode == 'known' and (type(pid) is not int or pid <= 1):
+            reasons.append('Cannot verify Klipper process identity for known-position evidence')
+        known_verified = (type(pid) is int and pid > 1
+                          and KNOWN_SESSION['pid'] == pid
+                          and time.monotonic() - KNOWN_SESSION['at'] <= KNOWN_MAX_AGE_SEC)
+        if mode == 'dock' and not known_verified:
+            reasons.append('Run known-position validation first in this Klipper session')
         objects = _rpc('/printer/objects/list').get('objects', [])
         if not isinstance(objects, list) or not {'idle_timeout','toolhead','configfile'} <= set(objects):
             raise MeasurementError('Klipper status objects unavailable')
@@ -126,10 +142,26 @@ def query_readiness(*, tool, saved):
         if 'homing_override' not in settings:
             reasons.append('Tested CXM homing_override not active')
         expected, resolution, move = _endstop_settings(settings)
+        if mode == 'known':
+            if not all(axis in axes for axis in 'xyz'):
+                reasons.append('Known-position validation requires XYZ to be homed')
+            if len(position) < 3 or any(type(v) not in (float,int) or not math.isfinite(v)
+                                        for v in position[:3]):
+                reasons.append('Known XY coordinates unavailable')
+            else:
+                # Separate safe-area test; no manual carriage movement allowed.
+                x0,y0,z0=position[:3]
+                if (not 30 <= x0 <= expected['x']['position_max']-30
+                    or not 30 <= y0 <= expected['y']['position_max']-30
+                    or not x0+move <= expected['x']['position_max']-25
+                    or z0 < 20):
+                    reasons.append('Known check requires homed X/Y in central clear area and Z >= 20 mm')
         meta = {'endstops_mm':{axis:v['endstop'] for axis,v in expected.items()},
                 'resolution_mm_per_step':resolution,'initial_x_jog_mm':move,
                 'idle':idle,'print_state':print_state,'homed_axes':axes,
-                'z_mm':position[2] if len(position)>=3 else None}
+                'z_mm':position[2] if len(position)>=3 else None,
+                'known_start_xy_mm':position[:2] if len(position)>=2 else None,
+                'klipper_pid':info.get('process_id')}
         cmds = _rpc('/printer/gcode/help')
         engine = isinstance(cmds, dict) and 'DOCK_LOCATE_CALIBRATE' in cmds
         if not engine:
@@ -139,7 +171,7 @@ def query_readiness(*, tool, saved):
     except (MeasurementError, KeyError, TypeError, ValueError) as exc:
         reasons.append(str(exc)[:160])
     return {'ready':not reasons, 'engine_present':engine,'blockers':reasons,
-            'status':meta,'tool':tool,
+            'status':meta,'tool':tool,'mode':mode,'known_verified':known_verified,
             'warning':'Lineux homes Y, then calls CXM G28 X which homes Y again. Duplicate Y homing and kinematic resets MUST be supervised.'}
 
 
@@ -166,6 +198,76 @@ def _report_between(events, start, end):
     return parse_report(body)
 
 
+def evaluate_known_position(*, raw_xy, known_xy, calibration_move_x,
+                            tolerance=KNOWN_TOLERANCE_MM):
+    """Test original Lineux report against a genuine, previously homed XY datum.
+
+    The original routine includes its X jog in counted motor travel. Comparing
+    both raw and jog-corrected output exposes that bias without silently
+    modifying Lineux or interpreting docking adjustment as compensation.
+    """
+    if len(known_xy) != 2:
+        raise MeasurementError('Known XY datum missing')
+    start={axis:_num(known_xy[i], 'known '+axis.upper()) for i,axis in enumerate('xy')}
+    raw={axis:_num(raw_xy[axis], 'raw '+axis.upper()) for axis in 'xy'}
+    corrected={'x':raw['x']+_num(calibration_move_x,'calibration X jog'),
+               'y':raw['y']}
+    err={axis:round(corrected[axis]-start[axis],4) for axis in 'xy'}
+    raw_err={axis:round(raw[axis]-start[axis],4) for axis in 'xy'}
+    passed=max(abs(e) for e in err.values()) <= tolerance
+    return {'status':'KNOWN_POSITION_PASSED' if passed else 'KNOWN_POSITION_FAILED',
+            'passed':passed,'known_start_xy_mm':start,'lineux_raw_xy_mm':raw,
+            'lineux_x_jog_corrected_xy_mm':corrected,
+            'raw_error_mm':raw_err,'jog_corrected_error_mm':err,
+            'tolerance_mm':tolerance,'save_permitted':False,
+            'dock_measurement_permitted':passed,
+            'note':'This validates maths against a homed coordinate only. It does not validate manual dock seating, pickup or physical step loss.'}
+
+
+def _run_original_lineux(pre):
+    """Execute exactly the existing original G-code; isolate its report."""
+    nonce=uuid.uuid4().hex[:16]
+    start='CXM_LINEUX_'+nonce+'_START'
+    end='CXM_LINEUX_'+nonce+'_END'
+    _rpc('/printer/gcode/script',{'script':
+        'RESPOND TYPE=echo MSG='+start+'\nDOCK_LOCATE_CALIBRATE\nRESPOND TYPE=echo MSG='+end})
+    entries = _rpc('/server/gcode_store?count=1000').get('gcode_store', [])
+    if not isinstance(entries,list):
+        raise MeasurementError('Moonraker G-code response log missing')
+    xy = _report_between(entries,start,end)
+    for axis in 'xy':
+        endstop=pre['status']['endstops_mm'][axis]
+        if not 0 <= xy[axis] <= endstop:
+            raise MeasurementError('Measured '+axis.upper()+' outside physical axis travel')
+    return xy
+
+
+def perform_known_check(*, tool, expected_revision, acknowledgement, store):
+    if acknowledgement != 'I_CONFIRM_HOMED_KNOWN_XY_CLEAR_PATH':
+        raise MeasurementError('Known-position physical clearance acknowledgement required')
+    with MOVE_LOCK:
+        snap=store.read()
+        if type(expected_revision) is not str or snap['revision'] != expected_revision:
+            raise MeasurementError('CXM settings changed; refresh before testing')
+        pre=query_readiness(tool=tool,saved=snap,mode='known')
+        if not pre['ready']:
+            raise MeasurementError('Known-position preflight blocked: '+'; '.join(pre['blockers']))
+        xy=_run_original_lineux(pre)
+        result=evaluate_known_position(raw_xy=xy,
+            known_xy=pre['status']['known_start_xy_mm'],
+            calibration_move_x=pre['status']['initial_x_jog_mm'])
+        after=store.read()
+        if after['revision'] != snap['revision']:
+            raise MeasurementError('Settings changed during test; evidence discarded')
+        if result['passed']:
+            KNOWN_SESSION.update(pid=pre['status']['klipper_pid'],at=time.monotonic())
+        else:
+            KNOWN_SESSION.update(pid=None,at=0.0)
+        result.update(tool=tool,expected_revision=expected_revision,
+                      known_verified_in_session=bool(result['passed'] and KNOWN_SESSION['pid']))
+        return result
+
+
 def perform_measurement(*, tool, expected_revision, acknowledgement, store):
     if acknowledgement != 'I_CONFIRM_CLEAR_DOCK_PATH':
         raise MeasurementError('Explicit physical clearance acknowledgement required')
@@ -176,20 +278,7 @@ def perform_measurement(*, tool, expected_revision, acknowledgement, store):
         pre = query_readiness(tool=tool,saved=snapshot)
         if not pre['ready']:
             raise MeasurementError('Preflight blocked: '+'; '.join(pre['blockers']))
-        nonce=uuid.uuid4().hex[:16]
-        start='CXM_LINEUX_'+nonce+'_START'
-        end='CXM_LINEUX_'+nonce+'_END'
-        # Fixed G-code only; no request data interpolated into commands.
-        _rpc('/printer/gcode/script',{'script':
-             'RESPOND TYPE=echo MSG='+start+'\nDOCK_LOCATE_CALIBRATE\nRESPOND TYPE=echo MSG='+end})
-        entries = _rpc('/server/gcode_store?count=1000').get('gcode_store', [])
-        if not isinstance(entries,list):
-            raise MeasurementError('Moonraker G-code response log missing')
-        xy = _report_between(entries,start,end)
-        for axis in 'xy':
-            endstop=pre['status']['endstops_mm'][axis]
-            if not 0 <= xy[axis] <= endstop:
-                raise MeasurementError('Measured '+axis.upper()+' outside physical axis travel')
+        xy = _run_original_lineux(pre)
         latest=store.read()
         if latest['revision']!=snapshot['revision']:
             raise MeasurementError('Settings changed during measurement; result discarded')
