@@ -29,8 +29,14 @@ def number(n,label,lo,hi):
     return float(n)
 
 def _safe_context(saved, *, require_homed=True, require_in_park=False):
-    if saved['migration_required'] or saved['config']['globals']['tool_count']!=1:
-        raise T0Error('T0-only commissioning requires exactly one active hotend')
+    if saved['migration_required']:
+        raise T0Error('CXM settings migration required before T0 testing')
+    # The commissioning command always targets tool index 0. Other enabled
+    # tool slots may exist, but they are never selected or moved by this API.
+    # Do not confuse "T0-only test" with "printer has one configured tool".
+    count=saved['config']['globals'].get('tool_count')
+    if type(count) is not int or not 1 <= count <= 12:
+        raise T0Error('Invalid configured hotend count')
     t=saved['config']['tools'][0]
     if t['maintenance_lockout']:
         raise T0Error('T0 is under maintenance lockout')
