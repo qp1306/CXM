@@ -79,6 +79,29 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(err.exception.code,400)
         self.assertEqual(self.call('/v1/config')['revision'],current['revision'])
 
+    def test_atomic_xy_and_z_offset_endpoint(self):
+        current=self.call('/v1/config')
+        headers={'Content-Type':'application/json','Origin':f'http://127.0.0.1:{self.port}',
+                 'X-Requested-With':'CXM'}
+        with patch('cxm_service.printer_safe',return_value=True):
+            xy=self.call('/v1/offset',{'tool':1,'axes':'xy',
+                'values':{'x':0.12,'y':-0.08},
+                'expected_revision':current['revision']},headers)
+            z=self.call('/v1/offset',{'tool':1,'axes':'z',
+                'values':{'z':0.045},
+                'expected_revision':xy['revision']},headers)
+            self.assertTrue(xy['saved'])
+            self.assertTrue(z['saved'])
+            self.assertFalse(z['physically_verified'])
+            tool=self.call('/v1/config')['config']['tools'][1]
+            self.assertEqual([tool['offset_x'],tool['offset_y'],tool['offset_z']],
+                             [0.12,-0.08,0.045])
+            self.assertFalse(tool['commissioned'])
+            with self.assertRaises(urllib.error.HTTPError) as exc:
+                self.call('/v1/offset',{'tool':1,'axes':'xy',
+                    'values':{'x':0.1},'expected_revision':z['revision']},headers)
+            self.assertEqual(exc.exception.code,400)
+
     def test_only_expected_primary_mcu_error_is_dev_safe(self):
         import io
         def response(state, message):
