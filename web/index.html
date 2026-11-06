@@ -158,6 +158,17 @@
 .cxm-xy-lab .cxm-lineux-live{border:0;background:transparent;padding:0}
 @media(max-width:700px){.printer-strip{grid-template-columns:1fr}}
 
+
+/* T0: one-click, live-switch-driven interface; manual testing stays in Advanced. */
+.cxm-t0-auto{margin:16px 0;padding:20px 24px;max-width:900px;border:1px solid #486b8b}
+.cxm-t0-auto h3{font-size:19px}
+.cxm-t0-auto #cxmT0AutoStatus{font-size:15px;font-weight:650;color:#d0e8fc;margin:18px 0}
+.cxm-t0-auto-buttons{display:flex;gap:12px;flex-wrap:wrap}
+.cxm-t0-auto-buttons .btn{min-height:52px;min-width:190px;font-size:16px;padding:13px 20px}
+.cxm-t0-auto-buttons .btn span{margin-right:8px}
+.cxm-t0-auto-buttons .btn:disabled{opacity:.35}
+.cxm-t0-auto #cxmT0AutoResult{margin-top:14px}
+@media(max-width:560px){.cxm-t0-auto-buttons{flex-direction:column}.cxm-t0-auto-buttons .btn{width:100%}}
 </style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
@@ -273,15 +284,31 @@
  <div class="buttons"><button class="btn primary" id="cxmDockAccept" disabled>Save dock XY</button><button class="btn" id="cxmDockReset">Reset draft</button></div>
  <p id="cxmDockFeedback" class="helper" role="status" aria-live="polite">Waiting for configuration service.</p>
 </div>
+<div class="panel cxm-t0-auto" id="cxmT0Auto" aria-busy="false">
+ <div class="panel-heading"><h3>T0 · Pickup / Dropoff</h3><span class="panel-label">Live carriage switch</span></div>
+ <p id="cxmT0AutoStatus" role="status" aria-live="polite">Checking T0 and Klipper…</p>
+ <div class="buttons cxm-t0-auto-buttons">
+  <button class="btn primary" id="cxmT0AutoPickup" disabled><span aria-hidden="true">↗</span> Pick up T0</button>
+  <button class="btn primary" id="cxmT0AutoDropoff" disabled><span aria-hidden="true">↘</span> Drop off T0</button>
+ </div>
+ <p class="helper" id="cxmT0AutoGeometry">Dock coordinates loading…</p>
+ <p class="helper">CXM stages automatically, checks the carriage switch before and after, and returns to Safe Y. Supervise the first cycles; a switch signal does not independently prove the hotend has latched securely.</p>
+ <p id="cxmT0AutoResult" class="helper" role="status" aria-live="polite"></p>
+ <details id="cxmT0AutoFaultBox" class="cxm-advanced" hidden>
+  <summary>Test fault — physical inspection required</summary>
+  <p class="helper">After inspecting the carriage, dock and mechanism, clear the test fault. This does not move the printer.</p>
+  <button class="btn" id="cxmT0AutoClearFault" disabled>Clear test fault</button>
+ </details>
+</div>
 <details class="panel cxm-dock-optional cxm-advanced">
- <summary>T0 pickup &amp; dropoff tests</summary>
+ <summary>Advanced T0 motion &amp; sensor tests</summary>
  <p class="helper">Slow, supervised tests. Home XYZ first and keep X/Y motors powered; do not hand-move the carriage after homing.</p>
  <strong id="cxmDockLiveHomingTest" hidden>No live status</strong>
   <div class="cxm-t0-test" id="cxmT0TestPanel">
    <div class="panel-heading"><h3>T0 · Supervised XY motion test</h3><span class="panel-label">Slow speed · one action at a time</span></div>
    <p class="helper" id="cxmT0Status" role="status">Checking T0 motion safety…</p>
    <div class="cxm-t0-grid">
-    <label>Lateral unlock X (mm)<input id="cxmT0Shift" type="number" min="-8" max="-1" step="0.1" value="-3.0"></label>
+    <label>Lateral unlock X (mm)<input id="cxmT0Shift" type="number" min="-8" max="-1" step="0.1" value="-4.8"></label>
     <label>Y dodge (mm)<input id="cxmT0Dodge" type="number" min="5" max="25" step="0.1" value="14.0"></label>
    </div>
    <p class="helper">These are <strong>unverified original CxChanger test-path starting values</strong>, not T0 calibration data. The approach uses saved T0 X/Y and configured Safe Y. Verify every waypoint has physical clearance. No Z or heater movement occurs.</p>
@@ -678,6 +705,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.4" defer></script>
 <script src="cxm-lineux.js?v=0.9.9" defer></script><script src="cxm-t0.js?v=0.9.13" defer></script>
+<script src="cxm-t0-auto.js?v=1.0.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
