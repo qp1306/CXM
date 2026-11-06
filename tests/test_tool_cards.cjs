@@ -18,7 +18,8 @@ test('selected tool with missing dock is red NOT READY and remains editable',()=
  assert.match(result.html,/Dock XY and tool offsets require calibration/);
  assert.match(result.html,/data-cxm-calibrate="10"/);
  assert.match(result.html,/data-cxm-edit="10"/);
- assert.match(result.html,/disabled title="Pickup unavailable/);
+ assert.doesNotMatch(result.html,/Pickup unavailable|>Pick up<\/button>/);
+ assert.match(result.html,/data-cxm-calibrate="10">Dock XY<\/button>/);
 });
 test('saved gantry dock XY and zero offsets never assert physical calibration',()=>{
  const x=cards.card(make({dock_x:172.00625,dock_y:175.00625,offset_x:0.03}),2,12);
@@ -65,12 +66,13 @@ test('12 selected means all cards; no Ready without physical verification',()=>{
   assert.equal(profiles[10].maintenance_lockout,false);
   cards.render({config:{globals:{tool_count:12,safe_y:120,x_docking_adjust:3},tools:profiles},
     migration_required:true});
-  assert.match(nodes[10].innerHTML,/disabled>Edit/);
+  assert.match(nodes[10].innerHTML,/disabled>Settings/);
  }finally{if(prev===undefined)delete global.document;else global.document=prev;}
 });
 test('red overlay, preserved palette and control count',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
  assert.match(html,/\.tool-card\.cxm-needs-attention::after\{content:"NOT READY"/);
+ assert.match(cards.render.toString(),/classList\?\.toggle\('cxm-needs-attention',state\.code!=='READY'\)/);
  assert.match(html,/pointer-events:none/);
  assert.match(html,/cxm-tool-state\.js\?v=0\.9\.4/);
  assert.match(html,/cxm-tool-picker\.js\?v=0\.9\.3/);
