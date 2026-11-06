@@ -63,7 +63,7 @@ async function preflight(){
       feedback('Known-position check passed in this Klipper session. You may prepare a supervised dock measurement.');
     }else{
       el('cxmLineuxStatus').textContent='DOCK LOCKED · '+dock.blockers.join('; ');
-      feedback('Dock measurement remains locked pending known-position verification and other readiness checks.');
+      feedback('Dock measurement locked: '+dock.blockers.join('; ')+'. For hand-seated dock alignment do NOT use the known XY button.');
     }
   }catch(e){
     el('cxmLineuxStatus').textContent='NOT READY · '+e.message;
@@ -84,6 +84,7 @@ async function checkKnownPosition(){
     'Klipper currently reports X'+Number(xy[0]).toFixed(3)+
     ' / Y'+Number(xy[1]).toFixed(3)+' mm. These are the independently homed'+
     ' test coordinates, not dock coordinates.\n\n'+
+    'This is NOT a dock measurement. Do not run after releasing X/Y or moving by hand. '+
     'The unchanged Lineux code will move +3 mm X, home Y and home Y/X again.'+
     ' Z must physically clear all obstructions.\n\n'+
     'MOTORS WILL MOVE. Do NOT manually move the carriage during this test.'))return;
@@ -125,8 +126,10 @@ async function measure(){
   const n=selected();
   if(n!==state.tool)return;
   if(!window.confirm('START LINEUX DOCK MEASUREMENT FOR T'+n+'?\n\n'+
-    'You physically positioned the carriage at the intended dock datum, have confirmed at least 15 mm '+
-    'Z clearance and an unobstructed complete Y/X homing path.\n\n'+
+    'Both CoreXY motors are OFF and all four Z motors are ON and level. '+
+    'You physically positioned the carriage at T'+n+' dock datum, with at least 15 mm '+
+    'actual Z clearance, +3 mm positive X clearance and unobstructed Y/Y/X homing.\n\n'+
+    'Klipper displayed X/Y is STALE after moving by hand; this is correct for dock measurement.\n\n'+
     'The unchanged Lineux engine will set a kinematic position, jog X, home Y, then home X. '+
     'CXM Homing V2.0 homes Y a second time when X is requested.\n\n'+
     'The motors WILL MOVE. Keep emergency stop accessible. No XY coordinates will be saved.'))return;
