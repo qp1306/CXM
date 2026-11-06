@@ -1,6 +1,6 @@
 /* CXM V0.6 — single authoritative, pure tool-readiness policy.
    Colour is identity; readiness is a separately validated state.
-   WARNING: Never infer verification from a zero offset or saved XYZ.
+   WARNING: Never infer verification from a zero offset or saved dock XY.
 */
 (function () {
   'use strict';
@@ -17,19 +17,19 @@
         reason:'Maintenance lockout enabled; inspect in Settings'};
     }
     const allowCal=runtime.migrationRequired!==true;
-    const dockFields=['dock_x','dock_y','dock_z'];
+    const dockFields=['dock_x','dock_y'];
     const dockSaved=dockFields.every(k=>typeof tool[k]==='number' && Number.isFinite(tool[k]));
     const anyDock=dockFields.some(k=>typeof tool[k]==='number' && Number.isFinite(tool[k]));
     const acceptedXY=tool.offset_xy_accepted===true;
     const acceptedZ=tool.offset_z_accepted===true;
     if(!dockSaved && !anyDock && !acceptedXY && !acceptedZ) {
       return {...base,code:'NOT_CALIBRATED',label:'NOT CALIBRATED',
-        reason:'Dock XYZ and tool offsets require calibration',
-        missing:['Dock XYZ','XY offsets','Z offset'], canCalibrate:allowCal};
+        reason:'Dock XY and tool offsets require calibration',
+        missing:['Dock XY','XY offsets','Z offset'], canCalibrate:allowCal};
     }
     if(!dockSaved || !acceptedXY || !acceptedZ) {
       const missing=[];
-      if(!dockSaved)missing.push('Dock XYZ');
+      if(!dockSaved)missing.push('Dock XY');
       if(!acceptedXY)missing.push('XY offset acceptance');
       if(!acceptedZ)missing.push('Z offset acceptance');
       return {...base,code:'INCOMPLETE',label:'CALIBRATION INCOMPLETE',
