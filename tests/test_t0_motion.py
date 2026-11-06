@@ -62,6 +62,7 @@ class T0Test(unittest.TestCase):
         self.machine=Machine()
         c.SESSION.update(pid=None,revision=None,stage=None,sensor=None,
                          samples={},last_action=None,xy=None,path=None)
+        c.CXM_HOME_SESSION.update(pid=self.machine.pid,revision=self.store.rev,at=c.time.monotonic())
         self.patch=patch.object(c,'_rpc',side_effect=self.machine.rpc)
         self.patch.start()
         self.addCleanup(self.patch.stop)
