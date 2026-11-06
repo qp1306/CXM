@@ -24,6 +24,7 @@ jobs:
       - name: Dock and commissioning JavaScript syntax
         run: |
           node --check web/cxm-dock.js
+          node --check web/cxm-lineux.js
           node --check web/cxm-test-math.js
           node --check web/cxm-testing.js
           node --check web/cxm-dock-review.js
