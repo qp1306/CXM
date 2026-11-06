@@ -69,7 +69,7 @@ class ManualDockSafetyTests(unittest.TestCase):
         self.steppers['stepper_x']=True
         r=self.readiness('dock')
         self.assertFalse(r['ready'])
-        self.assertTrue(any('X/Y steppers OFF' in x for x in r['blockers']))
+        self.assertTrue(any('Release only X/Y motors' in x for x in r['blockers']))
 
     def test_all_four_z_must_be_energized(self):
         self.steppers['stepper_z3']=False
