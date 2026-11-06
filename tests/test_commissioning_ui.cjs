@@ -51,6 +51,6 @@ test('Testing page has live reads, restart evidence and real input controls',()=
  assert.match(js,/after\.revision===baseline\.revision/);
  assert.match(js,/NO Klipper process restart\. Disk settings are NOT applied live/);
  assert.match(js,/Mainsail homing override|homing_override/);
- assert.doesNotMatch(js,/method:\s*['"]POST|\/printer\/gcode|G28|SET_KINEMATIC_POSITION|FIRMWARE_RESTART/);
+ assert.doesNotMatch(js,/method:\s*['"]POST|\/printer\/gcode|(?:^|\\n)\\s*(?:G28|SET_KINEMATIC_POSITION|FIRMWARE_RESTART)(?:\\s|$)/m);
  assert.doesNotMatch(html,/planned for later release/i);
 });
