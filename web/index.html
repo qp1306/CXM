@@ -181,15 +181,16 @@
    <p class="helper" id="cxmLineuxStatus" role="status" aria-live="polite">Checking Lineux integration…</p>
    <div class="cxm-lineux-known">
     <div class="panel-heading"><h3>First · Verify known XY</h3><span class="panel-label">No dock coordinates saved</span></div>
-    <p class="helper">Home XYZ and move, using Mainsail, to a known safe XY position well away from the physical boundaries (recommended X195 Y170 Z20). This validation uses the original Lineux command and compares the reported location with the actual homed start. It runs the same Y/Y/X homing sequence and moves the motors. Never manually reposition the carriage for this test.</p>
+    <p class="helper">**This is ONLY for a freshly homed, motor-driven reference position.** Move using Mainsail to known X195 Y170 Z20 with both CoreXY and all four Z motors powered. This validates Lineux maths against real XY. **NEVER use this button after releasing X/Y motors or moving the carriage by hand**; the displayed coordinates are then stale. The operation homes Y/Y/X and moves the motors.</p>
     <p id="cxmLineuxKnownStatus" role="status">Known-position check has not been completed.</p>
-    <label class="cxm-capture-ack"><input id="cxmLineuxKnownAck" type="checkbox"> I have physically verified that XYZ is homed, the carriage is at a known safe XY position with at least 20 mm actual Z clearance, the 3 mm X jog and entire Y/X homing path are unobstructed, and no print or host-streamed G-code is running.</label>
+    <label class="cxm-capture-ack"><input id="cxmLineuxKnownAck" type="checkbox"> I confirm the carriage has NOT been moved by hand since homing, X/Y and all four Z motors are powered, the commanded known XY position is physically correct, there is at least 20 mm actual Z clearance, the +3 mm X jog and Y/X homing path are clear, and no print is running.</label>
     <div class="buttons"><button class="btn primary" id="cxmLineuxKnownStart" disabled>Validate Lineux at known XY</button></div>
     <p class="cxm-test-result" id="cxmLineuxKnownResult" role="status">Readiness and known position not yet verified. No motion has occurred.</p>
    </div>
-   <div class="panel-heading"><h3>Then · Measure selected dock</h3><span class="panel-label">Known-position test must pass first</span></div>
+   <div class="panel-heading"><h3>Then · Measure selected dock</h3><span class="panel-label">Manually positioned unknown XY · provisional result only</span></div>
+   <p class="helper"><strong>This is the button for T0 after you move the carriage by hand.</strong> First validate Lineux at a known XY before releasing motors. Then position the carriage at a safe central reference by powered jog, keep all four Z motors powered, release X/Y only, and gently align the carriage at T0's physical dock reference. Check actual +3 mm X clearance and the Y/Y/X homing route. **Do not run Verify known XY after manual placement.** Klipper's displayed X/Y is stale and must not be treated as the actual dock position.</p>
    <div class="buttons"><button class="btn" id="cxmLineuxPreflight">Check printer &amp; engine</button></div>
-   <label class="cxm-capture-ack"><input id="cxmLineuxAck" type="checkbox"> I have physically positioned the selected hotend's dock reference, confirmed the toolhead has at least 15 mm safe Z clearance, verified the full Y-then-X path and confirmed that no print or host-streamed G-code is active. I understand the script sets a temporary kinematic position and that CXM homes Y twice.</label>
+   <label class="cxm-capture-ack"><input id="cxmLineuxAck" type="checkbox"> I confirm X/Y motors are OFF, all four Z motors remain ON and the gantry is level, I manually aligned the selected dock reference, and the actual +3 mm X jog plus Y/Y/X homing route are clear with at least 15 mm real Z clearance. Klipper XY is stale; I am using the DOCK measurement, not known XY validation. No print is active.</label>
    <div class="buttons">
     <button class="btn primary" id="cxmLineuxStart" disabled>Start Lineux XY measurement</button>
    </div>
@@ -584,7 +585,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.3" defer></script>
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.3" defer></script>
-<script src="cxm-lineux.js?v=0.9.6" defer></script>
+<script src="cxm-lineux.js?v=0.9.7" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
