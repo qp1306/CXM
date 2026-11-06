@@ -267,10 +267,10 @@ async function copy(){
     if(!window.confirm('Copy PROVISIONAL Lineux X='+x.toFixed(3)+', Y='+y.toFixed(3)+
        ' to T'+n+' dock DRAFT only?\n\n'+(adjust?'The separate X docking correction is included.':
        'No X docking correction is applied.')+
-       '\n\nZ is unchanged. This does NOT save or verify the dock.'))return;
+       '\n\nNo dock Z required. This does NOT save or verify the dock.'))return;
     window.dispatchEvent(new CustomEvent('cxm-dock-provisional-xy',
       {detail:{tool:n,x,y,source:'lineux-live'}}));
-    feedback('T'+n+' provisional XY sent to dock draft. Review the values and enter Z separately.');
+    feedback('T'+n+' provisional XY sent to dock draft. Review and save X/Y in Dock Calibration; nozzle Z offsets are separate.');
     result=null;tool=null;
   }catch(e){feedback('Copy blocked: '+e.message,'bad');}
   controls();
