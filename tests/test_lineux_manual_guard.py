@@ -22,6 +22,7 @@ class ManualDockSafetyTests(unittest.TestCase):
             'stepper_z2':True,'stepper_z3':True,
         }
         self.position=[290.0,97.0,20.0,0.0]
+        self.homed='xyz'
         self.objects=['idle_timeout','toolhead','configfile','stepper_enable']
         self.pid=4321
         c.KNOWN_SESSION.update(pid=self.pid,at=time.monotonic())
@@ -42,7 +43,7 @@ class ManualDockSafetyTests(unittest.TestCase):
             if path.startswith('/printer/objects/query?'):
                 return {'status':{
                     'idle_timeout':{'state':'Ready'},
-                    'toolhead':{'homed_axes':'xyz','position':self.position},
+                    'toolhead':{'homed_axes':self.homed,'position':self.position},
                     'configfile':{'settings':settings},
                     'stepper_enable':{'steppers':self.steppers},
                 }}
@@ -112,27 +113,38 @@ class ManualDockSafetyTests(unittest.TestCase):
         self.assertTrue(any('20 mm' in x for x in r['blockers']))
 
     def test_direct_dock_requires_xyz_homed(self):
-        # Simulates an independent readiness check rejecting unknown homing.
-        self.steppers['stepper_x']=False
-        self.steppers['stepper_y']=False
-        # Full G28 required by the UI, and checked by backend.
-        self.assertTrue(self.readiness('dock')['ready'])
+        self.homed='z'
+        r=self.readiness('dock')
+        self.assertFalse(r['ready'])
+        self.assertTrue(any('Home X/Y/Z' in x for x in r['blockers']))
 
     def test_release_runs_only_x_y_disable_commands(self):
-        with patch.object(c,'query_readiness',side_effect=[
-            {'ready':True,'blockers':[]},{'ready':True,'blockers':[]}]) as ready:
-            with patch.object(c,'_rpc') as rpc:
+        motors={
+            'stepper_x':False,'stepper_y':False,
+            'stepper_z':True,'stepper_z1':True,'stepper_z2':True,'stepper_z3':True}
+        with patch.object(c,'query_readiness',return_value={'ready':True,'blockers':[]}):
+            with patch.object(c,'_rpc',side_effect=[
+                {}, {'status':{'stepper_enable':{'steppers':motors}}}]) as rpc:
                 resp=c.release_xy_for_dock(tool=0,expected_revision='a'*64,
                     acknowledgement='I_CONFIRM_Z_SUPPORTED_RELEASE_XY',store=Store())
         self.assertTrue(resp['release_confirmed'])
-        script=rpc.call_args[0][0]
-        commands=rpc.call_args[0][1]['script']
-        self.assertEqual(script,'/printer/gcode/script')
-        self.assertEqual(commands,
-            'SET_STEPPER_ENABLE STEPPER=stepper_x ENABLE=0\\n'
-            'SET_STEPPER_ENABLE STEPPER=stepper_y ENABLE=0')
-        self.assertNotIn('stepper_z',commands)
-        self.assertNotIn('G28',commands)
+        call=rpc.call_args_list[0]
+        self.assertEqual(call[0][0],'/printer/gcode/script')
+        self.assertEqual(call[0][1]['script'].splitlines(),[
+            'SET_STEPPER_ENABLE STEPPER=stepper_x ENABLE=0',
+            'SET_STEPPER_ENABLE STEPPER=stepper_y ENABLE=0'])
+        self.assertNotIn('stepper_z',call[0][1]['script'])
+        self.assertNotIn('G28',call[0][1]['script'])
+
+    def test_release_confirmation_fails_if_z_motor_off(self):
+        motors={'stepper_x':False,'stepper_y':False,
+                'stepper_z':True,'stepper_z1':True,'stepper_z2':True,'stepper_z3':False}
+        with patch.object(c,'query_readiness',return_value={'ready':True,'blockers':[]}):
+            with patch.object(c,'_rpc',side_effect=[
+                {}, {'status':{'stepper_enable':{'steppers':motors}}}]):
+                with self.assertRaises(c.MeasurementError):
+                    c.release_xy_for_dock(tool=0,expected_revision='a'*64,
+                        acknowledgement='I_CONFIRM_Z_SUPPORTED_RELEASE_XY',store=Store())
 
     def test_release_fails_closed_without_ack(self):
         with patch.object(c,'_rpc') as rpc:
