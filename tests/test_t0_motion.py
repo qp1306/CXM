@@ -78,6 +78,8 @@ class T0Test(unittest.TestCase):
         c.SESSION.update(pid=None,revision=None,stage=None,sensor=None,
                          samples={},last_action=None,xy=None,path=None)
         c.AUTO_STATE.update(pid=None,revision=None,fault=None,last_success=None)
+        c.CYCLE_STATE.update(running=False,requested=0,completed=0,phase='idle',
+                             stop_requested=False,error=None,last_result=None)
         self.patch=patch.object(c,'_rpc',side_effect=self.machine.rpc)
         self.patch.start()
         self.addCleanup(self.patch.stop)
@@ -210,6 +212,115 @@ class T0Test(unittest.TestCase):
             c.confirm_staging(store=self.store,expected_revision=self.store.rev,
                 acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
         self.assertEqual(self.machine.scripts,[])
+
+    def test_repeat_three_complete_cycles_starting_with_t0_mounted(self):
+        self.machine.sensor=True
+        self.machine.simulate_single_auto=True
+        result=c.repeat_t0_cycles(store=self.store,expected_revision=self.store.rev,
+            cycles=3,
+            acknowledgement='I_CONFIRMED_T0_REPEAT_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(result['status'],'T0_REPEAT_COMPLETE')
+        self.assertTrue(result['initial_dropoff'])
+        self.assertEqual(result['completed_cycles'],3)
+        self.assertEqual(len(self.machine.scripts),7)
+        self.assertFalse(self.machine.sensor,'Final carriage is empty')
+        self.assertEqual(result['final_sensor'],'RELEASED')
+        self.assertEqual(c.cycle_status()['phase'],'Complete')
+        self.assertFalse(c.cycle_status()['running'])
+        self.assertIsNone(c.AUTO_STATE['fault'])
+        self.assertEqual(self.machine.x,self.store.data['tools'][0]['dock_x'])
+        self.assertEqual(self.machine.y,self.store.data['globals']['safe_y'])
+        self.assertTrue(all(' Z' not in g for g in self.machine.scripts))
+
+    def test_repeat_two_cycles_start_empty_and_ignore_manual_sensor_samples(self):
+        self.machine.sensor=False
+        self.machine.simulate_single_auto=True
+        self.assertEqual(c.SESSION['samples'],{})
+        result=c.repeat_t0_cycles(store=self.store,expected_revision=self.store.rev,
+            cycles=2,
+            acknowledgement='I_CONFIRMED_T0_REPEAT_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertFalse(result['initial_dropoff'])
+        self.assertEqual(result['completed_cycles'],2)
+        self.assertEqual(len(self.machine.scripts),4)
+        self.assertFalse(self.machine.sensor)
+        self.assertEqual(c.SESSION['samples'],{})
+
+    def test_repeat_stop_finishes_current_cycle_without_extra_movements(self):
+        self.machine.sensor=False
+        self.machine.simulate_single_auto=True
+        original=self.machine.rpc
+        def request_stop_during_first_dropoff(path,payload=None):
+            result=original(path,payload)
+            if path=='/printer/gcode/script' and len(self.machine.scripts)==2:
+                response=c.stop_cycles(acknowledgement='STOP_AFTER_CURRENT_T0_CYCLE')
+                self.assertTrue(response['stop_requested'])
+            return result
+        with patch.object(c,'_rpc',side_effect=request_stop_during_first_dropoff):
+            result=c.repeat_t0_cycles(store=self.store,expected_revision=self.store.rev,
+                cycles=10,
+                acknowledgement='I_CONFIRMED_T0_REPEAT_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(result['status'],'T0_REPEAT_STOPPED')
+        self.assertEqual(result['completed_cycles'],1)
+        self.assertEqual(len(self.machine.scripts),2)
+        self.assertFalse(self.machine.sensor)
+        self.assertFalse(c.cycle_status()['running'])
+
+    def test_repeat_rejects_invalid_counts_and_config_before_any_motion(self):
+        for count in (0,-1,21,1.0,'3',True):
+            with self.assertRaisesRegex(c.T0Error,'Choose 1 to 20'):
+                c.repeat_t0_cycles(store=self.store,expected_revision=self.store.rev,
+                    cycles=count,
+                    acknowledgement='I_CONFIRMED_T0_REPEAT_PATH_CLEAR_AND_WILL_SUPERVISE')
+        with self.assertRaisesRegex(c.T0Error,'Confirm the complete'):
+            c.repeat_t0_cycles(store=self.store,expected_revision=self.store.rev,
+                cycles=2,acknowledgement='INVALID')
+        with self.assertRaisesRegex(c.T0Error,'settings changed'):
+            c.repeat_t0_cycles(store=self.store,expected_revision='0'*64,
+                cycles=2,
+                acknowledgement='I_CONFIRMED_T0_REPEAT_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(self.machine.scripts,[])
+        self.assertFalse(c.cycle_status()['running'])
+
+    def test_repeat_fails_closed_on_sensor_mismatch_after_dropoff(self):
+        self.machine.sensor=True
+        original=self.machine.rpc
+        def stuck_mounted(path,payload=None):
+            result=original(path,payload)
+            if path=='/printer/gcode/script':
+                self.machine.sensor=True
+            return result
+        with patch.object(c,'_rpc',side_effect=stuck_mounted):
+            with self.assertRaisesRegex(c.T0Error,'presence switch still reports'):
+                c.repeat_t0_cycles(store=self.store,expected_revision=self.store.rev,
+                    cycles=4,
+                    acknowledgement='I_CONFIRMED_T0_REPEAT_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(len(self.machine.scripts),1,
+                         'Never proceed to pickup after failing initial dropoff')
+        self.assertEqual(c.cycle_status()['completed'],0)
+        self.assertFalse(c.cycle_status()['running'])
+        self.assertIsNotNone(c.cycle_status()['error'])
+        self.assertFalse(c.status(self.store)['automatic']['enabled'])
+
+    def test_repeat_holds_shared_motion_lock_for_whole_test(self):
+        self.machine.sensor=False
+        self.machine.simulate_single_auto=True
+        original=self.machine.rpc
+        checked=[False]
+        def attempt_parallel_action(path,payload=None):
+            if path=='/printer/gcode/script' and not checked[0]:
+                checked[0]=True
+                with self.assertRaisesRegex(c.T0Error,'Another printer motion'):
+                    c.automatic_toolchange(store=self.store,
+                        expected_revision=self.store.rev,kind='pickup',
+                        acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+            return original(path,payload)
+        with patch.object(c,'_rpc',side_effect=attempt_parallel_action):
+            result=c.repeat_t0_cycles(store=self.store,expected_revision=self.store.rev,
+                cycles=1,
+                acknowledgement='I_CONFIRMED_T0_REPEAT_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertTrue(checked[0])
+        self.assertEqual(result['completed_cycles'],1)
+        self.assertEqual(len(self.machine.scripts),2)
 
     def test_one_click_dropoff_and_pickup_auto_stage_and_check_sensor(self):
         # No selected sensor, manual recording, or Approach button required.
