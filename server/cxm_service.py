@@ -1,5 +1,6 @@
 """Loopback-only CXM configuration API (web access is proxied by local Nginx)."""
 import argparse
+import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -12,6 +13,53 @@ import urllib.request
 from cxm_config import Store
 
 MAX_BODY = 4096
+
+def parse_proc_start_ticks(raw, expected_pid):
+    """Linux /proc/PID/stat field 22, accounting for spaces in process name."""
+    if not isinstance(raw,str) or len(raw)>16384:
+        raise ValueError('Invalid process metadata')
+    prefix=str(expected_pid)+' ('
+    if not raw.startswith(prefix):
+        raise ValueError('Process ID mismatch')
+    closing=raw.rfind(')')
+    if closing<=len(prefix):
+        raise ValueError('Invalid /proc stat')
+    # After comm and closing parenthesis fields begin at field 3 (state).
+    fields=raw[closing+1:].split()
+    if len(fields)<20 or not fields[19].isdigit():
+        raise ValueError('Missing process start ticks')
+    return int(fields[19])
+
+def runtime_evidence():
+    """Read-only identity of the running Klipper *process*, not macro state.
+
+    A matching identity before/after an AutoSave establishes that the Klipper
+    host process was not replaced. It does not establish that disk settings
+    became active, or exclude all in-process reloads.
+    """
+    result={'available':False,'identity':None,'klipper_state':'unknown',
+            'source':'Linux process identity via Moonraker /printer/info',
+            'active_in_klipper':False,'limitation':
+            'Process continuity does not prove runtime macro updates or exclude in-process reloads.'}
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:7125/printer/info',timeout=2) as r:
+            info=json.load(r)['result']
+        result['klipper_state']=str(info.get('state','unknown'))
+        pid=info.get('process_id')
+        if type(pid) is not int or pid<=1:
+            result['reason']='Moonraker did not provide a valid Klipper process_id'
+            return result
+        stat=Path('/proc') .joinpath(str(pid),'stat').read_text(encoding='utf8')
+        ticks=parse_proc_start_ticks(stat,pid)
+        boot=Path('/proc/sys/kernel/random/boot_id').read_text(encoding='ascii').strip()
+        if not re.fullmatch(r'[a-fA-F0-9-]{36}',boot):
+            raise ValueError('Invalid kernel boot ID')
+        token=hashlib.sha256(f'{boot}:{pid}:{ticks}'.encode('ascii')).hexdigest()[:24]
+        result.update({'available':True,'identity':token,'reason':None})
+    except (OSError,ValueError,KeyError,TypeError,urllib.error.URLError) as exc:
+        result['reason']=type(exc).__name__+': '+str(exc)[:140]
+    return result
+
 
 
 def printer_safe():
@@ -61,8 +109,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,self.server.store.read())
             elif self.path == '/v1/history':
                 self.output(200,{'backups':self.server.store.history()})
+            elif self.path == '/v1/runtime':
+                self.output(200,runtime_evidence())
             elif self.path == '/v1/health':
-                self.output(200,{'ok':True,'version':'0.6.0','loopback_only':True})
+                self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
         except (OSError, ValueError, SyntaxError) as e:
