@@ -93,6 +93,52 @@ class TestStore(unittest.TestCase):
         self.assertTrue(unchanged['unchanged'])
         self.assertEqual(len(self.store.history()),1)
 
+    def test_save_xy_offsets_atomically_and_rollback(self):
+        original=self.store.read()
+        before=original['config']['tools'][1].copy()
+        result=self.store.save_offsets(1,'xy',{'x':0.12,'y':-0.08},original['revision'])
+        self.assertTrue(result['saved'])
+        self.assertFalse(result['active_in_klipper'])
+        self.assertFalse(result['physically_verified'])
+        saved=self.store.read()['config']['tools'][1]
+        self.assertEqual((saved['offset_x'],saved['offset_y']),(0.12,-0.08))
+        self.assertFalse(saved['offset_xy_accepted'])
+        self.assertEqual(len(self.store.history()),1)
+        self.store.rollback(result['backup'],result['revision'])
+        self.assertEqual(self.store.read()['config']['tools'][1],before)
+
+    def test_save_z_offset_only_preserves_xy(self):
+        revision=self.store.read()['revision']
+        first=self.store.save_offsets(1,'xy',{'x':0.15,'y':-0.2},revision)
+        saved=self.store.save_offsets(1,'z',{'z':0.06},first['revision'])
+        tool=self.store.read()['config']['tools'][1]
+        self.assertEqual([tool['offset_x'],tool['offset_y'],tool['offset_z']],[0.15,-0.2,0.06])
+        self.assertFalse(tool['offset_z_accepted'])
+        self.assertFalse(saved['physically_verified'])
+        unchanged=self.store.save_offsets(1,'z',{'z':0.06},saved['revision'])
+        self.assertTrue(unchanged['unchanged'])
+        self.assertEqual(len(self.store.history()),2)
+
+    def test_t0_relative_offset_stays_zero(self):
+        original=self.store.read()
+        for axes,values in [('xy',{'x':0.01,'y':0}),('z',{'z':0.01})]:
+            with self.assertRaises(ValueError):
+                self.store.save_offsets(0,axes,values,original['revision'])
+        self.assertEqual(self.store.read()['revision'],original['revision'])
+        same=self.store.save_offsets(0,'xy',{'x':0,'y':0},original['revision'])
+        self.assertTrue(same['unchanged'])
+
+    def test_offsets_reject_invalid_and_stale_requests(self):
+        revision=self.store.read()['revision']
+        cases=[('xy',{'x':0.1}),('xy',{'x':0,'y':float('nan')}),
+               ('xy',{'x':25,'y':0}),('z',{'z':11}),('z',{'x':0,'z':0})]
+        for axes,values in cases:
+            with self.assertRaises(ValueError):
+                self.store.save_offsets(1,axes,values,revision)
+        with self.assertRaises(RuntimeError):
+            self.store.save_offsets(1,'xy',{'x':0,'y':0},'0'*64)
+        self.assertEqual(len(self.store.history()),0)
+
     def test_dock_partial_write_failure_is_not_accepted(self):
         initial=self.store.read()
         with mock.patch('cxm_config.os.replace',side_effect=OSError('disk failure')):
