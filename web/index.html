@@ -76,6 +76,9 @@
 .cxm-lineux-live .cxm-capture-ack input{flex:0 0 auto;margin-top:3px}
 .cxm-lineux-live #cxmLineuxResult{white-space:pre-wrap;overflow-wrap:anywhere}
 .cxm-lineux-live #cxmLineuxStatus{color:#e9c98c;font-weight:700}
+.cxm-lineux-known{padding:15px;margin:16px 0;border:1px solid #3c597a;border-radius:10px;background:#172435}
+.cxm-lineux-known #cxmLineuxKnownStatus{font-weight:700;color:#c7d9ee}
+.cxm-lineux-known .panel-heading h3{font-size:16px}
 @media(max-width:600px){.cxm-lineux-live{padding:12px}}
 
 /* CXM V0.9.3: clear, hardware-locked Z calibration preparation */
@@ -168,14 +171,23 @@
   <p class="muted">CXM can use the unchanged Lineux Klipper extension for supervised XY dock measurement. Use the controls below to confirm hardware readiness, run the original command only when the travel path is physically clear, and copy a PROVISIONAL result into the existing draft. No measurement is saved automatically. The independent offline CoreXY reviewer remains below.</p>
   <div class="cxm-xy-lab-grid">
     <div><span>1 · CoreXY conversion</span><strong class="cxm-xy-lab-ok">Real 6 Nov maths test passed</strong></div>
-    <div><span>2 · MCU step-count capture</span><strong class="cxm-xy-lab-pending">Original Lineux module required</strong></div>
+    <div><span>2 · MCU step-count capture</span><strong class="cxm-xy-lab-pending" id="cxmLineuxEngineBadge">Checking live engine</strong></div>
     <div><span>3 · Y then X homing validation</span><strong class="cxm-xy-lab-pending">Homing Override V2.0 passed four tests</strong></div>
-    <div><span>4 · Accept measured dock XY</span><strong class="cxm-xy-lab-pending">Not authorised</strong></div>
+    <div><span>4 · Accept measured dock XY</span><strong class="cxm-xy-lab-pending" id="cxmLineuxMeasureBadge">Known-position check required</strong></div>
   </div>
   <div class="dock-warning"><strong>SUPERVISED MOVEMENT ONLY.</strong> The original Lineux module uses SET_KINEMATIC_POSITION and performs G28 Y followed by G28 X. CXM Homing V2.0 rehomes Y when X is requested. Confirm an empty safe path before starting. A successful measurement is not verified dock calibration.</div>
   <div class="cxm-lineux-live">
    <div class="panel-heading"><h3>Lineux · live dock measurement</h3><span class="panel-label">Unchanged Python engine · provisional XY only</span></div>
    <p class="helper" id="cxmLineuxStatus" role="status" aria-live="polite">Checking Lineux integration…</p>
+   <div class="cxm-lineux-known">
+    <div class="panel-heading"><h3>First · Verify known XY</h3><span class="panel-label">No dock coordinates saved</span></div>
+    <p class="helper">Home XYZ and move, using Mainsail, to a known safe XY position well away from the physical boundaries (recommended X195 Y170 Z20). This validation uses the original Lineux command and compares the reported location with the actual homed start. It runs the same Y/Y/X homing sequence and moves the motors. Never manually reposition the carriage for this test.</p>
+    <p id="cxmLineuxKnownStatus" role="status">Known-position check has not been completed.</p>
+    <label class="cxm-capture-ack"><input id="cxmLineuxKnownAck" type="checkbox"> I have physically verified that XYZ is homed, the carriage is at a known safe XY position with at least 20 mm actual Z clearance, the 3 mm X jog and entire Y/X homing path are unobstructed, and no print or host-streamed G-code is running.</label>
+    <div class="buttons"><button class="btn primary" id="cxmLineuxKnownStart" disabled>Validate Lineux at known XY</button></div>
+    <p class="cxm-test-result" id="cxmLineuxKnownResult" role="status">Readiness and known position not yet verified. No motion has occurred.</p>
+   </div>
+   <div class="panel-heading"><h3>Then · Measure selected dock</h3><span class="panel-label">Known-position test must pass first</span></div>
    <div class="buttons"><button class="btn" id="cxmLineuxPreflight">Check printer &amp; engine</button></div>
    <label class="cxm-capture-ack"><input id="cxmLineuxAck" type="checkbox"> I have physically positioned the selected hotend's dock reference, confirmed the toolhead has at least 15 mm safe Z clearance, verified the full Y-then-X path and confirmed that no print or host-streamed G-code is active. I understand the script sets a temporary kinematic position and that CXM homes Y twice.</label>
    <div class="buttons">
@@ -572,7 +584,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.3" defer></script>
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.3" defer></script>
-<script src="cxm-lineux.js?v=0.9.4" defer></script>
+<script src="cxm-lineux.js?v=0.9.5" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
