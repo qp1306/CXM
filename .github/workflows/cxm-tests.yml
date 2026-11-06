@@ -19,12 +19,15 @@ jobs:
           node --check web/cxm-tool-state.js
           node --check web/cxm-tool-picker.js
           node --check web/cxm-tool-cards.js
-      - name: Dock editor JavaScript syntax
-        run: node --check web/cxm-dock.js
+      - name: Dock and commissioning JavaScript syntax
+        run: |
+          node --check web/cxm-dock.js
+          node --check web/cxm-test-math.js
+          node --check web/cxm-testing.js
       - name: Axiscope, Z calibration and colour JavaScript syntax
         run: |
           node --check web/cxm-axiscope.js
           node --check web/cxm-z.js
           node --check web/cxm-tool-style.js
       - name: Updater, overview, dock and Axiscope regression tests
-        run: node --test tests/test_web_update_safety.cjs tests/test_tool_cards.cjs tests/test_dock_ui.cjs tests/test_axiscope.cjs tests/test_readiness.cjs tests/test_lockout_ui.cjs tests/test_z_calibration.cjs
+        run: node --test tests/test_web_update_safety.cjs tests/test_tool_cards.cjs tests/test_dock_ui.cjs tests/test_axiscope.cjs tests/test_readiness.cjs tests/test_lockout_ui.cjs tests/test_z_calibration.cjs tests/test_commissioning_ui.cjs
