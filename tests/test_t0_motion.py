@@ -116,7 +116,7 @@ class T0Test(unittest.TestCase):
     def test_sensor_not_wired_blocks_pickup(self):
         c.motion(store=self.store,expected_revision=self.store.rev,kind='stage',
                  acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
-        with self.assertRaisesRegex(c.T0Error,'Carriage switch'):
+        with self.assertRaisesRegex(c.T0Error,'record the carriage'):
             c.motion(store=self.store,expected_revision=self.store.rev,kind='pickup',
                      acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
         self.assertEqual(len(self.machine.scripts),1)
