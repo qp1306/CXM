@@ -90,6 +90,49 @@ class T0Test(unittest.TestCase):
         self.assertFalse(status['can_confirm_staging'])
         self.assertFalse(status['sensor_calibrated'])
 
+    def test_registered_mounted_sensor_after_staging_can_confirm_without_motion(self):
+        # Exact field observation: position at dock staging, mounted sensor
+        # recorded, stage=None but last_action='stage'. Previously stuck.
+        self.machine.sensor=True
+        c.motion(store=self.store,expected_revision=self.store.rev,kind='stage',
+                 acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertEqual(len(self.machine.scripts),1)
+        c.record_sensor(store=self.store,expected_revision=self.store.rev,
+            name='gcode_button carriage_t0',condition='mounted',
+            acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        observed=c.status(self.store)
+        self.assertEqual(observed['position_mm'][:2],[298.98,120.0])
+        self.assertEqual(observed['sensor_samples'],{'mounted':'PRESSED'})
+        self.assertEqual(observed['stage'],None)
+        self.assertEqual(observed['last_action'],'stage')
+        self.assertTrue(observed['can_confirm_staging'])
+        self.assertFalse(observed['first_dropoff_ready'])
+        before=list(self.machine.scripts)
+        result=c.confirm_staging(store=self.store,expected_revision=self.store.rev,
+            acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
+        self.assertEqual(result['status'],'SUPERVISED_T0_STAGING_CONFIRMED_NO_MOVEMENT')
+        self.assertEqual(self.machine.scripts,before)
+        ready=c.status(self.store)
+        self.assertTrue(ready['first_dropoff_ready'])
+        self.assertEqual(ready['stage'],'staged')
+        self.assertFalse(ready['can_confirm_staging'])
+
+    def test_stage_reconfirmation_never_allows_prior_pickup_or_dropoff(self):
+        self.machine.x=298.98
+        self.machine.y=120.0
+        self.machine.sensor=True
+        c.record_sensor(store=self.store,expected_revision=self.store.rev,
+            name='gcode_button carriage_t0',condition='mounted',
+            acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        for prior in ('pickup','dropoff','first_dropoff_pending'):
+            c.SESSION['stage']=None
+            c.SESSION['last_action']=prior
+            self.assertFalse(c.status(self.store)['can_confirm_staging'])
+            with self.assertRaisesRegex(c.T0Error,'Only an untouched first-cycle'):
+                c.confirm_staging(store=self.store,expected_revision=self.store.rev,
+                    acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
+        self.assertEqual(self.machine.scripts,[])
+
     def test_confirm_staging_rejects_wrong_position_sensor_and_ack(self):
         self.machine.x=298.98
         self.machine.y=120.0
