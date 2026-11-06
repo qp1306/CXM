@@ -1,4 +1,4 @@
-/* CXM V0.8.2 — provisional dock editor and read-only live Klipper preflight.
+/* CXM V0.9.1 — dock editor, live preflight and provisional capture-to-draft handoff.
    No printer motion, endstop probing, heating or sensor commands. */
 (() => {
   'use strict';
@@ -279,6 +279,31 @@
     input.value=(Math.round((n+step)*1000000)/1000000).toFixed(3);
     markDraft();
   }));
+  // The independent read-only dock reviewer may propose raw XY for this
+  // selected tool. Draft only; never save, move, unlock or modify Z automatically.
+  window.addEventListener('cxm-dock-provisional-xy',event=>{
+    const proposal=event.detail||{},n=proposal.tool;
+    if (proposal.source!=='manual-mcu-review'||!Number.isInteger(n)||n!==selected
+        ||!Number.isFinite(proposal.x)||!Number.isFinite(proposal.y)
+        ||proposal.x<0||proposal.x>limits.x[1]
+        ||proposal.y<0||proposal.y>limits.y[1]) {
+      report('Rejected provisional XY: tool or captured coordinates do not match the dock editor.',true);
+      return;
+    }
+    if (busy||!canEdit()) {
+      report('Dock XY draft rejected: selected tool is locked or configuration is unavailable.',true);
+      return;
+    }
+    const xInput=get('cxmDockX'),yInput=get('cxmDockY');
+    if (dirty && (xInput.value.trim()!==''||yInput.value.trim()!=='') &&
+        !window.confirm('Replace the existing unsaved X/Y draft for T'+selected+
+          '? The separately entered Z coordinate will remain untouched.')) return;
+    xInput.value=Number(proposal.x).toFixed(5);
+    yInput.value=Number(proposal.y).toFixed(5);
+    markDraft();
+    report('T'+selected+' provisional raw X/Y copied into draft. Z is unchanged. '+
+      'No X docking adjustment applied; no AutoSave, physical verification or motion occurred.');
+  });
   get('cxmDockAccept').addEventListener('click',accept);
   get('cxmDockReset').addEventListener('click',()=>{if(!busy){fill();report('Draft reset to the last saved coordinates.');}});
   get('cxmDockBackups').addEventListener('click',()=>{
