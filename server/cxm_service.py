@@ -11,7 +11,8 @@ import time
 import urllib.error
 import urllib.request
 from cxm_config import Store
-from cxm_t0 import status as t0_status, record_sensor as t0_record_sensor, motion as t0_motion, T0Error
+from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
+                    motion as t0_motion, confirm_staging as t0_confirm_staging, T0Error)
 from cxm_lineux import (query_readiness, perform_measurement, perform_known_check,
                         release_xy_for_dock, home_and_lift_for_dock, MeasurementError)
 from urllib.parse import parse_qs, urlsplit
@@ -152,8 +153,13 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion'):
+            if self.path not in ('/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/t0/confirm-stage':
+                if set(body) != {'expected_revision','acknowledgement'}:
+                    raise ValueError('Unexpected staging confirmation parameters')
+                self.output(200,t0_confirm_staging(store=self.server.store,**body))
                 return
             if self.path == '/v1/t0/sensor':
                 if set(body) != {'expected_revision','name','condition','acknowledgement'}:
