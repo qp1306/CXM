@@ -65,7 +65,7 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
 test('Lineux live measurement is gated, provisional, and separate from protected dock AutoSave',()=>{
  const lineux=fs.readFileSync(path.join(__dirname,'../web/cxm-lineux.js'),'utf8');
  assert.match(html,/1 · Automatic XY dock measurement/);
- assert.match(html,/cxm-lineux\.js\?v=0\.9\.6/);
+ assert.match(html,/cxm-lineux\.js\?v=0\.9\.7/);
  for(const id of ['cxmLineuxAck','cxmLineuxPreflight','cxmLineuxStart',
                   'cxmLineuxResult','cxmLineuxToDraft','cxmLineuxApplyAdjust'])
    assert.match(html,new RegExp('id="'+id+'"'));

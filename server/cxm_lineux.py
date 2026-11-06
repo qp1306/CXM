@@ -114,6 +114,10 @@ def query_readiness(*, tool, saved, mode='dock'):
             raise MeasurementError('Klipper status objects unavailable')
         qs = {'idle_timeout':'state','toolhead':'homed_axes,position',
               'configfile':'settings'}
+        if 'stepper_enable' not in objects:
+            reasons.append('Cannot verify stepper motor power states')
+        else:
+            qs['stepper_enable']='steppers'
         for n, field in [('print_stats','state'),('virtual_sdcard','is_active'),
                          ('pause_resume','is_paused')]:
             if n in objects: qs[n] = field
@@ -142,7 +146,18 @@ def query_readiness(*, tool, saved, mode='dock'):
         if 'homing_override' not in settings:
             reasons.append('Tested CXM homing_override not active')
         expected, resolution, move = _endstop_settings(settings)
+        enabled=status.get('stepper_enable',{}).get('steppers',{})
+        if not isinstance(enabled,dict):
+            enabled={}
+        z_steppers=('stepper_z','stepper_z1','stepper_z2','stepper_z3')
+        if not all(enabled.get(name) is True for name in z_steppers):
+            reasons.append('All four Z steppers must be powered and physically level')
         if mode == 'known':
+            # Klipper SET_STEPPER_ENABLE ENABLE=0 does not clear homing state.
+            # After hand repositioning, displayed XY is stale and must never
+            # be used as the ground truth of a "known position" test.
+            if enabled.get('stepper_x') is not True or enabled.get('stepper_y') is not True:
+                reasons.append('KNOWN XY INVALID: X/Y steppers were released; use Measure selected dock, not Verify known XY')
             if not all(axis in axes for axis in 'xyz'):
                 reasons.append('Known-position validation requires XYZ to be homed')
             if len(position) < 3 or any(type(v) not in (float,int) or not math.isfinite(v)
@@ -156,12 +171,30 @@ def query_readiness(*, tool, saved, mode='dock'):
                     or not x0+move <= expected['x']['position_max']-25
                     or z0 < 20):
                     reasons.append('Known check requires homed X/Y in central clear area and Z >= 20 mm')
+        else:
+            # Dock measurement is from a manually positioned, unknown XY.
+            # It intentionally MUST NOT compare reported X/Y to real carriage XY.
+            # Both CoreXY motors must be released, while four Z remain powered.
+            if enabled.get('stepper_x') is not False or enabled.get('stepper_y') is not False:
+                reasons.append('Dock positioning requires X/Y steppers OFF; do not manually move against powered motors')
+            # Original Lineux issues G91 G1 X+3 before homing. Its current
+            # logical X still has to leave room for that G-code move, even
+            # though physical X was changed with motors released.
+            if (len(position)<1 or type(position[0]) not in (int,float)
+                or not math.isfinite(position[0])
+                or not expected['x']['position_min']+5 <= position[0]
+                <= expected['x']['position_max']-abs(move)-5):
+                reasons.append('Reported X leaves no safe software margin for Lineux +3 mm jog; seed a central XY before releasing motors')
         meta = {'endstops_mm':{axis:v['endstop'] for axis,v in expected.items()},
                 'resolution_mm_per_step':resolution,'initial_x_jog_mm':move,
                 'idle':idle,'print_state':print_state,'homed_axes':axes,
                 'z_mm':position[2] if len(position)>=3 else None,
                 'known_start_xy_mm':position[:2] if len(position)>=2 else None,
-                'klipper_pid':info.get('process_id')}
+                'klipper_pid':info.get('process_id'),
+                'xy_motor_enabled':{axis:enabled.get('stepper_'+axis) for axis in 'xy'},
+                'z_motor_enabled':{name:enabled.get(name) for name in z_steppers},
+                'xy_position_is_known':mode == 'known' and
+                    enabled.get('stepper_x') is True and enabled.get('stepper_y') is True}
         cmds = _rpc('/printer/gcode/help')
         engine = isinstance(cmds, dict) and 'DOCK_LOCATE_CALIBRATE' in cmds
         if not engine:

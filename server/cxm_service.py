@@ -208,7 +208,8 @@ def main():
     server.store=store
     # GitHub updates modify repository files but should not need an SSH step.
     # systemd Restart=always relaunches the new Python code after a source change.
-    watched=[Path(__file__),Path(__file__).with_name('cxm_config.py')]
+    watched=[Path(__file__),Path(__file__).with_name('cxm_config.py'),
+             Path(__file__).with_name('cxm_lineux.py')]
     before=[p.stat().st_mtime_ns for p in watched]
     def monitor_updates():
         while True:
