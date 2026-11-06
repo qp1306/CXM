@@ -19,6 +19,40 @@ class LineuxBridgeTests(unittest.TestCase):
         self.assertEqual(c.parse_report(text), {'x':179.25,'y':171.5})
         with self.assertRaises(c.MeasurementError):
             c.parse_report(text+text)
+    def test_actual_klipper_multiline_info_prefixes(self):
+        # Real Klipper respond_info formatting adds "// " before EVERY line.
+        report=(
+            '// Lineux Hotswap Dock Calibration\n'
+            '// --------------------------------\n'
+            '// Initial MCU: X=1540 Y=2220\n'
+            '// Final MCU:   X=46620 Y=-19620\n'
+            '// MCU Delta:   X=45080 Y=-21840\n'
+            '// XY Resolution: 0.0062500 mm/step\n'
+            '// X Endstop: 335.00 mm\n'
+            '// Y Endstop: 362.00 mm\n'
+            '// Calibration Move: 3.00 mm\n'
+            '// Raw Offset: X=-72.63 Y=-209.13 mm\n'
+            '// Calculated Dock Location:\n'
+            '// X: 192.00 mm\n'
+            '// Y: 170.00 mm'
+        )
+        self.assertEqual(c.parse_report(report), {'x':192.0,'y':170.0})
+        events=[
+            {'type':'response','message':'// CXM_LINEUX_0123456789abcdef_START'},
+            {'type':'response','message':report},
+            {'type':'response','message':'// CXM_LINEUX_0123456789abcdef_END'}
+        ]
+        self.assertEqual(c._report_between(
+            events,'CXM_LINEUX_0123456789abcdef_START',
+            'CXM_LINEUX_0123456789abcdef_END'), {'x':192.0,'y':170.0})
+
+    def test_rejects_duplicate_and_incomplete_prefixed_reports(self):
+        report='// Lineux Hotswap Dock Calibration\n// Calculated Dock Location:\n// X: 192.00 mm'
+        with self.assertRaises(c.MeasurementError):
+            c.parse_report(report)
+        with self.assertRaises(c.MeasurementError):
+            c.parse_report(report+'\n// Lineux Hotswap Dock Calibration\n// Y: 170.00 mm')
+
     def test_marker_isolation(self):
         records=[{'type':'response','message':'// CXM_LINEUX_deadbeefdeadbeef_START'},
                  {'type':'response','message':'// Lineux Hotswap Dock Calibration\nCalculated Dock Location:\nX: 180.00 mm\nY: 170.00 mm'},
