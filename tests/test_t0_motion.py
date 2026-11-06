@@ -66,6 +66,92 @@ class T0Test(unittest.TestCase):
         self.patch.start()
         self.addCleanup(self.patch.stop)
 
+    def test_confirm_staged_does_not_move_and_enables_first_dropoff(self):
+        # Live printer is already at measured T0 staging, but backend lost
+        # volatile stage state. Do not repeat a mechanical staging movement.
+        self.machine.x=298.98
+        self.machine.y=120.0
+        self.machine.z=21.0
+        self.machine.sensor=True
+        c.record_sensor(store=self.store,expected_revision=self.store.rev,
+            name='gcode_button carriage_t0',condition='mounted',
+            acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        self.assertTrue(c.status(self.store)['can_confirm_staging'])
+        self.assertEqual(c.SESSION['stage'],None)
+        outcome=c.confirm_staging(store=self.store,
+            expected_revision=self.store.rev,
+            acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
+        self.assertEqual(outcome['status'],'SUPERVISED_T0_STAGING_CONFIRMED_NO_MOVEMENT')
+        self.assertEqual(self.machine.scripts,[])
+        status=c.status(self.store)
+        self.assertEqual(status['stage'],'staged')
+        self.assertEqual(status['last_action'],'stage')
+        self.assertTrue(status['first_dropoff_ready'])
+        self.assertFalse(status['can_confirm_staging'])
+        self.assertFalse(status['sensor_calibrated'])
+
+    def test_confirm_staging_rejects_wrong_position_sensor_and_ack(self):
+        self.machine.x=298.98
+        self.machine.y=120.0
+        self.machine.sensor=True
+        c.record_sensor(store=self.store,expected_revision=self.store.rev,
+            name='gcode_button carriage_t0',condition='mounted',
+            acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        self.machine.x=299.40  # exceeds 0.2 mm staging tolerance
+        self.assertFalse(c.status(self.store)['can_confirm_staging'])
+        with self.assertRaisesRegex(c.T0Error,'staging X/Y'):
+            c.confirm_staging(store=self.store,expected_revision=self.store.rev,
+                acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
+        self.machine.x=298.98
+        self.machine.sensor=False
+        self.assertFalse(c.status(self.store)['can_confirm_staging'])
+        with self.assertRaisesRegex(c.T0Error,'does not match'):
+            c.confirm_staging(store=self.store,expected_revision=self.store.rev,
+                acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
+        self.machine.sensor=True
+        with self.assertRaisesRegex(c.T0Error,'Confirm physical'):
+            c.confirm_staging(store=self.store,expected_revision=self.store.rev,
+                acknowledgement='NOT_CONFIRMED')
+        with self.assertRaisesRegex(c.T0Error,'coordinates changed'):
+            c.confirm_staging(store=self.store,expected_revision='0'*64,
+                acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
+        self.assertEqual(self.machine.scripts,[])
+
+    def test_confirm_staging_maintains_existing_klipper_safety_checks(self):
+        self.machine.x=298.98
+        self.machine.y=120.0
+        self.machine.sensor=True
+        c.record_sensor(store=self.store,expected_revision=self.store.rev,
+            name='gcode_button carriage_t0',condition='mounted',
+            acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        for attr,bad,good in (('axes','xy','xyz'),('enabled',False,True),
+                              ('z',19.0,20.0)):
+            setattr(self.machine,attr,bad)
+            self.assertFalse(c.status(self.store)['ready'])
+            with self.assertRaises(c.T0Error):
+                c.confirm_staging(store=self.store,expected_revision=self.store.rev,
+                    acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
+            setattr(self.machine,attr,good)
+        self.assertEqual(self.machine.scripts,[])
+
+    def test_confirmation_requires_fresh_initial_mounted_state(self):
+        self.machine.x=298.98
+        self.machine.y=120.0
+        self.machine.sensor=True
+        self.assertFalse(c.status(self.store)['can_confirm_staging'])
+        with self.assertRaisesRegex(c.T0Error,'Record the actual T0 MOUNTED'):
+            c.confirm_staging(store=self.store,expected_revision=self.store.rev,
+                acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
+        c.record_sensor(store=self.store,expected_revision=self.store.rev,
+            name='gcode_button carriage_t0',condition='mounted',
+            acknowledgement='I_CHECKED_THE_PHYSICAL_T0_SENSOR')
+        c.SESSION['last_action']='first_dropoff_pending'
+        self.assertFalse(c.status(self.store)['can_confirm_staging'])
+        with self.assertRaisesRegex(c.T0Error,'Only a fresh'):
+            c.confirm_staging(store=self.store,expected_revision=self.store.rev,
+                acknowledgement='I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED')
+        self.assertEqual(self.machine.scripts,[])
+
     def test_t0_ready_after_cxm_service_session_reset(self):
         # Regression: service updates must not force a second G28.
         import cxm_lineux
