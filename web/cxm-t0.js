@@ -66,7 +66,7 @@ async function refresh(){
     else if(state.ready){
       set('cxmT0Status','T0 X'+state.saved_xy_mm.x.toFixed(3)+
         ' Y'+state.saved_xy_mm.y.toFixed(3)+' · Safe Y'+state.safe_y_mm.toFixed(3)+
-        ' · '+(state.stage==='staged'?'At staging':'Home and prepare for staging')+
+        ' · '+(state.stage==='staged'?'At staging':'Ready for supervised staging')+
         ' · powered XYZ / Klipper idle.');
     }else{
       set('cxmT0Status','BLOCKED · '+state.blockers.join('; '));
@@ -114,7 +114,8 @@ async function move(kind){
   const n=kind==='stage'?'Approach T0 staging point':kind==='pickup'?'PICK UP T0':'DROP OFF T0';
   const confirmText=n+'?\n\n'+wp+'\n\n'+
     'The printer WILL MOVE at slow test speed. Have emergency stop available. '+
-    'Confirm the full path is physically clear, hotend and carriage are in the correct initial state, '+
+    'Confirm XYZ was genuinely homed, X/Y have NOT been moved by hand since homing, '+
+    'the full path is physically clear, and hotend/carriage are in the correct initial state, '+
     'and that you can observe every movement. Never run unattended.';
   if(!window.confirm(confirmText))return;
   busy=true;controls();
