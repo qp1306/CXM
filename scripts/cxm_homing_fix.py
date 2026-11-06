@@ -3,7 +3,7 @@
 
 Only the known CXM [homing_override] in printer.cfg is modified.
 A hardware change is NOT made automatically and Klipper is never restarted
-by this script. Use one deliberate FIRMWARE_RESTART after reviewing the diff.
+by this script. Use one deliberate Klipper RESTART after reviewing the diff.
 """
 from __future__ import annotations
 import argparse
@@ -95,6 +95,7 @@ def main(argv=None):
     print("Full G28 still uses the existing 10 mm lift, Y, X, Cartographer Z and 5 mm raise.")
     print("G28 X alone NO LONGER automatically homes Y first. For calibration use")
     print("two separate commands in order: G28 Y, then G28 X.")
+    print("IMPORTANT: XY-only homing has NO automatic Z hop. Confirm full-path clearance.")
     if not args.apply:
         print("\nDRY RUN ONLY. No files changed. Apply with --apply when Klipper is idle.")
         return 0
@@ -123,7 +124,7 @@ def main(argv=None):
         raise SystemExit("POSTCHECK FAILED: file content mismatch; restore backup " + str(backup))
     print("\nAPPLIED TO DISK AND VERIFIED. BACKUP: " + str(backup))
     print("Klipper is STILL running the prior configuration until you perform ONE")
-    print("intentional FIRMWARE_RESTART in Mainsail while safely parked.")
+    print("intentional RESTART in Mainsail while safely parked.")
     return 0
 
 
