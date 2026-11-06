@@ -4,7 +4,7 @@
 
 CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
 
-## Already installed V0.2 or V0.3? Upgrade to V0.9.0
+## Already installed V0.2 or V0.3? Upgrade to V0.9.1
 
 Use **Updates → Check for Updates → Install CXM Update** in CXM Control Centre, then refresh the webpage. V0.5.1 retains a guided **Dock Calibration** tab. Select any enabled T0–T11, enter or nudge proposed X/Y/Z, then **Accept XYZ · AutoSave**. The three numbers are committed atomically with a backup and optimistic revision check. The tool-card Calibrate button now opens the editor, but **never initiates motion**. **No new terminal installation or Klipper restart is required.** The Tools page has a **Hotends in use (1–12)** selector which AutoSaves the global tool count. It shows **all selected hotend cards** from T0 up to the chosen count, including individually disabled profiles. Disabled tools are clearly labelled, remain protected from calibration commands and can be enabled deliberately in Settings. Reducing the count hides higher-numbered cards without modifying any of their saved calibration settings or Enabled flags. Visible cards show values from `CXM_variables.cfg`: saved dock XYZ, relative offsets and approach/dock speeds. **Edit** opens that tool's profile in Settings. Pickup and calibration remain disabled. The summary displays Safe Y, X docking adjustment, and enabled/available tool count.
 
@@ -227,3 +227,15 @@ This release makes the previous empty **Testing** page usable for live diagnosti
 **Documentation:** The 16-page illustrated CXM Control Centre Operator Guide V0.9.0 contains the seven-tab walkthrough, real 6 November screenshots (some historical UI versions), a schematic of the new Testing page, restart evidence workflow, actual XY step-count example and staged T0 commissioning sequence. The guide is delivered separately as a PDF in the ChatGPT conversation; this repository documents the supported actions and limitations as text.
 
 **Validation:** `python3 -m unittest discover -s tests -v`, `node --check web/cxm-testing.js`, `node --check web/cxm-test-math.js`, and `node --test tests/test_commissioning_ui.cjs`, plus existing project CI. All Testing actions fail closed and do not make a tool READY.
+
+## V0.9.1 — Single-page dock calibration (UI consolidation)
+
+The normal XY measurement-review workflow now lives entirely on **Dock Calibration**, directly above **2 · Align dock position**. The previously embedded counter reviewer has been removed from **Testing**; Testing keeps its live diagnostic status, restart-free AutoSave evidence, and diagnostic JSON export for faultfinding.
+
+In Dock Calibration, select T0–T11, view real Klipper status, load the 6 November reference dataset to verify the calculator, or choose **Start new T0 capture** to review newly gathered MCU step-count snapshots. Enter verified CoreXY calibration step deltas and the three GET_POSITION MCU snapshots; **Calculate provisional XY** uses the existing pure offline maths and validates cross-axis drift, homing sign, bounds and finite values.
+
+**Copy proposed X/Y to dock draft** is only offered for a newly started manual capture that has no known-position reference, has a finite valid result, matches the selected hotend and has the operator's explicit physical-clearance acknowledgement. The past reference dataset can never be copied by its example button. A final confirmation copies only raw X and Y into the selected hotend's *unsaved* draft; it preserves Z, does not apply x_docking_adjust, never posts to the backend, does not move, heat or unlock the printer, and never marks a tool physically verified. The existing full XYZ acceptance, Klipper idle check, revision-gated AutoSave and backup system are unchanged.
+
+**Not yet integrated:** live MCU capture, automated Y-then-X homing, automatic docking, pickup/dropoff and live Klipper activation of saved coordinates. Do not invoke G28 from a parked hotend before the Z homing-override fault is fixed and the entire path is physically inspected. This release is a front-end-only layout/workflow consolidation: **no Klipper restart or modification to printer.cfg**.
+
+**Verification:** install V0.9.1 using Updates, hard-refresh the page, open Dock Calibration and click Load 6 Nov reference test → Calculate provisional XY; expect X295.00000 / Y99.96875 and a disabled Copy proposed X/Y button. Click Start new T0 capture and confirm the three snapshot fields and known references are cleared. The Testing page must no longer contain the XY calculator.
