@@ -26,6 +26,7 @@ class Machine:
         self.y=170.0
         self.z=20.0
         self.sensor=False
+        self.simulate_single_auto=False
         self.scripts=[]
         self.busy_reads_after_move=0
         self.busy_remaining=0
@@ -65,7 +66,7 @@ class Machine:
                     for term in line.split()[1:]:
                         if term.startswith('X'):self.x=float(term[1:])
                         if term.startswith('Y'):self.y=float(term[1:])
-            if len(self.scripts)>=2:
+            if self.simulate_single_auto or len(self.scripts)>=2:
                 self.sensor=not self.sensor
             return {}
         raise AssertionError('Unexpected request '+path)
@@ -213,6 +214,7 @@ class T0Test(unittest.TestCase):
     def test_one_click_dropoff_and_pickup_auto_stage_and_check_sensor(self):
         # No selected sensor, manual recording, or Approach button required.
         self.machine.sensor=True
+        self.machine.simulate_single_auto=True
         self.store.data['tools'][0]['dock_x']=302.19
         self.store.data['tools'][0]['dock_y']=65.97
         status=c.status(self.store)
@@ -225,11 +227,11 @@ class T0Test(unittest.TestCase):
         self.assertEqual(result['status'],'T0_DROPOFF_SENSOR_CONFIRMED')
         self.assertEqual(result['signal'],'RELEASED')
         self.assertTrue(result['staging_performed'])
-        self.assertEqual(len(self.machine.scripts),2)
+        self.assertEqual(len(self.machine.scripts),1,
+            'One submitted script contains staging AND all dropoff movements')
         self.assertEqual(self.machine.scripts[0].splitlines(),
-            ['G90','G1 Y120.00000 F600','G1 X302.19000 F600','M400'])
-        self.assertEqual(self.machine.scripts[1].splitlines(),
-            ['G90','G1 X302.19000 Y65.97000 F240',
+            ['G90','G1 Y120.00000 F600','G1 X302.19000 F600','M400',
+             'G1 X302.19000 Y65.97000 F240',
              'G1 X297.39000 Y65.97000 F180',
              'G1 X297.39000 Y79.97000 F240',
              'G1 X302.19000 Y79.97000 F240',
@@ -243,28 +245,35 @@ class T0Test(unittest.TestCase):
             acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
         self.assertEqual(result['signal'],'PRESSED')
         self.assertFalse(result['staging_performed'])
-        self.assertEqual(len(self.machine.scripts),3)
+        self.assertEqual(len(self.machine.scripts),2)
+        self.assertEqual(self.machine.scripts[1].splitlines(),
+            ['G90',
+             'G1 X302.19000 Y79.97000 F240',
+             'G1 X297.39000 Y79.97000 F240',
+             'G1 X297.39000 Y65.97000 F240',
+             'G1 X302.19000 Y65.97000 F180',
+             'G1 X302.19000 Y120.00000 F240','M400'])
         self.assertEqual(c.status(self.store)['automatic']['action'],'dropoff')
         self.assertEqual(c.SESSION['samples'],{})
 
-    def test_one_click_waits_for_transient_idle_after_staging_and_dropoff(self):
-        # Exactly reproduces the field failure: the first script moves
-        # to Safe Y, Moonraker returns, but idle_timeout is still Printing.
-        # Only read-only queries may repeat; never submit duplicate G-code.
+    def test_one_click_waits_for_transient_idle_after_complete_sequence(self):
+        # Moonraker returns while idle_timeout is transiently Printing.
+        # All movements were already sent in one script. Never re-issue it.
         self.machine.sensor=True
+        self.machine.simulate_single_auto=True
         self.machine.busy_reads_after_move=3
         result=c.automatic_toolchange(store=self.store,
             expected_revision=self.store.rev,kind='dropoff',
             acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
         self.assertEqual(result['status'],'T0_DROPOFF_SENSOR_CONFIRMED')
-        self.assertEqual(len(self.machine.scripts),2)
-        self.assertGreaterEqual(self.machine.busy_read_count,6)
+        self.assertEqual(len(self.machine.scripts),1)
+        self.assertGreaterEqual(self.machine.busy_read_count,3)
         self.assertIn('G1 Y120.00000 F600',self.machine.scripts[0])
-        self.assertIn('G1 X298.98000 Y65.88000 F240',self.machine.scripts[1])
+        self.assertIn('G1 X298.98000 Y65.88000 F240',self.machine.scripts[0])
         self.assertEqual(c.status(self.store)['automatic']['signal'],'RELEASED')
         self.assertIsNone(c.AUTO_STATE['fault'])
 
-    def test_persistent_klipper_busy_never_starts_dock_movement(self):
+    def test_persistent_klipper_busy_after_complete_sequence_latches_fault(self):
         self.machine.sensor=True
         self.machine.busy_reads_after_move=1000
         clock=itertools.count()
@@ -275,27 +284,30 @@ class T0Test(unittest.TestCase):
                         expected_revision=self.store.rev,kind='dropoff',
                         acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
         self.assertEqual(len(self.machine.scripts),1,
-                         'Stage only; never attempt the dock move if Klipper never goes idle')
+                         'Full ordered sequence submitted once; no extra G-code on idle timeout')
         self.machine.busy_remaining=0
         status=c.status(self.store)
         self.assertFalse(status['automatic']['enabled'])
         self.assertIsNotNone(status['automatic']['fault'])
 
-    def test_staging_sensor_changed_does_not_proceed_even_after_idle(self):
+    def test_final_sensor_mismatch_is_reported_and_latches_test_fault(self):
+        # The one script runs fully, then we check the physical switch.
         self.machine.sensor=True
         self.machine.busy_reads_after_move=2
         original=self.machine.rpc
-        def sensor_changed_after_stage(path,payload=None):
+        def frozen_mounted(path,payload=None):
             result=original(path,payload)
             if path=='/printer/gcode/script':
-                self.machine.sensor=False
+                self.machine.sensor=True
             return result
-        with patch.object(c,'_rpc',side_effect=sensor_changed_after_stage):
-            with self.assertRaisesRegex(c.T0Error,'presence signal changed unexpectedly'):
+        with patch.object(c,'_rpc',side_effect=frozen_mounted):
+            with self.assertRaisesRegex(c.T0Error,'presence switch still reports'):
                 c.automatic_toolchange(store=self.store,
                     expected_revision=self.store.rev,kind='dropoff',
                     acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
         self.assertEqual(len(self.machine.scripts),1)
+        self.machine.busy_remaining=0
+        self.assertFalse(c.status(self.store)['automatic']['enabled'])
 
     def test_one_click_action_uses_live_switch_not_session_samples(self):
         self.machine.sensor=True
@@ -341,11 +353,11 @@ class T0Test(unittest.TestCase):
                 c.automatic_toolchange(store=self.store,
                     expected_revision=self.store.rev,kind='dropoff',
                     acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
-        self.assertEqual(len(self.machine.scripts),2)
+        self.assertEqual(len(self.machine.scripts),1)
         status=c.status(self.store)
         self.assertFalse(status['automatic']['enabled'])
         self.assertIsNotNone(status['automatic']['fault'])
-        with self.assertRaisesRegex(c.T0Error,'Movement or sensor verification failed'):
+        with self.assertRaisesRegex(c.T0Error,'T0 dropoff interrupted'):
             c.automatic_toolchange(store=self.store,
                 expected_revision=self.store.rev,kind='dropoff',
                 acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
@@ -356,7 +368,7 @@ class T0Test(unittest.TestCase):
             expected_revision=self.store.rev,
             acknowledgement='I_PHYSICALLY_INSPECTED_T0_AND_PATH_AFTER_TEST_FAILURE')
         self.assertEqual(result['status'],'T0_TEST_FAULT_CLEARED_NO_MOVEMENT')
-        self.assertEqual(len(self.machine.scripts),2)
+        self.assertEqual(len(self.machine.scripts),1)
         self.assertTrue(c.status(self.store)['automatic']['enabled'])
 
     def test_one_click_preserves_other_hotends_and_nozzle_z(self):
@@ -366,6 +378,7 @@ class T0Test(unittest.TestCase):
         self.store.data['tools'][0]['offset_z']=0.75
         before=self.store.read()['config']['tools'][0].copy()
         self.machine.sensor=True
+        self.machine.simulate_single_auto=True
         c.automatic_toolchange(store=self.store,expected_revision=self.store.rev,
             kind='dropoff',acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
         self.assertEqual(self.store.read()['config']['tools'][0],before)

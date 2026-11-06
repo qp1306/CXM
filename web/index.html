@@ -168,6 +168,9 @@
 .cxm-t0-auto-buttons .btn span{margin-right:8px}
 .cxm-t0-auto-buttons .btn:disabled{opacity:.35}
 .cxm-t0-auto #cxmT0AutoResult{margin-top:14px}
+.cxm-t0-auto-fault{padding:10px 0}
+.cxm-t0-auto-fault .btn{min-height:40px}
+.cxm-t0-auto [hidden]{display:none!important}
 @media(max-width:560px){.cxm-t0-auto-buttons{flex-direction:column}.cxm-t0-auto-buttons .btn{width:100%}}
 </style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
@@ -292,13 +295,12 @@
   <button class="btn primary" id="cxmT0AutoDropoff" disabled><span aria-hidden="true">↘</span> Drop off T0</button>
  </div>
  <p class="helper" id="cxmT0AutoGeometry">Dock coordinates loading…</p>
- <p class="helper">CXM stages automatically, checks the carriage switch before and after, and returns to Safe Y. Supervise the first cycles; a switch signal does not independently prove the hotend has latched securely.</p>
+ <p class="helper">One click runs the complete XY sequence, then checks the carriage switch. Supervise test movements until T0 is proven reliable.</p>
  <p id="cxmT0AutoResult" class="helper" role="status" aria-live="polite"></p>
- <details id="cxmT0AutoFaultBox" class="cxm-advanced" hidden>
-  <summary>Test fault — physical inspection required</summary>
-  <p class="helper">After inspecting the carriage, dock and mechanism, clear the test fault. This does not move the printer.</p>
-  <button class="btn" id="cxmT0AutoClearFault" disabled>Clear test fault</button>
- </details>
+ <div id="cxmT0AutoFaultBox" class="cxm-t0-auto-fault" hidden>
+  <p class="helper">Movement blocked. Check the carriage, T0 and dock before clearing the fault.</p>
+  <button class="btn" id="cxmT0AutoClearFault" disabled>Clear fault after inspection</button>
+ </div>
 </div>
 <details class="panel cxm-dock-optional cxm-advanced">
  <summary>Advanced T0 motion &amp; sensor tests</summary>
@@ -705,7 +707,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.4" defer></script>
 <script src="cxm-lineux.js?v=0.9.10" defer></script><script src="cxm-t0.js?v=0.9.13" defer></script>
-<script src="cxm-t0-auto.js?v=1.0.0" defer></script>
+<script src="cxm-t0-auto.js?v=1.0.1" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
