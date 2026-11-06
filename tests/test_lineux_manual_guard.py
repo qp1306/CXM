@@ -118,6 +118,41 @@ class ManualDockSafetyTests(unittest.TestCase):
         self.assertFalse(r['ready'])
         self.assertTrue(any('Home X/Y/Z' in x for x in r['blockers']))
 
+    def test_home_and_z20_uses_verified_standard_commands(self):
+        motors={name:True for name in
+            ('stepper_x','stepper_y','stepper_z','stepper_z1','stepper_z2','stepper_z3')}
+        result={'status':{'toolhead':{'homed_axes':'xyz',
+                'position':[195.0,170.0,20.0,0.0]},
+                'stepper_enable':{'steppers':motors}}}
+        with patch.object(c,'query_readiness',return_value={'ready':True,'blockers':[]}):
+            with patch.object(c,'_rpc',side_effect=[{},result]) as rpc:
+                outcome=c.home_and_lift_for_dock(tool=0,expected_revision='a'*64,
+                    acknowledgement='I_CONFIRM_CLEAR_G28_AND_Z20_PATH',store=Store())
+        self.assertEqual(outcome['status'],'HOMED_Z20_CENTRE')
+        self.assertEqual(rpc.call_args_list[0][0][0],'/printer/gcode/script')
+        self.assertEqual(rpc.call_args_list[0][0][1]['script'].splitlines(),
+            ['G28','G90','G1 Z20 F300','G1 X195 Y170 F3000'])
+
+    def test_home_refuses_missing_clearance_ack_without_gcode(self):
+        with patch.object(c,'_rpc') as rpc:
+            with self.assertRaises(c.MeasurementError):
+                c.home_and_lift_for_dock(tool=0,expected_revision='a'*64,
+                    acknowledgement='',store=Store())
+            rpc.assert_not_called()
+
+    def test_home_fails_on_unverified_z_motor(self):
+        motors={name:True for name in
+            ('stepper_x','stepper_y','stepper_z','stepper_z1','stepper_z2','stepper_z3')}
+        motors['stepper_z3']=False
+        result={'status':{'toolhead':{'homed_axes':'xyz',
+                'position':[195.0,170.0,20.0,0.0]},
+                'stepper_enable':{'steppers':motors}}}
+        with patch.object(c,'query_readiness',return_value={'ready':True,'blockers':[]}):
+            with patch.object(c,'_rpc',side_effect=[{},result]):
+                with self.assertRaises(c.MeasurementError):
+                    c.home_and_lift_for_dock(tool=0,expected_revision='a'*64,
+                        acknowledgement='I_CONFIRM_CLEAR_G28_AND_Z20_PATH',store=Store())
+
     def test_release_runs_only_x_y_disable_commands(self):
         motors={
             'stepper_x':False,'stepper_y':False,
