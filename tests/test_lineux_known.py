@@ -46,22 +46,22 @@ class KnownPositionTests(unittest.TestCase):
     def test_success_requires_matching_session_pid(self):
         pre={'ready':True,'status':{'known_start_xy_mm':[195.0,170.0],
                                    'initial_x_jog_mm':3.0,'klipper_pid':4273}}
-        with patch.object(c,'query_readiness',return_value=pre), \\
-             patch.object(c,'_run_original_lineux',return_value={'x':192.0,'y':170.0}):
-            d=c.perform_known_check(tool=0,expected_revision='a'*64,
-                                    acknowledgement='I_CONFIRM_HOMED_KNOWN_XY_CLEAR_PATH',
-                                    store=Store())
+        with patch.object(c,'query_readiness',return_value=pre):
+            with patch.object(c,'_run_original_lineux',return_value={'x':192.0,'y':170.0}):
+                d=c.perform_known_check(tool=0,expected_revision='a'*64,
+                                        acknowledgement='I_CONFIRM_HOMED_KNOWN_XY_CLEAR_PATH',
+                                        store=Store())
         self.assertTrue(d['passed'])
         self.assertEqual(c.KNOWN_SESSION['pid'],4273)
 
     def test_failed_known_position_never_opens_dock_gate(self):
         pre={'ready':True,'status':{'known_start_xy_mm':[195.0,170.0],
                                    'initial_x_jog_mm':3.0,'klipper_pid':4273}}
-        with patch.object(c,'query_readiness',return_value=pre), \\
-             patch.object(c,'_run_original_lineux',return_value={'x':188.0,'y':170.0}):
-            d=c.perform_known_check(tool=0,expected_revision='a'*64,
-                                    acknowledgement='I_CONFIRM_HOMED_KNOWN_XY_CLEAR_PATH',
-                                    store=Store())
+        with patch.object(c,'query_readiness',return_value=pre):
+            with patch.object(c,'_run_original_lineux',return_value={'x':188.0,'y':170.0}):
+                d=c.perform_known_check(tool=0,expected_revision='a'*64,
+                                        acknowledgement='I_CONFIRM_HOMED_KNOWN_XY_CLEAR_PATH',
+                                        store=Store())
         self.assertFalse(d['passed'])
         self.assertIsNone(c.KNOWN_SESSION['pid'])
 
