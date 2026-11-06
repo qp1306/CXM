@@ -16,13 +16,21 @@ class KnownPositionTests(unittest.TestCase):
     def setUp(self):
         c.KNOWN_SESSION.update(pid=None,at=0.0)
 
-    def test_3mm_jog_bias_and_correction(self):
-        d=c.evaluate_known_position(raw_xy={'x':192.0,'y':170.0},
+    def test_real_cxm_known_position_6_nov(self):
+        # Recorded live data: home X195/Y170, original Lineux X195.01/Y170.05.
+        # No +3 mm correction; Lineux intentionally includes its own jog.
+        d=c.evaluate_known_position(raw_xy={'x':195.01,'y':170.05},
                                     known_xy=[195.0,170.0],calibration_move_x=3.0)
         self.assertTrue(d['passed'])
-        self.assertEqual(d['raw_error_mm'],{'x':-3.0,'y':0.0})
-        self.assertEqual(d['jog_corrected_error_mm'],{'x':0.0,'y':0.0})
+        self.assertEqual(d['known_position_error_mm'],{'x':0.01,'y':0.05})
         self.assertFalse(d['save_permitted'])
+        self.assertEqual(d['calibration_move_x_mm'],3.0)
+
+    def test_original_report_not_adjusted_again(self):
+        d=c.evaluate_known_position(raw_xy={'x':192.0,'y':170.0},
+                                    known_xy=[195.0,170.0],calibration_move_x=3.0)
+        self.assertFalse(d['passed'])
+        self.assertEqual(d['known_position_error_mm'],{'x':-3.0,'y':0.0})
 
     def test_rejects_without_physical_clearance(self):
         with patch.object(c,'_rpc') as rpc:
@@ -32,14 +40,14 @@ class KnownPositionTests(unittest.TestCase):
                                       store=Store())
             rpc.assert_not_called()
 
-    def test_raw_match_without_compensation_is_not_silently_approved(self):
+    def test_raw_match_passes_without_plus_3mm(self):
         d=c.evaluate_known_position(raw_xy={'x':195.0,'y':170.0},
                                     known_xy=[195.0,170.0],calibration_move_x=3.0)
-        self.assertFalse(d['passed'])
-        self.assertEqual(d['jog_corrected_error_mm']['x'],3.0)
+        self.assertTrue(d['passed'])
+        self.assertEqual(d['known_position_error_mm']['x'],0.0)
 
     def test_bad_y_rejected(self):
-        d=c.evaluate_known_position(raw_xy={'x':192.0,'y':171.0},
+        d=c.evaluate_known_position(raw_xy={'x':195.0,'y':171.0},
                                     known_xy=[195.0,170.0],calibration_move_x=3.0)
         self.assertFalse(d['passed'])
 
@@ -47,7 +55,7 @@ class KnownPositionTests(unittest.TestCase):
         pre={'ready':True,'status':{'known_start_xy_mm':[195.0,170.0],
                                    'initial_x_jog_mm':3.0,'klipper_pid':4273}}
         with patch.object(c,'query_readiness',return_value=pre):
-            with patch.object(c,'_run_original_lineux',return_value={'x':192.0,'y':170.0}):
+            with patch.object(c,'_run_original_lineux',return_value={'x':195.01,'y':170.05}):
                 d=c.perform_known_check(tool=0,expected_revision='a'*64,
                                         acknowledgement='I_CONFIRM_HOMED_KNOWN_XY_CLEAR_PATH',
                                         store=Store())
