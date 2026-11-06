@@ -108,10 +108,28 @@ async function releaseXY(){
   }
 }
 async function preflightAfterRelease(){
-  await preflight();
-  el('cxmLineuxReleaseStatus').textContent='X/Y RELEASED · four Z motors remain powered. '+
-    'Hand-align the carriage at T'+selected()+' dock, verify actual +3 mm X clearance '+
-    'and the complete homing path, then check measurement readiness.';
+  // Release endpoint already verified X/Y OFF and four Z motors ON.
+  // Refresh dock readiness, but do not require a separate known-position test.
+  releaseState=null;
+  el('cxmLineuxReleaseAck').checked=false;
+  el('cxmLineuxReleaseStatus').textContent='X/Y RELEASED · Z motors ON. '+
+    'Hand-align carriage at T'+selected()+' dock; X/Y coordinates shown in Mainsail are stale.';
+  try{
+    let current=await call('/status?tool='+selected()+'&mode=dock');
+    if(!current.ready && current.blockers.length===1 &&
+      current.blockers[0]==='Klipper motion state not idle'){
+      // The stepper command can briefly leave Klipper in transient "Printing".
+      await new Promise(resolve=>setTimeout(resolve,1200));
+      current=await call('/status?tool='+selected()+'&mode=dock');
+    }
+    state=current;
+    el('cxmLineuxStatus').textContent=current.ready
+      ? 'ENGINE READY · physically align your dock, then press Measure dock XY'
+      : 'DOCK NOT READY · '+current.blockers.join('; ');
+  }catch(err){
+    state=null;
+    el('cxmLineuxStatus').textContent='Dock readiness unavailable: '+err.message;
+  }
 }
 
 async function checkKnownPosition(){
