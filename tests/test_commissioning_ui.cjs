@@ -40,9 +40,9 @@ test('Testing page has live diagnostics and restart proof; dock maths lives only
                    'cxmTestDownload','cxmTestHomed','cxmTestHoming',
                    'cxmTestThermistor','cxmTestRestartResult'])
   assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/cxm-testing\.js\?v=0\.9\.1/);
- assert.match(html,/cxm-test-math\.js\?v=0\.9\.1/);
- assert.match(html,/cxm-dock-review\.js\?v=0\.9\.1/);
+ assert.match(html,/cxm-testing\.js\?v=0\.9\.3/);
+ assert.match(html,/cxm-test-math\.js\?v=0\.9\.3/);
+ assert.match(html,/cxm-dock-review\.js\?v=0\.9\.3/);
  const dockSection=html.split('<section data-panel="calibration" hidden>')[1].split('</section>')[0];
  const diagnostics=html.split('<section data-panel="tests" hidden>')[1].split('</section>')[0];
  for(const id of ['cxmTestXYReview','cxmTestStart','cxmTestAfterY',
@@ -81,4 +81,15 @@ test('dock reviewer never issues movement or persistent saves and blocks copying
  assert.match(editor,/markDraft\(\)/);
  assert.doesNotMatch(controller,/\/printer\/gcode|postJSON|\/v1\/dock|FIRMWARE_RESTART/);
  assert.match(html,/id="cxmDockCaptureToDraft" disabled/);
+});
+
+test('homing diagnostics require both Z-only override and Y-first public G28 wrapper',()=>{
+ assert.match(js,/overrideAxes==='z'/);
+ assert.match(js,/wrapped\?\.rename_existing==='G28\.1'/);
+ assert.match(js,/wrapped\.gcode\.includes\('G28\.1 Y'\)/);
+ assert.match(js,/wrapped\.gcode\.includes\('G28\.1 X'\)/);
+ assert.match(js,/Y-first wrapper installed · Z-only override · PHYSICAL TEST PENDING/);
+ assert.match(js,/BLOCKED: Z-only override but G28 X Y-first wrapper not confirmed/);
+ assert.match(js,/BLOCKED: XY homing still applies forced Z=0 and repeated Z10/);
+ assert.doesNotMatch(js,/state\('cxmTestHoming','Ready'/);
 });
