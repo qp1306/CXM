@@ -135,7 +135,8 @@ test('V0.8.2 dock preflight reads real Klipper status but cannot authorise motio
 
 test('T0 test controls are hardware-gated and never mark a tool verified',()=>{
  const t0=fs.readFileSync(path.join(__dirname,'../web/cxm-t0.js'),'utf8');
- assert.match(html,/cxm-t0\.js\?v=0\.9\.12/);
+ assert.match(html,/cxm-t0\.js\?v=0\.9\.13/);
+ assert.match(html,/id="cxmT0ConfirmStage" hidden disabled/);
  for(const id of ['cxmT0Sensor','cxmT0RecordEmpty','cxmT0RecordMounted',
    'cxmT0Stage','cxmT0Pickup','cxmT0Dropoff','cxmT0Plan'])
    assert.match(html,new RegExp('id="'+id+'"'));
@@ -143,6 +144,9 @@ test('T0 test controls are hardware-gated and never mark a tool verified',()=>{
  assert.match(t0,/state\?\.stage==='staged'/);
  assert.match(t0,/I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH/);
  assert.match(t0,/first_dropoff_ready/);
+ assert.match(t0,/can_confirm_staging/);
+ assert.match(t0,/request\('\/confirm-stage'/);
+ assert.match(t0,/I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED/);
  assert.match(html,/first supervised dropoff/);
  assert.doesNotMatch(t0,/SET_GCODE_OFFSET|SET_HEATER_TEMPERATURE|G1 Z|printer\/gcode\/script/);
 });
