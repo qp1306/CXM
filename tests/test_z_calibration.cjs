@@ -34,7 +34,7 @@ test('only selected tool count appears and zero offset formatting is clearly sto
  assert.deepEqual(z.rows({config:{globals:{tool_count:20},tools:snap.config.tools}}),[]);
 });
 test('distinct Z Calibration tab, T0 and all-hotend comparison are visible',()=>{
- assert.match(html,/data-tab="z-calibration">Z Calibration<\/button>/);
+ assert.match(html,/data-tab="z-calibration">Tool Z<\/button>/);
  assert.match(html,/data-panel="z-calibration"/);
  for(const id of ['cxmZTool','cxmZSaved','cxmZStatus','cxmZTable','cxmZProgress','cxmZFeedback'])
   assert.ok(html.includes('id="'+id+'"'),'Missing '+id);
