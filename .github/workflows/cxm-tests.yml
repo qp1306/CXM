@@ -24,6 +24,7 @@ jobs:
           node --check web/cxm-dock.js
           node --check web/cxm-test-math.js
           node --check web/cxm-testing.js
+          node --check web/cxm-dock-review.js
       - name: Axiscope, Z calibration and colour JavaScript syntax
         run: |
           node --check web/cxm-axiscope.js
