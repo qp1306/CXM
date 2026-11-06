@@ -4,7 +4,7 @@ import sys
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from cxm_xy_capture import (CaptureError,parse_mcu,extract_marked_snapshot,
-                            motor_delta,verify_z_unchanged,reconstruct_known_xy,validate_preflight)
+                            motor_delta,verify_z_unchanged,reconstruct_known_xy,validate_preflight,Moonraker)
 from cxm_xy_measure import CoreXYTransform
 
 class CaptureTests(unittest.TestCase):
@@ -46,6 +46,9 @@ class CaptureTests(unittest.TestCase):
     def test_read_only_preflight(self):
         config={'toolhead':{'homed_axes':'xyz','position':[140.0,165.0,12.0]},
                 'print_stats':{'state':'standby'},
+                'idle_timeout':{'state':'Ready'},
+                'virtual_sdcard':{'is_active':False},
+                'pause_resume':{'is_paused':False},
                 'configfile':{'settings':{
                     'stepper_x':{'position_min':0,'position_max':335,'position_endstop':335},
                     'stepper_y':{'position_min':0,'position_max':362,'position_endstop':362},
@@ -58,6 +61,44 @@ class CaptureTests(unittest.TestCase):
         config['print_stats']['state']='printing'
         with self.assertRaises(CaptureError):
             validate_preflight(config)
+        config['print_stats']['state']=None
+        self.assertEqual(validate_preflight(config)['print_state'],None)
+        config['virtual_sdcard']['is_active']=True
+        with self.assertRaises(CaptureError):
+            validate_preflight(config)
+        config['virtual_sdcard']['is_active']=False
+        config['pause_resume']['is_paused']=True
+        with self.assertRaises(CaptureError):
+            validate_preflight(config)
+        config['pause_resume']['is_paused']=False
+        config['idle_timeout']['state']='Printing'
+        with self.assertRaises(CaptureError):
+            validate_preflight(config)
+        config['idle_timeout']['state']='Idle'
+        del config['virtual_sdcard']
+        self.assertEqual(validate_preflight(config)['idle_timeout_state'],'Idle')
+        config['idle_timeout']['state']='Ready'
+        with self.assertRaises(CaptureError):
+            validate_preflight(config)
+
+    def test_optional_status_object_discovery(self):
+        class FakeMoonraker(Moonraker):
+            def __init__(self):
+                self.queries=[]
+            def request(self,path,payload=None):
+                self.queries.append(path)
+                if path == '/printer/objects/list':
+                    return {'objects':['toolhead','configfile','idle_timeout',
+                                       'print_stats','virtual_sdcard']}
+                return {'status':{'idle_timeout':{'state':'Ready'},
+                                  'print_stats':{'state':None},
+                                  'virtual_sdcard':{'is_active':False}}}
+        api=FakeMoonraker()
+        data=api.status()
+        self.assertIsNone(data['print_stats']['state'])
+        self.assertIn('idle_timeout=state',api.queries[1])
+        self.assertIn('virtual_sdcard=is_active',api.queries[1])
+        self.assertNotIn('pause_resume',api.queries[1])
 
     def test_mcu_counter_session_change(self):
         with self.assertRaises(CaptureError):
