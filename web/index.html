@@ -292,7 +292,7 @@
    </div>
    <details class="cxm-advanced">
     <summary>Carriage-presence switch setup (required for pickup/dropoff)</summary>
-    <p class="helper">Choose the <em>actual carriage-mounted hotend-presence switch</em>, not a dock-occupancy sensor. Manually confirm empty and mounted states. They must produce different live signals.</p>
+    <p class="helper">If T0 is already attached, record <strong>MOUNTED</strong> first. After staging, perform the first supervised dropoff. Once T0 is safely seated in its dock, record <strong>EMPTY</strong>. The two switch states must differ.</p>
     <label>Klipper sensor <select id="cxmT0Sensor"><option value="">No validated sensor</option></select></label>
     <p id="cxmT0SensorStatus" class="helper" role="status">Sensor not tested.</p>
     <div class="buttons">
@@ -304,7 +304,7 @@
     <button class="btn" id="cxmT0Pickup" disabled>2 · Test T0 pickup</button>
     <button class="btn" id="cxmT0Dropoff" disabled>3 · Test T0 dropoff</button>
    </div>
-   <p class="helper" id="cxmT0Result" role="status">Pickup/dropoff stays disabled until staging, physical path confirmation and both carriage-sensor states pass. Each run must be observed; stop the printer immediately if anything catches.</p>
+   <p class="helper" id="cxmT0Result" role="status">Start with T0 mounted: record MOUNTED, stage, supervise the first dropoff, visually confirm EMPTY, then test pickup. Check the physical path before every move.</p>
    <p class="helper">These test commands do not mark T0 commissioned, connect a heater, or change saved dock offsets. The G-code only moves X/Y, at reduced speeds.</p>
   </div>
 </details>
@@ -676,7 +676,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.4" defer></script>
-<script src="cxm-lineux.js?v=0.9.9" defer></script><script src="cxm-t0.js?v=0.9.11" defer></script>
+<script src="cxm-lineux.js?v=0.9.9" defer></script><script src="cxm-t0.js?v=0.9.12" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
