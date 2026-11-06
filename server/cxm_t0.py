@@ -145,11 +145,12 @@ def status(store):
         first_dropoff_ready=(stage=='staged' and last=='stage' and sensor is not None
                              and 'mounted' in samples and 'empty' not in samples
                              and live.get(sensor)==samples['mounted'])
-        # Reconciliation is available only in a fresh, untouched first cycle,
-        # with the real carriage already physically at the saved staging point.
-        # It never infers that a pickup or dropoff succeeded.
+        # Sensor registration after Approach clears stage but intentionally
+        # leaves last_action='stage'. Recover this valid first-cycle state as
+        # well as a fresh null/null state, always with operator confirmation.
+        # Never recover after attempted pickup/dropoff or other actions.
         can_confirm_staging=(
-            stage is None and last is None and
+            stage is None and last in (None,'stage') and
             sensor in candidate and 'mounted' in samples and 'empty' not in samples and
             live.get(sensor)==samples['mounted'] and
             abs(ctx['position'][0]-ctx['x'])<=POSITION_TOL and
@@ -199,8 +200,9 @@ def confirm_staging(*, store, expected_revision, acknowledgement):
         plan(saved)
         with SESSION_LOCK:
             _invalidate(ctx)
-            if SESSION['stage'] is not None or SESSION['last_action'] is not None:
-                raise T0Error('Only a fresh first-cycle staging record can be restored')
+            if (SESSION['stage'] is not None or
+                SESSION['last_action'] not in (None,'stage')):
+                raise T0Error('Only an untouched first-cycle staging record can be restored')
             sensor=SESSION['sensor']
             samples=SESSION['samples']
             if (sensor is None or sensor not in _candidates(ctx['objects'])
