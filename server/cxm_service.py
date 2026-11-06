@@ -11,7 +11,8 @@ import time
 import urllib.error
 import urllib.request
 from cxm_config import Store
-from cxm_lineux import query_readiness, perform_measurement, perform_known_check, MeasurementError
+from cxm_lineux import (query_readiness, perform_measurement, perform_known_check,
+                        release_xy_for_dock, home_and_lift_for_dock, MeasurementError)
 from urllib.parse import parse_qs, urlsplit
 
 MAX_BODY = 4096
@@ -119,7 +120,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not {'tool'} <= set(args) or set(args)-{'tool','mode'} or len(args['tool'])!=1 or not args['tool'][0].isdigit():
                     raise ValueError('Select one valid hotend number')
                 mode=args.get('mode',['dock'])
-                if len(mode)!=1 or mode[0] not in ('dock','known'):
+                if len(mode)!=1 or mode[0] not in ('dock','known','prepare','home'):
                     raise ValueError('Invalid Lineux preflight mode')
                 n=int(args['tool'][0])
                 self.output(200,query_readiness(tool=n,saved=self.server.store.read(),mode=mode[0]))
@@ -148,8 +149,24 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check'):
+            if self.path not in ('/v1/setting','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/lineux/home':
+                if set(body) != {'tool','expected_revision','acknowledgement'}:
+                    raise ValueError('Unexpected dock homing parameters')
+                self.output(200,home_and_lift_for_dock(
+                    tool=body['tool'],expected_revision=body['expected_revision'],
+                    acknowledgement=body['acknowledgement'],store=self.server.store))
+                return
+            if self.path == '/v1/lineux/release-xy':
+                if set(body) != {'tool','expected_revision','acknowledgement'}:
+                    raise ValueError('Unexpected XY release parameters')
+                self.output(200,release_xy_for_dock(
+                    tool=body['tool'],
+                    expected_revision=body['expected_revision'],
+                    acknowledgement=body['acknowledgement'],
+                    store=self.server.store))
                 return
             if self.path == '/v1/lineux/known-check':
                 if set(body) != {'tool','expected_revision','acknowledgement'}:

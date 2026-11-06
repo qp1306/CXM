@@ -22,6 +22,7 @@ class ManualDockSafetyTests(unittest.TestCase):
             'stepper_z2':True,'stepper_z3':True,
         }
         self.position=[290.0,97.0,20.0,0.0]
+        self.homed='xyz'
         self.objects=['idle_timeout','toolhead','configfile','stepper_enable']
         self.pid=4321
         c.KNOWN_SESSION.update(pid=self.pid,at=time.monotonic())
@@ -42,7 +43,7 @@ class ManualDockSafetyTests(unittest.TestCase):
             if path.startswith('/printer/objects/query?'):
                 return {'status':{
                     'idle_timeout':{'state':'Ready'},
-                    'toolhead':{'homed_axes':'xyz','position':self.position},
+                    'toolhead':{'homed_axes':self.homed,'position':self.position},
                     'configfile':{'settings':settings},
                     'stepper_enable':{'steppers':self.steppers},
                 }}
@@ -68,7 +69,7 @@ class ManualDockSafetyTests(unittest.TestCase):
         self.steppers['stepper_x']=True
         r=self.readiness('dock')
         self.assertFalse(r['ready'])
-        self.assertTrue(any('X/Y steppers OFF' in x for x in r['blockers']))
+        self.assertTrue(any('Release only X/Y motors' in x for x in r['blockers']))
 
     def test_all_four_z_must_be_energized(self):
         self.steppers['stepper_z3']=False
@@ -88,11 +89,104 @@ class ManualDockSafetyTests(unittest.TestCase):
         self.assertFalse(r['ready'])
         self.assertTrue(any('Cannot verify stepper motor power' in x for x in r['blockers']))
 
-    def test_no_known_validation_in_session_blocks_dock(self):
+    def test_no_known_validation_in_session_still_allows_manual_dock(self):
         c.KNOWN_SESSION.update(pid=None,at=0.0)
         r=self.readiness('dock')
+        self.assertTrue(r['ready'],r['blockers'])
+        self.assertFalse(r['known_verified'])
+
+    def test_release_prepare_requires_powered_xy_and_four_z(self):
+        self.steppers['stepper_x']=True
+        self.steppers['stepper_y']=True
+        r=self.readiness('prepare')
+        self.assertTrue(r['ready'],r['blockers'])
+        self.steppers['stepper_z2']=False
+        r=self.readiness('prepare')
         self.assertFalse(r['ready'])
-        self.assertTrue(any('known-position validation' in x for x in r['blockers']))
+
+    def test_release_prepare_requires_z20(self):
+        self.steppers['stepper_x']=True
+        self.steppers['stepper_y']=True
+        self.position[2]=19.0
+        r=self.readiness('prepare')
+        self.assertFalse(r['ready'])
+        self.assertTrue(any('20 mm' in x for x in r['blockers']))
+
+    def test_direct_dock_requires_xyz_homed(self):
+        self.homed='z'
+        r=self.readiness('dock')
+        self.assertFalse(r['ready'])
+        self.assertTrue(any('Home X/Y/Z' in x for x in r['blockers']))
+
+    def test_home_and_z20_uses_verified_standard_commands(self):
+        motors={name:True for name in
+            ('stepper_x','stepper_y','stepper_z','stepper_z1','stepper_z2','stepper_z3')}
+        result={'status':{'toolhead':{'homed_axes':'xyz',
+                'position':[195.0,170.0,20.0,0.0]},
+                'stepper_enable':{'steppers':motors}}}
+        with patch.object(c,'query_readiness',return_value={'ready':True,'blockers':[]}):
+            with patch.object(c,'_rpc',side_effect=[{},result]) as rpc:
+                outcome=c.home_and_lift_for_dock(tool=0,expected_revision='a'*64,
+                    acknowledgement='I_CONFIRM_CLEAR_G28_AND_Z20_PATH',store=Store())
+        self.assertEqual(outcome['status'],'HOMED_Z20_CENTRE')
+        self.assertEqual(rpc.call_args_list[0][0][0],'/printer/gcode/script')
+        self.assertEqual(rpc.call_args_list[0][0][1]['script'].splitlines(),
+            ['G28','G90','G1 Z20 F300','G1 X195 Y170 F3000'])
+
+    def test_home_refuses_missing_clearance_ack_without_gcode(self):
+        with patch.object(c,'_rpc') as rpc:
+            with self.assertRaises(c.MeasurementError):
+                c.home_and_lift_for_dock(tool=0,expected_revision='a'*64,
+                    acknowledgement='',store=Store())
+            rpc.assert_not_called()
+
+    def test_home_fails_on_unverified_z_motor(self):
+        motors={name:True for name in
+            ('stepper_x','stepper_y','stepper_z','stepper_z1','stepper_z2','stepper_z3')}
+        motors['stepper_z3']=False
+        result={'status':{'toolhead':{'homed_axes':'xyz',
+                'position':[195.0,170.0,20.0,0.0]},
+                'stepper_enable':{'steppers':motors}}}
+        with patch.object(c,'query_readiness',return_value={'ready':True,'blockers':[]}):
+            with patch.object(c,'_rpc',side_effect=[{},result]):
+                with self.assertRaises(c.MeasurementError):
+                    c.home_and_lift_for_dock(tool=0,expected_revision='a'*64,
+                        acknowledgement='I_CONFIRM_CLEAR_G28_AND_Z20_PATH',store=Store())
+
+    def test_release_runs_only_x_y_disable_commands(self):
+        motors={
+            'stepper_x':False,'stepper_y':False,
+            'stepper_z':True,'stepper_z1':True,'stepper_z2':True,'stepper_z3':True}
+        with patch.object(c,'query_readiness',return_value={'ready':True,'blockers':[]}):
+            with patch.object(c,'_rpc',side_effect=[
+                {}, {'status':{'stepper_enable':{'steppers':motors}}}]) as rpc:
+                resp=c.release_xy_for_dock(tool=0,expected_revision='a'*64,
+                    acknowledgement='I_CONFIRM_Z_SUPPORTED_RELEASE_XY',store=Store())
+        self.assertTrue(resp['release_confirmed'])
+        call=rpc.call_args_list[0]
+        self.assertEqual(call[0][0],'/printer/gcode/script')
+        self.assertEqual(call[0][1]['script'].splitlines(),[
+            'SET_STEPPER_ENABLE STEPPER=stepper_x ENABLE=0',
+            'SET_STEPPER_ENABLE STEPPER=stepper_y ENABLE=0'])
+        self.assertNotIn('stepper_z',call[0][1]['script'])
+        self.assertNotIn('G28',call[0][1]['script'])
+
+    def test_release_confirmation_fails_if_z_motor_off(self):
+        motors={'stepper_x':False,'stepper_y':False,
+                'stepper_z':True,'stepper_z1':True,'stepper_z2':True,'stepper_z3':False}
+        with patch.object(c,'query_readiness',return_value={'ready':True,'blockers':[]}):
+            with patch.object(c,'_rpc',side_effect=[
+                {}, {'status':{'stepper_enable':{'steppers':motors}}}]):
+                with self.assertRaises(c.MeasurementError):
+                    c.release_xy_for_dock(tool=0,expected_revision='a'*64,
+                        acknowledgement='I_CONFIRM_Z_SUPPORTED_RELEASE_XY',store=Store())
+
+    def test_release_fails_closed_without_ack(self):
+        with patch.object(c,'_rpc') as rpc:
+            with self.assertRaises(c.MeasurementError):
+                c.release_xy_for_dock(tool=0,expected_revision='a'*64,
+                    acknowledgement='',store=Store())
+        rpc.assert_not_called()
 
     def test_known_check_allowed_only_when_all_axes_powered(self):
         self.steppers['stepper_x']=True
