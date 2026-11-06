@@ -9,7 +9,7 @@ import math
 import threading
 import time
 import urllib.parse
-from cxm_lineux import _rpc, MOVE_LOCK, MeasurementError
+from cxm_lineux import _rpc, MOVE_LOCK, MeasurementError, CXM_HOME_SESSION
 
 SESSION_LOCK=threading.Lock()
 SESSION={'pid':None,'revision':None,'stage':None,'sensor':None,
@@ -73,6 +73,10 @@ def _safe_context(saved, *, require_homed=True, require_in_park=False):
         raise T0Error('Home XYZ and maintain at least Z20 physical clearance')
     if require_homed and not all(motors.get(name) is True for name in MOTORS):
         raise T0Error('All X/Y and four Z steppers must be powered; rehome after manual positioning')
+    if require_homed and not (CXM_HOME_SESSION['pid']==info['process_id'] and
+        CXM_HOME_SESSION['revision']==saved['revision'] and
+        time.monotonic()-CXM_HOME_SESSION['at']<=1800):
+        raise T0Error('Home and Z20 verification needed for T0 test')
     if require_in_park and (abs(pos[0]-x)>POSITION_TOL or abs(pos[1]-safe)>POSITION_TOL):
         raise T0Error('Carriage must be at verified staging X/Y before pickup/dropoff')
     return {'pid':info['process_id'],'x':x,'y':y,'safe_y':safe,
