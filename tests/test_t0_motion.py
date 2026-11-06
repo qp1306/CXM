@@ -137,12 +137,43 @@ class T0Test(unittest.TestCase):
         with self.assertRaises(c.T0Error):
             c.plan(self.store.read())
 
-    def test_tool_count_and_lockout_fail_closed(self):
+    def test_t0_test_supports_any_configured_tool_count(self):
+        # T0's commanded path must not depend on the count of other slots.
+        for count in (1,2,6,12):
+            self.store.data['globals']['tool_count']=count
+            result=c.status(self.store)
+            self.assertTrue(result['ready'],result['blockers'])
+            self.assertEqual(result['tool'],0)
+            self.assertEqual(result['saved_xy_mm'],{'x':298.98,'y':65.88})
+            self.assertEqual(c.plan(self.store.read())['stage'],[(298.98,120.0)])
         self.store.data['globals']['tool_count']=6
-        self.assertFalse(c.status(self.store)['ready'])
-        self.store.data['globals']['tool_count']=1
+        outcome=c.motion(store=self.store,expected_revision=self.store.rev,
+                 kind='stage',acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertEqual(outcome['status'],'SUPERVISED_T0_STAGE_COMPLETE')
+        self.assertEqual(self.machine.scripts[-1].splitlines(),
+            ['G90','G1 Y120.00000 F600','G1 X298.98000 F600','M400'])
+
+    def test_tool_count_invalid_and_t0_lockout_fail_closed(self):
+        for count in (0,13,True,None):
+            self.store.data['globals']['tool_count']=count
+            result=c.status(self.store)
+            self.assertFalse(result['ready'])
+            self.assertTrue(any('Invalid configured hotend count' in item
+                                for item in result['blockers']))
+        self.store.data['globals']['tool_count']=6
         self.store.data['tools'][0]['maintenance_lockout']=True
         self.assertFalse(c.status(self.store)['ready'])
+
+    def test_t0_nonzero_other_tools_never_moved(self):
+        self.store.data['globals']['tool_count']=6
+        self.store.data['tools'][1]['dock_x']=45.0
+        self.store.data['tools'][1]['dock_y']=55.0
+        outcome=c.motion(store=self.store,expected_revision=self.store.rev,
+                     kind='stage',
+                     acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertEqual(outcome['source_dock_xy_mm'],[298.98,65.88])
+        self.assertNotIn('X45.00000',self.machine.scripts[-1])
+        self.assertNotIn('Y55.00000',self.machine.scripts[-1])
 
     def test_session_invalidated_after_pid_or_revision_changes(self):
         c.motion(store=self.store,expected_revision=self.store.rev,kind='stage',
