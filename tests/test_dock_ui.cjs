@@ -13,7 +13,7 @@ test('dock wizard loads and includes required user controls',()=>{
                    'cxmDockFeedback']) {
     assert.match(html,new RegExp('id="'+id+'"'));
   }
-  assert.match(html,/cxm-dock\.js\?v=0\.8\.2/);
+  assert.match(html,/cxm-dock\.js\?v=0\.9\.0/);
   assert.match(html,/data-panel="calibration"/);
   assert.match(cards,/data-cxm-calibrate/);
 });
