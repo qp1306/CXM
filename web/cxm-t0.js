@@ -35,7 +35,11 @@ function controls(){
   byId('cxmT0Stage').disabled=!ready;
   byId('cxmT0Pickup').disabled=!ready||!calibrated||!staged||
     ![null,'stage','dropoff'].includes(state.last_action);
-  byId('cxmT0Dropoff').disabled=!ready||!calibrated||!staged||state.last_action!=='pickup';
+  const firstDropoff=state?.first_dropoff_ready===true;
+  byId('cxmT0Dropoff').disabled=!ready||!staged||
+    !(firstDropoff||(calibrated&&state.last_action==='pickup'));
+  byId('cxmT0Dropoff').textContent=firstDropoff
+    ? '2 · First T0 dropoff' : '3 · Test T0 dropoff';
   byId('cxmT0Refresh').disabled=busy;
   byId('cxmT0Sensor').disabled=busy||selected()!==0||!state?.ready;
   byId('cxmT0RecordEmpty').disabled=busy||!choice||selected()!==0||!state?.ready;
@@ -79,8 +83,13 @@ async function refresh(){
     choice=options.includes(desired)?desired:'';
     menu.value=choice;
     const samples=state.sensor_samples||{};
-    const mode=state.sensor_calibrated?'PASS · both physical states differ':
-      'Not yet commissioned · record EMPTY and MOUNTED with physically different sensor states';
+    const mode=state.first_dropoff_pending_empty
+      ? 'FIRST DROPOFF COMPLETE · visually confirm T0 stayed in dock, then Record carriage EMPTY'
+      : state.first_dropoff_ready
+      ? 'MOUNTED confirmed · first supervised dropoff available from staging'
+      : state.sensor_calibrated
+      ? 'PASS · both physical sensor states confirmed'
+      : 'Record MOUNTED first. EMPTY must be physically confirmed with T0 off the carriage';
     set('cxmT0SensorStatus',mode+' · Live: '+
       options.map(n=>n+'='+String(state.sensor_states?.[n])).join(' | '));
     set('cxmT0Plan',path());
@@ -111,12 +120,17 @@ async function move(kind){
   if(busy||!state?.ready||selected()!==0||!valid())return;
   const wp=path();
   if(wp.startsWith('PATH BLOCKED'))return;
-  const n=kind==='stage'?'Approach T0 staging point':kind==='pickup'?'PICK UP T0':'DROP OFF T0';
+  const firstDropoff=kind==='dropoff'&&state?.first_dropoff_ready===true;
+  const n=kind==='stage'?'Approach T0 staging point':
+    kind==='pickup'?'PICK UP T0':
+    firstDropoff?'FIRST supervised T0 dropoff':'DROP OFF T0';
   const confirmText=n+'?\n\n'+wp+'\n\n'+
     'The printer WILL MOVE at slow test speed. Have emergency stop available. '+
     'Confirm XYZ was genuinely homed, X/Y have NOT been moved by hand since homing, '+
     'the full path is physically clear, and hotend/carriage are in the correct initial state, '+
-    'and that you can observe every movement. Never run unattended.';
+    'and that you can observe every movement. Never run unattended.'+
+    (firstDropoff?'\n\nT0 MUST BE MOUNTED and the physical dock must be EMPTY. '+
+      'This first test learns the EMPTY sensor state only after you inspect the result.':'');
   if(!window.confirm(confirmText))return;
   busy=true;controls();
   set('cxmT0Result',kind.toUpperCase()+' MOVEMENT IN PROGRESS · monitor the real printer.');
@@ -126,9 +140,15 @@ async function move(kind){
       shift_x:v.shift_x,dodge_y:v.dodge_y,
       acknowledgement:'I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH'
     });
-    set('cxmT0Result',r.status+' · at X'+r.position_mm[0].toFixed(3)+
-      '/Y'+r.position_mm[1].toFixed(3)+
-      '. Visually inspect coupling. '+(r.sensor_confirmed?'Switch transition confirmed.':'No pickup attempted.'));
+    if(r.status==='SUPERVISED_T0_FIRST_DROPOFF_AWAITING_EMPTY_CONFIRMATION'){
+      set('cxmT0Result','FIRST DROPOFF FINISHED · switch state changed. '+
+        'Check T0 is fully seated in its dock and carriage is empty. '+
+        'Then press Record carriage EMPTY. Do not pick up until confirmed.');
+    }else{
+      set('cxmT0Result',r.status+' · at X'+r.position_mm[0].toFixed(3)+
+        '/Y'+r.position_mm[1].toFixed(3)+
+        '. Visually inspect coupling. '+(r.sensor_confirmed?'Switch transition confirmed.':'No pickup attempted.'));
+    }
   }catch(e){
     set('cxmT0Result','TEST BLOCKED / FAILED: '+e.message+
       '. Inspect carriage and dock before making any further movement.');

@@ -142,13 +142,19 @@ def status(store):
         for name in candidate:
             try: live[name]=_sensor_value(name,ctx['objects'])
             except T0Error: live[name]=None
+        first_dropoff_ready=(stage=='staged' and last=='stage' and sensor is not None
+                             and 'mounted' in samples and 'empty' not in samples
+                             and live.get(sensor)==samples['mounted'])
         return {'ready':True,'tool':0,'saved_xy_mm':{'x':ctx['x'],'y':ctx['y']},
                 'safe_y_mm':ctx['safe_y'],'position_mm':ctx['position'],
                 'plan':p,'sensor_candidates':candidate,'sensor_states':live,
                 'sensor':sensor,'sensor_samples':samples,
                 'sensor_calibrated':sensor is not None and 'empty' in samples
                                     and 'mounted' in samples and samples['empty']!=samples['mounted'],
-                'stage':stage,'last_action':last,'blockers':[],
+                'stage':stage,'last_action':last,
+                'first_dropoff_ready':first_dropoff_ready,
+                'first_dropoff_pending_empty':last=='first_dropoff_pending',
+                'blockers':[],
                 'warning':'T0 test moves the carriage. All waypoints require physical clearance; tool pickup is not inferred from coordinates.'}
     except (T0Error,ValueError,KeyError,TypeError) as e:
         return {'ready':False,'tool':0,'blockers':[str(e)],'stage':None,'sensor_candidates':[],
@@ -172,11 +178,21 @@ def record_sensor(*,store,expected_revision,name,condition,acknowledgement):
         candidates=_candidates(ctx['objects'])
         if name not in candidates: raise T0Error('No supported sensor object selected')
         value=_sensor_value(name,ctx['objects'])
+        if SESSION['last_action']=='first_dropoff_pending':
+            if name!=SESSION['sensor'] or condition!='empty':
+                raise T0Error('First dropoff awaits physical EMPTY confirmation on the original sensor')
+            if value==SESSION['samples'].get('mounted'):
+                raise T0Error('Sensor still reports MOUNTED; T0 is not verified released')
         if SESSION['sensor']!=name:
             SESSION['sensor']=name
             SESSION['samples']={}
             SESSION['stage']=None
         SESSION['samples'][condition]=value
+        # First mounted-hotend commissioning: the mechanism just returned
+        # T0 to its dock and the operator physically confirmed EMPTY.
+        # This is the only route from the initial cycle to normal pickup.
+        if condition=='empty' and SESSION['last_action']=='first_dropoff_pending':
+            SESSION['last_action']='dropoff'
         samples=SESSION['samples'].copy()
         verified='empty' in samples and 'mounted' in samples and samples['empty']!=samples['mounted']
     return {'recorded':condition,'value':value,'both_states_distinct':verified,
@@ -213,6 +229,7 @@ def motion(*,store,expected_revision,kind,acknowledgement,
         if saved['revision']!=expected_revision: raise T0Error('T0 coordinates changed; refresh')
         ctx=_safe_context(saved,require_in_park=(kind!='stage'))
         points=plan(saved,shift_x,dodge_y)[kind]
+        first_dropoff=False
         with SESSION_LOCK:
             _invalidate(ctx)
             if kind=='stage':
@@ -224,17 +241,30 @@ def motion(*,store,expected_revision,kind,acknowledgement,
                     raise T0Error('First run Approach T0 and inspect its staging position')
                 sensor=SESSION['sensor']
                 samples=SESSION['samples']
-                if (sensor is None or 'empty' not in samples or 'mounted' not in samples
-                    or samples['empty']==samples['mounted']):
-                    raise T0Error('Carriage switch must be tested in EMPTY and MOUNTED states before pickup/dropoff')
+                last=SESSION['last_action']
+                if sensor is None:
+                    raise T0Error('Select and record the carriage hotend-presence sensor first')
                 live=_sensor_value(sensor,ctx['objects'])
-                expected=samples['empty' if kind=='pickup' else 'mounted']
-                if live!=expected:
-                    raise T0Error('T0 sensor not in expected pre-motion state')
-                if kind=='dropoff' and SESSION['last_action']!='pickup':
-                    raise T0Error('Dropoff requires successful supervised pickup in this session')
-                if kind=='pickup' and SESSION['last_action'] not in (None,'dropoff','stage'):
-                    raise T0Error('Cannot pick up again until T0 is released')
+                # First commissioning cycle can start with T0 already mounted.
+                # Permit only the FIRST observed dropoff from the verified
+                # staged position and the recorded mounted sensor signal.
+                # Learn EMPTY only after movement AND human inspection.
+                first_dropoff=(kind=='dropoff' and last=='stage' and
+                               'mounted' in samples and 'empty' not in samples)
+                if first_dropoff:
+                    if live!=samples['mounted']:
+                        raise T0Error('First dropoff blocked: live sensor does not show T0 MOUNTED')
+                else:
+                    if ('empty' not in samples or 'mounted' not in samples
+                        or samples['empty']==samples['mounted']):
+                        raise T0Error('Verify carriage sensor EMPTY and MOUNTED before pickup/dropoff')
+                    expected=samples['empty' if kind=='pickup' else 'mounted']
+                    if live!=expected:
+                        raise T0Error('T0 sensor not in expected pre-motion state')
+                    if kind=='dropoff' and last!='pickup':
+                        raise T0Error('Dropoff requires a successful supervised pickup')
+                    if kind=='pickup' and last not in (None,'dropoff','stage'):
+                        raise T0Error('Cannot pick up again until T0 is released')
             # Disarm before any irreversible movement. On failure, a fresh
             # staging test and manual inspection are always required.
             SESSION['stage']=None
@@ -247,14 +277,25 @@ def motion(*,store,expected_revision,kind,acknowledgement,
                 sensor=SESSION['sensor']
                 samples=SESSION['samples'].copy()
             live=_sensor_value(sensor,after['objects'])
-            if live!=samples['mounted' if kind=='pickup' else 'empty']:
+            if first_dropoff:
+                if live==samples['mounted']:
+                    raise T0Error('First dropoff did not change sensor. Inspect T0 and do not continue.')
+            elif live!=samples['mounted' if kind=='pickup' else 'empty']:
                 raise T0Error('Sensor did not confirm '+kind+' after motion. Inspect carriage and do not continue.')
         with SESSION_LOCK:
-            SESSION.update(stage='staged',last_action=kind,xy=[after['x'],after['safe_y']],
+            SESSION.update(stage='staged',
+                           last_action='first_dropoff_pending' if first_dropoff else kind,
+                           xy=[after['x'],after['safe_y']],
                            path={'shift_x':shift_x,'dodge_y':dodge_y})
-        return {'status':'SUPERVISED_T0_'+kind.upper()+'_COMPLETE',
+        return {'status':('SUPERVISED_T0_FIRST_DROPOFF_AWAITING_EMPTY_CONFIRMATION'
+                          if first_dropoff else
+                          'SUPERVISED_T0_'+kind.upper()+'_COMPLETE'),
                 'position_mm':after['position'],'source_dock_xy_mm':[ctx['x'],ctx['y']],
-                'steps':len(points),'sensor_confirmed':kind!='stage',
-                'note':'Operator must independently inspect physical T0 engagement. No active-tool or commissioning flags changed.'}
+                'steps':len(points),'sensor_confirmed':kind!='stage' and not first_dropoff,
+                'note':('Visually confirm T0 is fully seated in its dock and carriage is EMPTY; '
+                        'then press Record carriage EMPTY. No tool pickup is enabled until confirmed.'
+                        if first_dropoff else
+                        'Operator must independently inspect physical T0 engagement. '
+                        'No active-tool or commissioning flags changed.')}
     finally:
         MOVE_LOCK.release()
