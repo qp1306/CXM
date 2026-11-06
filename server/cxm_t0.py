@@ -7,6 +7,7 @@ The tested Lineux dock X/Y is used without x_docking_adjust correction.
 from __future__ import annotations
 import math
 import threading
+import time
 import urllib.parse
 from cxm_lineux import _rpc, MOVE_LOCK, MeasurementError
 
@@ -103,6 +104,34 @@ def _safe_context(saved, *, require_homed=True, require_in_park=False):
         raise T0Error('Carriage must be at verified staging X/Y before pickup/dropoff')
     return {'pid':info['process_id'],'x':x,'y':y,'safe_y':safe,
             'position':pos[:3],'objects':objects,'revision':saved['revision']}
+
+def _wait_for_idle_after_move(saved, *, parked, expected_pid, timeout_sec=10.0):
+    """Read-only wait for Klipper to settle after a completed G-code script.
+
+    Moonraker can return from an M400-ended script before Klipper's
+    idle_timeout state changes from Printing to Ready/Idle. Retry only that
+    known transient status, never a homing, motor-power, print, position,
+    config, or sensor failure. No motion commands are issued while waiting.
+    """
+    deadline=time.monotonic()+timeout_sec
+    while True:
+        try:
+            ctx=_safe_context(saved,require_in_park=parked)
+        except T0Error as exc:
+            if str(exc)!='Klipper is not idle':
+                raise
+            if time.monotonic()>=deadline:
+                raise T0Error(
+                    'Klipper did not return to idle after the preceding T0 movement; '
+                    'toolchange stopped before the next movement. '
+                    'Inspect T0 and the dock before clearing the test fault.'
+                ) from exc
+            time.sleep(0.25)
+            continue
+        if ctx['pid']!=expected_pid:
+            raise T0Error('Klipper instance changed during the T0 test')
+        return ctx
+
 
 def _sensor_value(name,objects):
     if type(name) is not str or name not in objects:
@@ -214,9 +243,10 @@ def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
             new_saved=store.read()
             if new_saved['revision']!=expected_revision:
                 raise T0Error('CXM configuration changed during staging')
-            staged=_safe_context(new_saved,require_in_park=True)
-            if staged['pid']!=ctx['pid']:
-                raise T0Error('Klipper instance changed during staging')
+            # Do not attempt the next XY segment until Klipper has
+            # actually returned to Idle/Ready following the staging script.
+            staged=_wait_for_idle_after_move(new_saved,parked=True,
+                                             expected_pid=ctx['pid'])
             if _sensor_value(AUTO_SENSOR,staged['objects'])!=expected:
                 raise T0Error('T0 presence signal changed unexpectedly during staging')
         else:
@@ -227,9 +257,8 @@ def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
         finished_saved=store.read()
         if finished_saved['revision']!=expected_revision:
             raise T0Error('CXM configuration changed during T0 test')
-        end=_safe_context(finished_saved,require_in_park=True)
-        if end['pid']!=ctx['pid']:
-            raise T0Error('Klipper instance changed during T0 test')
+        end=_wait_for_idle_after_move(finished_saved,parked=True,
+                                      expected_pid=ctx['pid'])
         actual=_sensor_value(AUTO_SENSOR,end['objects'])
         if actual!=after_signal:
             raise T0Error('T0 '+kind+' failed: presence switch still reports '+
