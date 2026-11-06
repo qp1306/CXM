@@ -134,6 +134,8 @@ def query_readiness(*, tool, saved):
         engine = isinstance(cmds, dict) and 'DOCK_LOCATE_CALIBRATE' in cmds
         if not engine:
             reasons.append('Lineux DOCK_LOCATE_CALIBRATE not registered in Klipper')
+        if not isinstance(cmds, dict) or 'RESPOND' not in cmds:
+            reasons.append('Klipper [respond] / RESPOND G-code must be enabled for result capture')
     except (MeasurementError, KeyError, TypeError, ValueError) as exc:
         reasons.append(str(exc)[:160])
     return {'ready':not reasons, 'engine_present':engine,'blockers':reasons,
