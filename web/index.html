@@ -67,6 +67,17 @@
 .cxm-xy-lab code{font-size:12px;color:#bfddff;word-break:break-all}
 @media(max-width:650px){.cxm-xy-lab-grid{grid-template-columns:1fr}}
 
+/* Stage 1 Lineux live measurement; tucked into existing dock wizard. */
+.cxm-lineux-live{border:1px solid #4a6382;border-radius:12px;background:#1d2b3c;
+ padding:18px;margin:16px 0}
+.cxm-lineux-live .panel-heading{margin:0 0 10px}
+.cxm-lineux-live .cxm-capture-ack{display:flex;align-items:flex-start;gap:10px;
+ margin:15px 0;line-height:1.5}
+.cxm-lineux-live .cxm-capture-ack input{flex:0 0 auto;margin-top:3px}
+.cxm-lineux-live #cxmLineuxResult{white-space:pre-wrap;overflow-wrap:anywhere}
+.cxm-lineux-live #cxmLineuxStatus{color:#e9c98c;font-weight:700}
+@media(max-width:600px){.cxm-lineux-live{padding:12px}}
+
 /* CXM V0.9.3: clear, hardware-locked Z calibration preparation */
 .cxm-z-warning{margin-bottom:16px;padding:16px 18px;font-size:13px;line-height:1.6}
 .cxm-z-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}
