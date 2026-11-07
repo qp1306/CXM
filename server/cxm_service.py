@@ -18,6 +18,8 @@ from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
                     stop_cycles as t0_stop_cycles, T0Error)
 from cxm_lineux import (query_readiness, perform_measurement, perform_known_check,
                         release_xy_for_dock, home_and_lift_for_dock, MeasurementError)
+from cxm_tools import (status as tools_status, automatic_toolchange as tools_automatic,
+                       clear_fault as tools_clear_fault)
 from urllib.parse import parse_qs, urlsplit
 
 MAX_BODY = 4096
@@ -121,6 +123,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,runtime_evidence())
             elif self.path == '/v1/t0/status':
                 self.output(200,t0_status(self.server.store))
+            elif self.path.startswith('/v1/tools/status?'):
+                params=parse_qs(urlsplit(self.path).query)
+                if set(params)!={'tool'} or len(params['tool'])!=1 or not params['tool'][0].isdigit():
+                    raise ValueError('Select one tool number T1–T11')
+                self.output(200,tools_status(store=self.server.store,tool=int(params['tool'][0])))
             elif self.path == '/v1/t0/cycles/status':
                 self.output(200,t0_cycle_status())
             elif self.path.startswith('/v1/lineux/status?'):
@@ -158,8 +165,18 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/tools/auto':
+                if set(body) != {'tool','expected_revision','kind','acknowledgement'}:
+                    raise ValueError('Unexpected selected-tool motion request')
+                self.output(200,tools_automatic(store=self.server.store,**body))
+                return
+            if self.path == '/v1/tools/clear-fault':
+                if set(body) != {'tool','expected_revision','acknowledgement'}:
+                    raise ValueError('Unexpected selected-tool fault request')
+                self.output(200,tools_clear_fault(store=self.server.store,**body))
                 return
             if self.path == '/v1/t0/cycles':
                 if set(body) != {'expected_revision','cycles','acknowledgement'}:
@@ -277,7 +294,8 @@ def main():
     watched=[Path(__file__),Path(__file__).with_name('cxm_config.py'),
              Path(__file__).with_name('cxm_lineux.py'),
              Path(__file__).with_name('cxm_t0.py'),
-             Path(__file__).with_name('cxm_cxchanger.py')]
+             Path(__file__).with_name('cxm_cxchanger.py'),
+             Path(__file__).with_name('cxm_tools.py')]
     before=[p.stat().st_mtime_ns for p in watched]
     def monitor_updates():
         while True:
