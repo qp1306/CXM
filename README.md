@@ -372,3 +372,40 @@ hand. Recover the carriage to a physically safe, clear homing location
 under supervision, establish a fresh genuine home/centre park, then release
 X/Y once for a new measurement attempt. This is a physical commissioning
 step and cannot be made safe by an automatic webpage action alone.
+
+
+## T1–T11 supervised pickup/dropoff — selected-hotend commissioning
+
+The **Dock XY** hotend selector now chooses the test tool. Selecting T0 displays
+the original proven T0 controller with its separate repeat-cycle controls.
+Selecting T1–T11 displays new **single, supervised Pickup / Dropoff** buttons.
+These use only the selected tool's accepted saved CxChanger locking-hole X/Y
+datum and shared relative X-latch/Y-dodge/safe-clearance settings; **Lineux
+is used for locating the datum, not moving the hotend**.
+
+Each test is gated by Klipper READY/IDLE, physical homing, at least Z20,
+powered X/Y and four Z steppers, accepted XY datum, maintenance lockout,
+safe XY waypoint bounds and a fresh approval. The shared
+\`gcode_button cxm_tool_detect\` reports PRESENT/EMPTY, **not which hotend is
+attached**. Therefore a selected-tool dropoff is only allowed after the
+running backend has confirmed pickup of that same T1–T11 via the switch.
+If the process or configuration changes, identity evidence expires and a
+pressed switch cannot authorise an arbitrary tool dropoff. T0's controller
+also refuses to drop off a different tool while its successful pickup is
+tracked in the same backend session. **Manual recovery may be required after
+a service restart with a hotend already attached.**
+
+A prior unresolved T0 pickup/dropoff fault must be physically inspected and
+cleared through T0 before another tool is tested. If the carriage switch
+remains PRESSED, do not try T1 pickup; establish which tool is actually
+mounted, then return the printer to a safe known condition.
+
+For initial commissioning, test each newly installed T1/T2 individually,
+starting with the carriage physically empty: save Lineux XY, verify the real
+docking path with clearance at every waypoint, approve Pickup, inspect,
+approve Dropoff, inspect. Repeat cycles are **not yet enabled for T1–T11**.
+These movements verify only the presence-switch transition, not tool seating
+strength, heater or thermistor switching, Z offset or full commissioning.
+No \`printer.cfg\` edits or Klipper restart are required simply for this web
+and loopback-service update. The CXM service may restart itself to load new
+Python code, which clears ephemeral mounted-tool identity.
