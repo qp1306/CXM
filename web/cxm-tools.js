@@ -20,7 +20,8 @@ function buttons(){
  if(!canApprove)get('cxmToolMotionAck').checked=false;
  const ready=canApprove&&get('cxmToolMotionAck').checked===true;
  get('cxmToolPickup').disabled=!ready||auto?.signal!=='RELEASED';
- get('cxmToolDropoff').disabled=!ready||auto?.signal!=='PRESSED'||auto?.mounted_tool!==n;
+ get('cxmToolDropoff').disabled=!ready||auto?.signal!=='PRESSED'||
+   !(auto?.mounted_tool===null||auto?.mounted_tool===n);
  get('cxmToolFaultBox').hidden=!show||!sameTool||!auto?.fault;
  get('cxmToolClearFault').disabled=busy||checking||!sameTool||!auto?.fault||auto?.signal!=='RELEASED';
  root.setAttribute('aria-busy',busy?'true':'false');
@@ -92,7 +93,8 @@ async function command(kind){
  if(!active()||busy||checking||live?.tool!==n||live?.ready!==true||
     !a?.enabled||!get('cxmToolMotionAck').checked)return;
  if(kind==='pickup' && a.signal!=='RELEASED')return;
- if(kind==='dropoff' && (a.signal!=='PRESSED'||a.mounted_tool!==n))return;
+ if(kind==='dropoff' && (a.signal!=='PRESSED'||
+    !(a.mounted_tool===null||a.mounted_tool===n)))return;
  get('cxmToolMotionAck').checked=false;
  busy=true;buttons();
  say('cxmToolAutoResult','T'+n+' '+kind+' started · supervise hotend and dock.');
