@@ -46,7 +46,7 @@ LEGACY_FIELDS = {"enabled": ("bool", None, None), **{
     if key not in {"maintenance_lockout","offset_xy_accepted","offset_z_accepted",
         "dock_verified","offset_xy_verified","offset_z_verified","pickup_verified",
         "dropoff_verified","heater_verified","sensor_verified","reference_verified",
-        "commissioned"}
+        "commissioned","lineux_raw_x","lineux_raw_y","dock_reference_accepted"}
 }}
 EDITABLE_TOOL_FIELDS = {
     "maintenance_lockout","dock_x","dock_y",
@@ -315,6 +315,10 @@ class Store:
                 if key in ('safe_y','x_docking_adjust','y_docking_adjust',
                             'cxm_shift_x','cxm_dodge_y','cxm_safe_clearance_y') and previous != data['globals'][key]:
                     for entry in data['tools']:
+                        if key in ('x_docking_adjust','y_docking_adjust') and (
+                                entry['lineux_raw_x'] is not None or
+                                entry['lineux_raw_y'] is not None):
+                            entry['dock_reference_accepted'] = False
                         entry['dock_verified'] = False
                         entry['pickup_verified'] = False
                         entry['dropoff_verified'] = False
