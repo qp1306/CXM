@@ -24,7 +24,7 @@ class ToolAwareTests(unittest.TestCase):
         self.store=Store()
         self.signal='RELEASED'
         self.motions=[]
-        tools._STATE.update(pid=None,revision=None,mounted_tool=None,fault=None,last_success=None)
+        tools._STATE.update(pid=None,revision=None,mounted_tool=None,identity_source=None,fault=None,last_success=None)
         t0.AUTO_STATE.update(pid=None,revision=None,fault=None,last_success=None)
         def context(_saved, *,tool=0, require_in_park=False):
             p=cx_plan(self.store.read(),tool=tool)
@@ -37,7 +37,7 @@ class ToolAwareTests(unittest.TestCase):
         def rpc(path,payload=None):
             self.assertEqual(path,'/printer/gcode/script')
             self.motions.append(payload['script'])
-            self.signal='PRESSED' if len(self.motions)%2 else 'RELEASED'
+            self.signal='RELEASED' if self.signal=='PRESSED' else 'PRESSED'
             return {}
         def waited(_saved,*,parked,expected_pid,tool):
             self.assertTrue(parked);self.assertEqual(expected_pid,123)
@@ -56,6 +56,71 @@ class ToolAwareTests(unittest.TestCase):
         return tools.automatic_toolchange(store=self.store,tool=tool,
             expected_revision=self.store.version,kind=kind,
             acknowledgement='I_CONFIRMED_SELECTED_TOOL_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+    def confirm(self,tool=1,acknowledgement='I_IDENTIFIED_SELECTED_HOTEND_MOUNTED_EMPTY_DOCK_HOMED_XY_NOT_HAND_MOVED'):
+        return tools.confirm_mounted_for_first_dropoff(
+            store=self.store,tool=tool,expected_revision=self.store.version,
+            acknowledgement=acknowledgement)
+
+    def test_initial_t1_mount_can_be_operator_confirmed_without_motion(self):
+        self.signal='PRESSED'
+        before=tools.status(store=self.store,tool=1)
+        self.assertFalse(before['ready'])
+        self.assertTrue(before['automatic']['can_confirm_mounted'])
+        self.assertIsNone(before['automatic']['mounted_tool'])
+        with self.assertRaisesRegex(tools.ToolError,'not verified'):
+            self.operation(1,'dropoff')
+        result=self.confirm(1)
+        self.assertEqual(result['status'],'T1_MOUNTED_OPERATOR_CONFIRMED_NO_MOVEMENT')
+        self.assertEqual(self.motions,[],'Identity confirmation MUST issue no G-code')
+        state=tools.status(store=self.store,tool=1)
+        self.assertTrue(state['ready'])
+        self.assertEqual(state['automatic']['mounted_tool'],1)
+        self.assertEqual(state['automatic']['identity_source'],'operator_confirmed')
+        result=self.operation(1,'dropoff')
+        self.assertEqual(result['status'],'T1_DROPOFF_SENSOR_CONFIRMED')
+        self.assertEqual(result['signal'],'RELEASED')
+        self.assertEqual(len(self.motions),1)
+        self.assertIn('X267.60000',self.motions[0])
+        self.assertNotIn('X304.42000',self.motions[0])
+        self.assertIsNone(tools.mounted_other_tool(pid=123,revision=self.store.version))
+
+    def test_initial_confirmation_fails_closed_on_wrong_ack_revision_or_signal(self):
+        self.signal='PRESSED'
+        with self.assertRaisesRegex(tools.ToolError,'Physically identify'):
+            self.confirm(1,acknowledgement='INVALID')
+        with self.assertRaisesRegex(tools.ToolError,'configuration changed'):
+            tools.confirm_mounted_for_first_dropoff(store=self.store,tool=1,
+                expected_revision='0'*64,
+                acknowledgement='I_IDENTIFIED_SELECTED_HOTEND_MOUNTED_EMPTY_DOCK_HOMED_XY_NOT_HAND_MOVED')
+        self.signal='RELEASED'
+        with self.assertRaisesRegex(tools.ToolError,'Cannot confirm'):
+            self.confirm(1)
+        self.assertIsNone(tools.mounted_other_tool(pid=123,revision=self.store.version))
+        self.assertEqual(self.motions,[])
+
+    def test_initial_confirmation_rejects_prior_t0_fault_or_wrong_selected_tool(self):
+        self.signal='PRESSED'
+        t0.AUTO_STATE.update(pid=123,revision=self.store.version,
+                             fault='T0 dropoff failed',last_success=None)
+        self.assertFalse(tools.status(store=self.store,tool=1)['automatic']['can_confirm_mounted'])
+        with self.assertRaisesRegex(tools.ToolError,'T0 fault'):
+            self.confirm(1)
+        t0.AUTO_STATE['fault']=None
+        self.confirm(1)
+        with self.assertRaisesRegex(tools.ToolError,'T1 is still recorded as mounted'):
+            self.confirm(2)
+        self.assertEqual(self.motions,[])
+
+    def test_operator_identity_expires_after_config_revision_change(self):
+        self.signal='PRESSED'
+        self.confirm(1)
+        self.store.version='b'*64
+        state=tools.status(store=self.store,tool=1)
+        self.assertFalse(state['ready'])
+        self.assertTrue(state['automatic']['can_confirm_mounted'])
+        self.assertIsNone(state['automatic']['identity_source'])
+        self.assertEqual(self.motions,[])
+
     def test_t1_pickup_and_dropoff_use_t1_datum_not_t0(self):
         self.assertTrue(tools.status(store=self.store,tool=1)['ready'])
         result=self.operation(1,'pickup')
