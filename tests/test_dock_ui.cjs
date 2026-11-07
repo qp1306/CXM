@@ -13,7 +13,7 @@ test('dock wizard loads and includes required user controls',()=>{
                    'cxmDockFeedback']) {
     assert.match(html,new RegExp('id="'+id+'"'));
   }
-  assert.match(html,/cxm-dock\.js\?v=0\.9\.5/);
+  assert.match(html,/cxm-dock\.js\?v=0\.9\.6/);
   assert.doesNotMatch(html,/id="cxmDockZ"/);
   assert.match(html,/data-panel="calibration"/);
   assert.match(cards,/data-cxm-calibrate/);
@@ -67,7 +67,7 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
 test('Lineux live measurement is gated, provisional, and separate from protected dock AutoSave',()=>{
  const lineux=fs.readFileSync(path.join(__dirname,'../web/cxm-lineux.js'),'utf8');
  assert.match(html,/<h3>Automatic dock measurement<\/h3>/);
- assert.match(html,/cxm-lineux\.js\?v=0\.9\.12/);
+ assert.match(html,/cxm-lineux\.js\?v=0\.9\.13/);
  for(const id of ['cxmLineuxAck','cxmLineuxPreflight','cxmLineuxStart',
                   'cxmLineuxResult','cxmLineuxToDraft',
                   'cxmLineuxReleaseXY','cxmLineuxReleaseAck','cxmLineuxReleaseStatus',
