@@ -178,6 +178,10 @@
 @media(max-width:560px){.cxm-t0-auto-buttons{flex-direction:column}.cxm-t0-auto-buttons .btn{width:100%}}
 
 /* Unified CXM Control Centre UI — large one-step approval cards */
+.cxm-step.cxm-step-complete{border-color:#5fb98f;background:#1c352f}
+.cxm-step-complete #cxmLineuxReleaseBadge{color:#88ecc0;font-weight:800}
+.cxm-step-complete .cxm-approval-copy strong{color:#b1e7ce}
+
 .cxm-dock-migration{margin:17px 0 5px;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;border:2px solid #e4aa62;border-radius:12px;background:#382d1f}
 .cxm-dock-migration[hidden]{display:none!important}
 .cxm-dock-migration strong{color:#ffe0b0;font-size:18px}
@@ -253,13 +257,13 @@
    <label class="cxm-capture-ack"><input id="cxmLineuxHomeAck" type="checkbox"><span class="cxm-approval-copy"><strong>Approve homing</strong><small>Gantry level · full XYZ path clear · no active print</small></span></label>
    <div class="buttons"><button class="btn primary" id="cxmLineuxHome" disabled>Start homing</button></div>
    <p class="helper" id="cxmLineuxHomeStatus" role="status">Checking homing readiness…</p></div>
-   <div class="cxm-step"><div class="panel-heading"><h3>2 · Release X/Y</h3><span class="panel-label">Z stays powered</span></div>
+   <div class="cxm-step" id="cxmLineuxReleaseStep"><div class="panel-heading"><h3>2 · Release X/Y</h3><span class="panel-label" id="cxmLineuxReleaseBadge">Z stays powered</span></div>
    <label class="cxm-capture-ack"><input id="cxmLineuxReleaseAck" type="checkbox"><span class="cxm-approval-copy"><strong>Approve motor release</strong><small>XYZ homed · actual Z ≥ 20 mm · gantry level and supported</small></span></label>
    <div class="buttons"><button class="btn" id="cxmLineuxReleaseXY" disabled>Release X/Y</button></div>
    <p class="helper" id="cxmLineuxReleaseStatus" role="status">Checking motor-release readiness…</p></div>
    <div class="cxm-step cxm-step-manual"><div class="panel-heading"><h3>3 · Align dock by hand</h3><span class="panel-label">Manual</span></div>
    <p class="helper">Centre the locking screw in the selected dock hole. <strong>Do not jog X/Y afterward.</strong></p></div>
-   <div class="cxm-step"><div class="panel-heading"><h3>4 · Measure dock XY</h3><span class="panel-label">Lineux · Provisional</span></div>
+   <div class="cxm-step"><div class="panel-heading"><h3>4 · Measure dock XY</h3><span class="panel-label">Lineux · Provisional</span></div><div class="buttons"><button class="btn" id="cxmLineuxRefresh">Refresh machine readiness</button></div>
    
    <details class="cxm-advanced"><summary>Refresh hardware status</summary><div class="buttons"><button class="btn" id="cxmLineuxPreflight">Check printer &amp; engine</button></div></details>
    <label class="cxm-capture-ack"><input id="cxmLineuxAck" type="checkbox"><span class="cxm-approval-copy"><strong>Approve measurement</strong><small>X/Y OFF · four Z motors ON and level · dock aligned · real Z ≥ 20 mm · +3 mm X and Y/Y/X paths clear · no print</small></span></label>
@@ -756,7 +760,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.5" defer></script>
 <script src="cxm-dock.js?v=0.9.6" defer></script>
-<script src="cxm-lineux.js?v=0.9.13" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
+<script src="cxm-lineux.js?v=0.9.14" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
 <script src="cxm-t0-auto.js?v=1.2.2" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
