@@ -13,16 +13,22 @@ function feedback(message,kind='pending'){
 function selected(){return Number(el('cxmDockTool')?.value);}
 function controls(){
   const matching=result && Number.isInteger(tool) && selected()===tool;
-  // Do not show a green approval on an operation that the backend cannot authorise.
-  for(const [id,ready] of [
-    ['cxmLineuxHomeAck',homeState?.ready],
-    ['cxmLineuxReleaseAck',releaseState?.ready],
-    ['cxmLineuxAck',state?.ready],
-    ['cxmLineuxKnownAck',knownState?.ready]
+  // Backend retains final authority over movement. A pending Release XY
+  // acknowledgement is also the explicit trigger for a fresh live preflight
+  // after Mainsail homing, so do not erase it during transient readiness checks.
+  for(const [id,check] of [
+    ['cxmLineuxHomeAck',homeState],
+    ['cxmLineuxReleaseAck',releaseState],
+    ['cxmLineuxAck',state],
+    ['cxmLineuxKnownAck',knownState]
   ]){
     const input=el(id);
-    input.disabled=busy||ready!==true;
-    if(ready!==true)input.checked=false;
+    const blocked=check?.blockers?.some(reason=>
+      /configuration migration required|maintenance lockout/i.test(reason))===true;
+    input.disabled=busy||!check||blocked||
+      (id!=='cxmLineuxReleaseAck' && check.ready!==true);
+    if(blocked || (id!=='cxmLineuxReleaseAck' && check?.ready!==true))
+      input.checked=false;
   }
   el('cxmLineuxHome').disabled=busy || !homeState?.ready || !el('cxmLineuxHomeAck').checked;
   el('cxmLineuxStart').disabled=busy || !state?.ready ||
