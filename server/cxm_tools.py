@@ -78,8 +78,8 @@ def _snapshot(store,tool):
     elif not can_stage:
         reason='Carriage is inside the selected dock approach zone; safely rehome/park first'
     elif known is not None and known != tool:
-        reason='T'+str(known)+' is recorded as mounted. Select T'+str(known)+
-               ' and safely drop it off before operating T'+str(tool)
+        reason=('T'+str(known)+' is recorded as mounted. Select T'+str(known)+
+                ' and safely drop it off before operating T'+str(tool))
     else:
         reason=None
     # The switch is only a presence sensor, never a tool-ID sensor. If it
