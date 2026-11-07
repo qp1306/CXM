@@ -14,7 +14,8 @@ function buttons(){
  root.hidden=!show;
  const sameTool=live?.tool===n;
  const auto=sameTool?live?.automatic:null;
- const canApprove=show&&!busy&&!checking&&sameTool&&live.ready===true&&
+ // Routine read-only polling is NOT a reason to revoke a physical approval.
+ const canApprove=show&&!busy&&sameTool&&live.ready===true&&
    auto?.enabled===true;
  get('cxmToolMotionAck').disabled=!canApprove;
  if(!canApprove)get('cxmToolMotionAck').checked=false;
@@ -23,7 +24,7 @@ function buttons(){
  get('cxmToolDropoff').disabled=!ready||auto?.signal!=='PRESSED'||
    !(auto?.mounted_tool===null||auto?.mounted_tool===n);
  get('cxmToolFaultBox').hidden=!show||!sameTool||!auto?.fault;
- get('cxmToolClearFault').disabled=busy||checking||!sameTool||!auto?.fault||auto?.signal!=='RELEASED';
+ get('cxmToolClearFault').disabled=busy||!sameTool||!auto?.fault||auto?.signal!=='RELEASED';
  root.setAttribute('aria-busy',busy?'true':'false');
  if(show){
    say('cxmToolAutoTitle','T'+n+' · Pickup / Dropoff');
@@ -52,8 +53,9 @@ async function post(path,body){
  return d;
 }
 async function refresh(){
- if(busy)return;
- const n=selected(),token=++requestId;
+ const n=selected();
+ if(busy || (checking && n===lastSelected))return;
+ const token=++requestId;
  if(n!==lastSelected){
    live=null;lastSignal=null;get('cxmToolMotionAck').checked=false;
    lastSelected=n;
@@ -68,7 +70,12 @@ async function refresh(){
    const result=await read(base+'/tools/status?tool='+n);
    if(selected()!==n||token!==requestId)return;
    if(result.tool!==n)throw Error('Backend reported the wrong hotend');
-   if(lastSignal!==null && result.automatic?.signal!==lastSignal)
+   // Revoke the acknowledgement only on a meaningful change, not a poll.
+   const next=result.automatic||{};
+   const previous=live?.tool===n ? live.automatic : null;
+   if((lastSignal!==null && next.signal!==lastSignal) ||
+      (previous && (next.mounted_tool!==previous.mounted_tool ||
+                    next.identity_source!==previous.identity_source)))
      get('cxmToolMotionAck').checked=false;
    live=result;
    lastSignal=result.automatic?.signal;
@@ -90,12 +97,16 @@ async function refresh(){
 }
 async function command(kind){
  const n=selected(),a=live?.automatic;
- if(!active()||busy||checking||live?.tool!==n||live?.ready!==true||
+ if(!active()||busy||live?.tool!==n||live?.ready!==true||
     !a?.enabled||!get('cxmToolMotionAck').checked)return;
  if(kind==='pickup' && a.signal!=='RELEASED')return;
  if(kind==='dropoff' && (a.signal!=='PRESSED'||
     !(a.mounted_tool===null||a.mounted_tool===n)))return;
  get('cxmToolMotionAck').checked=false;
+ // Invalidate a concurrent background GET. Only the post-command refresh
+ // may update the UI after motion has been requested.
+ requestId++;
+ checking=false;
  busy=true;buttons();
  say('cxmToolAutoResult','T'+n+' '+kind+' started · supervise hotend and dock.');
  try{
@@ -117,9 +128,11 @@ async function command(kind){
 }
 async function clearFault(){
  const n=selected();
- if(!active()||busy||checking||live?.tool!==n||!live.automatic?.fault||
+ if(!active()||busy||live?.tool!==n||!live.automatic?.fault||
     live.automatic?.signal!=='RELEASED')return;
  if(!window.confirm('Confirm T'+n+' and its dock have been physically inspected, the carriage is EMPTY and the switch is RELEASED. Clearing does not move the printer.'))return;
+ requestId++;
+ checking=false;
  busy=true;buttons();
  try{
    const cfg=await read(base+'/config');
