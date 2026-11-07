@@ -19,7 +19,8 @@ from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
 from cxm_lineux import (query_readiness, perform_measurement, perform_known_check,
                         release_xy_for_dock, home_and_lift_for_dock, MeasurementError)
 from cxm_tools import (status as tools_status, automatic_toolchange as tools_automatic,
-                       clear_fault as tools_clear_fault)
+                       clear_fault as tools_clear_fault,
+                       confirm_mounted_for_first_dropoff as tools_confirm_mounted)
 from urllib.parse import parse_qs, urlsplit
 
 MAX_BODY = 4096
@@ -165,13 +166,18 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/tools/auto','/v1/tools/confirm-mounted','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
                 return
             if self.path == '/v1/tools/auto':
                 if set(body) != {'tool','expected_revision','kind','acknowledgement'}:
                     raise ValueError('Unexpected selected-tool motion request')
                 self.output(200,tools_automatic(store=self.server.store,**body))
+                return
+            if self.path == '/v1/tools/confirm-mounted':
+                if set(body) != {'tool','expected_revision','acknowledgement'}:
+                    raise ValueError('Unexpected mounted-hotend confirmation request')
+                self.output(200,tools_confirm_mounted(store=self.server.store,**body))
                 return
             if self.path == '/v1/tools/clear-fault':
                 if set(body) != {'tool','expected_revision','acknowledgement'}:
