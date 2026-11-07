@@ -82,7 +82,17 @@
       : 'No profile selected. Choose a tool from the configured count.';
     updateActions(); // Never enable Save for empty or unchanged coordinates.
   }
+  function renderMigration(){
+    const box=get('cxmDockMigration'),button=get('cxmDockMigrate');
+    const pending=snapshot?.migration_required===true;
+    box.hidden=!pending;
+    button.disabled=!pending||busy;
+    if(pending)get('cxmDockMigrationText').textContent=
+      'Saved coordinates stay in place. The current file is backed up, then upgraded to schema 3. '+
+      'Old motion verification is cleared and must be tested again. No motors move and Klipper does not restart.';
+  }
   function render() {
+    renderMigration();
     const select = get('cxmDockTool');
     const options = snapshot ? configured(snapshot.config) : [];
     if (!options.some(x => x.n === selected)) selected = options[0]?.n ?? 0;
@@ -199,6 +209,52 @@
     }
   }
 
+  async function migrate(){
+    if(busy||!snapshot?.migration_required)return;
+    if(!window.confirm(
+      'BACK UP AND UPGRADE CXM CONFIGURATION TO SCHEMA 3?\n\n'+
+      'This creates a backup of CXM_variables.cfg and retains saved XY coordinates, '+
+      'tool offsets and selected tool count. Previous motion verification is reset.\n\n'+
+      'No printer movement or Klipper restart. Continue?'))return;
+    busy=true;renderMigration();
+    const feedback=get('cxmDockMigrationText');
+    feedback.textContent='Checking saved revision and preparing backup…';
+    try{
+      const before=await getJSON('/config');
+      if(before.revision!==snapshot.revision)throw Error('Configuration changed. Refresh and review before upgrading.');
+      if(!before.migration_required)throw Error('Configuration was already upgraded. Refresh the page.');
+      if(before.config?.schema!==3)throw Error('Current backend cannot project schema 3. Update CXM backend first.');
+      const tracked=['dock_x','dock_y','offset_x','offset_y','offset_z'];
+      const values=before.config.tools.map(t=>tracked.map(k=>t[k]));
+      const count=before.config.globals.tool_count;
+      const reply=await postJSON('/migrate',{expected_revision:before.revision});
+      if(!reply.saved||typeof reply.backup!=='string')throw Error('Backup and migration were not both confirmed by the service.');
+      const [after,history]=await Promise.all([getJSON('/config'),getJSON('/history')]);
+      if(after.migration_required||after.config?.schema!==3)throw Error('Schema 3 migration not verified.');
+      if(!Array.isArray(history.backups)||!history.backups.includes(reply.backup))
+        throw Error('Backup was not found in backup history.');
+      if(after.config.globals.tool_count!==count||
+         after.config.tools.some((t,n)=>tracked.some((k,i)=>t[k]!==values[n][i])))
+        throw Error('Saved XY or offsets differ after migration; inspect backup history.');
+      snapshot=after;dirty=false;rawDraft=null;
+      render();
+      report('Configuration upgraded to schema 3 with verified backup '+reply.backup+
+        '. Saved XY retained; confirm the dock datum and independently test each movement.');
+      window.dispatchEvent(new Event('cxm-config-migrated'));
+    }catch(e){
+      feedback.textContent='Upgrade not verified: '+e.message+' No movement was commanded.';
+      report('Configuration upgrade: '+e.message,true);
+      // A server-side commit may have succeeded before a later check failed.
+      // Read disk again rather than repeating the migration on stale state.
+      try{
+        snapshot=await getJSON('/config');
+        if(!snapshot.migration_required){render();report('Configuration upgraded on disk. Review backup history and saved values before movement.');}
+      }catch{}
+    }finally{
+      busy=false;renderMigration();
+      await updateLiveStatus();
+    }
+  }
   async function load() {
     if (busy) return;
     if (dirty && !window.confirm('Discard unsaved dock XY draft and reload the saved coordinates?')) return;
@@ -262,6 +318,7 @@
     }
   }
   get('cxmDockRefresh').addEventListener('click',load);
+  get('cxmDockMigrate').addEventListener('click',migrate);
   get('cxmDockTool').addEventListener('change',e => {
     if (busy) return;
     if (dirty && !window.confirm('Discard unsaved dock XY draft and switch hotends?')) {
