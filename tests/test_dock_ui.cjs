@@ -81,7 +81,7 @@ test('Lineux live measurement is gated, provisional, and separate from protected
  assert.match(html,/1 · Home &amp; Z20/);
  assert.match(html,/Advanced: old MCU step-count calculator/);
  assert.match(html,/2 · Release X\/Y/);
- assert.match(html,/3 · Align dock by hand/);
+ assert.match(html,/3 · Align CxChanger locking screw to dock hole/);
  assert.match(html,/4 · Measure dock XY/);
  assert.match(lineux,/I_CONFIRM_Z_SUPPORTED_RELEASE_XY/);
  assert.match(lineux,/I_CONFIRM_CLEAR_G28_AND_Z20_PATH/);
@@ -152,7 +152,7 @@ test('T0 test controls are hardware-gated and never mark a tool verified',()=>{
  assert.match(t0,/I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH/);
  assert.match(t0,/first_dropoff_ready/);
  const auto=fs.readFileSync(path.join(__dirname,'../web/cxm-t0-auto.js'),'utf8');
- assert.match(html,/cxm-t0-auto\.js\?v=1\.1\.0/);
+ assert.match(html,/cxm-t0-auto\.js\?v=1\.2\.0/);
  for(const id of ['cxmT0AutoPickup','cxmT0AutoDropoff','cxmT0AutoStatus',
    'cxmT0AutoFaultBox','cxmT0AutoClearFault',
    'cxmT0Cycles','cxmT0StartCycles','cxmT0StopCycles','cxmT0CycleStatus'])
