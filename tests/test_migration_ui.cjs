@@ -98,7 +98,8 @@ test('Settings and Dock XY agree on schema 3; blocked approvals are not green',(
   assert.match(settingsSource,/fresh\.config\?\.schema!==3/);
   assert.match(settingsSource,/schema 3\?/);
   assert.doesNotMatch(settingsSource,/fresh\.config\?\.schema!==2/);
-  assert.match(lineuxSource,/input\.disabled=busy\|\|ready!==true/);
+  assert.match(lineuxSource,/input\.disabled=busy\|\|!check\|\|blocked/);
+  assert.match(lineuxSource,/id!=='cxmLineuxReleaseAck' && check\.ready!==true/);
   assert.match(lineuxSource,/window\.addEventListener\('cxm-config-migrated',preflight\)/);
   assert.match(dockSource,/window\.addEventListener\('cxm-config-migrated'/);
 });
