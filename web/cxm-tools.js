@@ -27,6 +27,9 @@ function buttons(){
  if(show){
    say('cxmToolAutoTitle','T'+n+' · Pickup / Dropoff');
    say('cxmToolMotionLabel','Approve T'+n+' movement');
+   say('cxmToolApprovalDetail',auto?.signal==='PRESSED'
+     ?'I physically confirm T'+n+' is the mounted hotend, its dock is EMPTY, and the full dropoff XY path is clear.'
+     :'I confirm the carriage is EMPTY, T'+n+' is in its dock, and the full pickup XY path is clear.');
    say('cxmToolPickup','Pick up T'+n);
    say('cxmToolDropoff','Drop off T'+n);
  }
