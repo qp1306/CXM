@@ -79,10 +79,10 @@ def _snapshot(store,tool):
         reason=fault
     elif not can_stage:
         reason='Carriage is inside the selected dock approach zone; safely rehome/park first'
-    elif signal==AUTO_MOUNTED and known != tool:
-        reason='Carriage switch PRESSED but mounted hotend identity is not verified as T'+str(tool)+'. Do not drop an unknown hotend into this dock.'
     elif known is not None and known != tool:
         reason='T'+str(known)+' is still recorded as mounted. Drop it off safely before selecting T'+str(tool)
+    elif signal==AUTO_MOUNTED and known != tool:
+        reason='Carriage switch PRESSED but mounted hotend identity is not verified as T'+str(tool)+'. Do not drop an unknown hotend into this dock.'
     else:
         reason=None
     return {'ready':not bool(reason),'tool':tool,'saved_xy_mm':p['dock_reference_xy'],
