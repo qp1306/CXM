@@ -131,7 +131,7 @@
       const heading=document.createElement('strong');
       heading.textContent='CONFIGURATION MIGRATION REQUIRED';
       const explanation=document.createElement('p');
-      explanation.textContent='Legacy schema 1 is loaded read-only. The reviewed schema-2 migration preserves coordinates/speeds, backs up the original, and sets ALL verification flags to false. No motor movement or Klipper restart.';
+      explanation.textContent='Older CXM motion settings are loaded read-only. Back up and migrate to schema 3: preserve old dock XY for inspection, but require a fresh CxChanger datum acceptance and independent mechanical movement settings. All old motion verification is invalidated. No motor movement or Klipper restart.';
       const button=document.createElement('button');
       button.id='cxmMigrate';button.className='btn';
       button.textContent='Back up and migrate configuration';
