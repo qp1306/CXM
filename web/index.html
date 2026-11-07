@@ -355,7 +355,7 @@
  </div>
 </div>
 <div class="panel cxm-t0-auto" id="cxmToolAuto" hidden aria-busy="false">
- <div class="panel-heading"><h3 id="cxmToolAutoTitle">Selected hotend · Pickup / Dropoff</h3><span class="panel-label">Live carriage switch</span></div>
+ <div class="panel-heading"><h3 id="cxmToolAutoTitle">Selected hotend · Pickup / Dropoff</h3><span class="panel-label">Live carriage switch · controller 0.1.2</span></div>
  <p id="cxmToolAutoStatus" role="status" aria-live="polite">Checking selected hotend and Klipper…</p>
  <label class="cxm-capture-ack cxm-t0-motion-ack"><input id="cxmToolMotionAck" type="checkbox">
   <span class="cxm-approval-copy"><strong id="cxmToolMotionLabel">Approve selected hotend movement</strong>
@@ -365,7 +365,7 @@
   <button class="btn primary" id="cxmToolDropoff" disabled>Drop off selected hotend</button>
  </div>
  <p class="helper" id="cxmToolGeometry">Reading selected CxChanger dock geometry…</p>
- <p class="helper">The switch proves presence, not hotend identity. T1–T11 dropoff is permitted only after a verified pickup of the same tool in this controller session. Repeat cycles remain T0-only during initial multi-tool commissioning.</p>
+ <p class="helper">The carriage switch reports FILAMENT PRESENT or ABSENT, not which hotend is attached. The selected T1–T11 hotend supplies the tool identity. Approval confirms that identity and the physical path before pickup/dropoff; repeat cycles remain T0-only.</p>
  <p id="cxmToolAutoResult" class="helper" role="status" aria-live="polite"></p>
  <div id="cxmToolFaultBox" class="cxm-t0-auto-fault" hidden>
   <p class="helper">Inspect hotend, dock and carriage. Clearing a fault requires a physically EMPTY carriage and a RELEASED switch.</p>
@@ -780,7 +780,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-dock.js?v=0.9.6" defer></script>
 <script src="cxm-lineux.js?v=0.9.14" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
 <script src="cxm-t0-auto.js?v=1.2.3" defer></script>
-<script src="cxm-tools.js?v=0.1.1" defer></script>
+<script src="cxm-tools.js?v=0.1.2" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
