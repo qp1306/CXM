@@ -56,6 +56,14 @@ class ToolAwareTests(unittest.TestCase):
         return tools.automatic_toolchange(store=self.store,tool=tool,
             expected_revision=self.store.version,kind=kind,
             acknowledgement='I_CONFIRMED_SELECTED_HOTEND_IDENTITY_AND_FULL_XY_PATH_CLEAR')
+    def test_present_selection_requires_fresh_identity_and_path_acknowledgement(self):
+        self.signal='PRESSED'
+        with self.assertRaisesRegex(tools.ToolError,'Confirm selected hotend identity'):
+            tools.automatic_toolchange(
+                store=self.store,tool=1,expected_revision=self.store.version,
+                kind='dropoff',acknowledgement='INVALID')
+        self.assertEqual(self.motions,[])
+
     def test_t1_pickup_and_dropoff_use_t1_datum_not_t0(self):
         self.assertTrue(tools.status(store=self.store,tool=1)['ready'])
         result=self.operation(1,'pickup')
