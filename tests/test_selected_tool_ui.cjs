@@ -23,11 +23,14 @@ function harness(initial='1'){
    if(url==='/cxm/api/v1/config')payload=config;
    else if(url.startsWith('/cxm/api/v1/tools/status?')){
      const n=Number(new URL('http://localhost'+url).searchParams.get('tool'));
-     payload={tool:n,ready:!block,
+     const unknownMounted=signal==='PRESSED'&&mounted===null&&!block;
+     payload={tool:n,ready:!block&&!unknownMounted,
        saved_xy_mm:{x:n===1?267.6:230.31,y:65.94},
-       automatic:{enabled:!block,reason:block?'T0 fault requires inspection':null,
+       automatic:{enabled:!block&&!unknownMounted,
+                  reason:block?'T0 fault requires inspection':
+                         unknownMounted?'Mounted hotend not identified':null,
                   signal,mounted_tool:mounted,identity_source:identity,
-                  can_confirm_mounted:!block&&signal==='PRESSED'&&mounted===null,
+                  can_confirm_mounted:unknownMounted,
                   fault}};
    }else if(url==='/cxm/api/v1/tools/auto'){
      const body=JSON.parse(options.body);
