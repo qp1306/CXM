@@ -331,3 +331,44 @@ Since the change affects \`printer.cfg\`, a **single intentional Klipper \`RESTA
 The new Jinja test suite renders command sequences for \`G28 X\`, \`G28 X Y\`, \`G28 Y\`, full \`G28\`, \`G28 Z\` with axes homed/unhomed, and mixed X/Z cases. These tests establish *intended command expansion*, not real-world motor clearance, repeatability or firmware integration.
 
 If an old v0.9.2 \`--apply\` was already used, the v0.9.3 installer supports upgrading that configuration, but Klipper must still be retested physically before dock calibration is unlocked.
+
+
+## Dock XY: motor-release state and long-running homing requests (7 Nov 2026)
+
+The CXM API Nginx bootstrap previously used \`proxy_read_timeout 6s\`; the
+supervised homing command may require longer, and the Python Moonraker bridge
+allows up to 125 seconds. The gateway must allow more time than the backend.
+A stale proxy can return an HTML 504 to Safari, which may surface the vague
+"The string did not match the expected pattern" error. **An HTTP timeout
+does not prove that the printer did not move.**
+
+After updating CXM from **Updates**, SSH to the printer and run the
+read-only Nginx installer preflight:
+
+\`\`\`bash
+python3 ~/CXM/scripts/cxm_config_install.py
+\`\`\`
+
+If preflight recognises the existing CXM configuration and reports the
+150-second read timeout upgrade, apply it with a timestamped backup, Nginx
+validation and reload:
+
+\`\`\`bash
+python3 ~/CXM/scripts/cxm_config_install.py --apply
+\`\`\`
+
+The installer recognises the exact original six-second CXM API block and
+does not overwrite unrecognised/custom routes. It can restart only the
+CXM config service and reload Nginx; it **does not alter printer.cfg, move
+motors or restart Klipper**. Stop if preflight fails and inspect the output.
+
+When X/Y steppers are already OFF and all four Z motors report ON, Dock XY
+now labels **Step 2 COMPLETE** and blocks a duplicate release. Repeating
+Release X/Y does not solve an unready measurement. If Step 4 is unavailable,
+use **Refresh machine readiness** while Klipper is idle. If the reported X
+position lacks the software margin required for the initial Lineux +3 mm jog,
+do not seed fake coordinates, re-home from a dock, or jog X/Y after moving by
+hand. Recover the carriage to a physically safe, clear homing location
+under supervision, establish a fresh genuine home/centre park, then release
+X/Y once for a new measurement attempt. This is a physical commissioning
+step and cannot be made safe by an automatic webpage action alone.
