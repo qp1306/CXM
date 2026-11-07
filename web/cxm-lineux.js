@@ -11,8 +11,19 @@ function feedback(message,kind='pending'){
   const e=el('cxmLineuxResult');e.textContent=message;e.dataset.testState=kind;
 }
 function selected(){return Number(el('cxmDockTool')?.value);}
+function releasedMotors(readiness){
+  const x=readiness?.status?.xy_motor_enabled;
+  const z=readiness?.status?.z_motor_enabled;
+  return x?.x===false && x?.y===false &&
+    ['stepper_z','stepper_z1','stepper_z2','stepper_z3'].every(name=>z?.[name]===true);
+}
+function alreadyReleased(){return releasedMotors(state)||releasedMotors(releaseState);}
 function controls(){
   const matching=result && Number.isInteger(tool) && selected()===tool;
+  const released=alreadyReleased();
+  const releaseBadge=el('cxmLineuxReleaseBadge');
+  if(releaseBadge)releaseBadge.textContent=released?'COMPLETE · X/Y OFF · Z ON':'Z stays powered';
+  el('cxmLineuxReleaseStep')?.classList?.toggle?.('cxm-step-complete',released);
   // Backend retains final authority over movement. A pending Release XY
   // acknowledgement is also the explicit trigger for a fresh live preflight
   // after Mainsail homing, so do not erase it during transient readiness checks.
@@ -26,19 +37,22 @@ function controls(){
     const blocked=check?.blockers?.some(reason=>
       /configuration migration required|maintenance lockout/i.test(reason))===true;
     input.disabled=busy||!check||blocked||
+      (released && (id==='cxmLineuxReleaseAck'||id==='cxmLineuxHomeAck'))||
       (id!=='cxmLineuxReleaseAck' && check.ready!==true);
-    if(blocked || (id!=='cxmLineuxReleaseAck' && check?.ready!==true))
+    if(blocked || (released && (id==='cxmLineuxReleaseAck'||id==='cxmLineuxHomeAck')) ||
+        (id!=='cxmLineuxReleaseAck' && check?.ready!==true))
       input.checked=false;
   }
-  el('cxmLineuxHome').disabled=busy || !homeState?.ready || !el('cxmLineuxHomeAck').checked;
+  el('cxmLineuxHome').disabled=busy || released || !homeState?.ready || !el('cxmLineuxHomeAck').checked;
   el('cxmLineuxStart').disabled=busy || !state?.ready ||
     !el('cxmLineuxAck').checked;
-  el('cxmLineuxReleaseXY').disabled=busy || !releaseState?.ready ||
+  el('cxmLineuxReleaseXY').disabled=busy || released || !releaseState?.ready ||
     !el('cxmLineuxReleaseAck').checked;
   el('cxmLineuxKnownStart').disabled=busy || !knownState?.ready || !el('cxmLineuxKnownAck').checked;
   el('cxmLineuxToDraft').disabled=busy || !matching ||
     el('cxmDockX')?.disabled!==false || el('cxmDockY')?.disabled!==false;
   el('cxmLineuxPreflight').disabled=busy;
+  if(el('cxmLineuxRefresh'))el('cxmLineuxRefresh').disabled=busy;
 }
 async function call(path,body){
   const options={credentials:'same-origin',cache:'no-store'};
@@ -47,8 +61,18 @@ async function call(path,body){
     options.body=JSON.stringify(body);
   }
   const r=await fetch(api+path,options);
-  const data=await r.json();
-  if(!r.ok)throw Error(data.error || 'CXM service HTTP '+r.status);
+  // A legacy 6-second Nginx timeout can serve an HTML gateway error
+  // after the printer has already executed a motion command.
+  if(r.status===502 || r.status===504)
+    throw Error('CXM gateway HTTP '+r.status+
+      ': command result UNKNOWN. Inspect the printer and update Nginx proxy_read_timeout before retrying.');
+  let data;
+  try{data=await r.json();}
+  catch(err){
+    throw Error('CXM API '+path+' returned non-JSON HTTP '+(r.status||'unknown')+
+      ': command result UNKNOWN. Inspect the printer before repeating.');
+  }
+  if(!r.ok)throw Error(data?.error || 'CXM service HTTP '+r.status);
   return data;
 }
 async function preflight(){
@@ -75,9 +99,13 @@ async function preflight(){
     el('cxmLineuxHomeStatus').textContent=home.ready
       ? 'Ready to home · confirm physical clearance.'
       : 'Homing unavailable: '+home.blockers.join('; ');
-    el('cxmLineuxReleaseStatus').textContent=release.ready
+    el('cxmLineuxReleaseStatus').textContent=alreadyReleased()
+      ? 'STEP COMPLETE · X/Y motors are already OFF; all four Z motors are ON. Do not release them again.'
+      : release.ready
       ? 'XYZ homed, Z >=20 mm, four Z motors powered. Release X/Y when physically safe.'
       : 'X/Y release unavailable: '+release.blockers.join('; ');
+    if(alreadyReleased())el('cxmLineuxHomeStatus').textContent=
+      'X/Y already released. Do not rehome from a hand-positioned dock; to restart, move carriage to a safe clear area before supervised homing.';
     if(known.ready){
       const xy=known.status?.known_start_xy_mm||[];
       el('cxmLineuxKnownStatus').textContent='KNOWN TEST READY · X'+
@@ -161,7 +189,7 @@ async function refreshReleaseReadiness({retryTransient=true}={}){
 }
 
 async function homeAndLift(){
-  if(busy || !homeState?.ready || !el('cxmLineuxHomeAck').checked)return;
+  if(busy || alreadyReleased() || !homeState?.ready || !el('cxmLineuxHomeAck').checked)return;
   const n=selected();
   if(n!==homeState.tool)return;
 
@@ -186,13 +214,13 @@ async function homeAndLift(){
     el('cxmLineuxHomeStatus').textContent=
       'HOMED · Z20 · X195/Y170. Next: confirm physical support and release X/Y.';
   }catch(e){
-    el('cxmLineuxHomeStatus').textContent='HOME NOT VERIFIED: '+e.message+
-      '. Inspect the printer before repeating.';
+    el('cxmLineuxHomeStatus').textContent='HOME RESULT NOT VERIFIED: '+e.message+
+      '. The printer MAY HAVE MOVED. Inspect the actual XYZ and motor state before any repeat.';
   }finally{busy=false;controls();}
 }
 
 async function releaseXY(){
-  if(busy || !releaseState?.ready || !el('cxmLineuxReleaseAck').checked)return;
+  if(busy || alreadyReleased() || !releaseState?.ready || !el('cxmLineuxReleaseAck').checked)return;
   const n=selected();
   if(n!==releaseState.tool)return;
 
@@ -233,7 +261,8 @@ async function preflightAfterRelease(){
     state=current;
     el('cxmLineuxStatus').textContent=current.ready
       ? 'ENGINE READY · physically align your dock, then press Measure dock XY'
-      : 'DOCK NOT READY · '+current.blockers.join('; ');
+      : 'MEASUREMENT BLOCKED · '+current.blockers.join('; ')+
+        '. Step 2 is already complete; do not release X/Y again. Refresh readiness after Klipper is idle. If software X has insufficient clearance, stop and re-establish a safe central homed position before releasing X/Y again.';
   }catch(err){
     state=null;
     el('cxmLineuxStatus').textContent='Dock readiness unavailable: '+err.message;
@@ -350,6 +379,7 @@ async function copy(){
   controls();
 }
 el('cxmLineuxPreflight').addEventListener('click',preflight);
+el('cxmLineuxRefresh')?.addEventListener('click',preflight);
 el('cxmLineuxHome').addEventListener('click',homeAndLift);
 el('cxmLineuxHomeAck').addEventListener('change',controls);
 el('cxmLineuxReleaseXY').addEventListener('click',releaseXY);
