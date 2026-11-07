@@ -78,7 +78,7 @@ test('red overlay, preserved palette and control count',()=>{
  assert.match(html,/cxm-tool-picker\.js\?v=0\.9\.3/);
  assert.match(html,/id="cxmCountSelect"/);
  assert.match(html,/<option value="12">12<\/option>/);
- assert.match(html,/CXM <span>Control Centre<\/span>/);
+ assert.match(html,/id="cxmPageTitle">Hotends<\/h1>/);
  const script=fs.readFileSync(path.join(__dirname,'../web/cxm-settings.js'),'utf8');
  assert.match(script,/key:'tool_count',value:next/);
  assert.match(script,/snapshot\.migration_required/);
