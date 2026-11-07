@@ -13,6 +13,17 @@ function feedback(message,kind='pending'){
 function selected(){return Number(el('cxmDockTool')?.value);}
 function controls(){
   const matching=result && Number.isInteger(tool) && selected()===tool;
+  // Do not show a green approval on an operation that the backend cannot authorise.
+  for(const [id,ready] of [
+    ['cxmLineuxHomeAck',homeState?.ready],
+    ['cxmLineuxReleaseAck',releaseState?.ready],
+    ['cxmLineuxAck',state?.ready],
+    ['cxmLineuxKnownAck',knownState?.ready]
+  ]){
+    const input=el(id);
+    input.disabled=busy||ready!==true;
+    if(ready!==true)input.checked=false;
+  }
   el('cxmLineuxHome').disabled=busy || !homeState?.ready || !el('cxmLineuxHomeAck').checked;
   el('cxmLineuxStart').disabled=busy || !state?.ready ||
     !el('cxmLineuxAck').checked;
@@ -349,6 +360,7 @@ el('cxmLineuxStart').addEventListener('click',measure);
 el('cxmLineuxToDraft').addEventListener('click',copy);
 el('cxmLineuxAck').addEventListener('change',controls);
 el('cxmDockTool').addEventListener('change',preflight);
+window.addEventListener('cxm-config-migrated',preflight);
 window.addEventListener('cxm-calibrate-tool',()=>setTimeout(preflight,0));
 preflight();
 })();
