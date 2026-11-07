@@ -14,11 +14,16 @@ def finite(v, label, lo, hi):
         raise ValueError(label+' outside allowed CxChanger range')
     return float(v)
 
-def plan(saved, shift_x=None, dodge_y=None):
-    t=saved['config']['tools'][0]
+def plan(saved, shift_x=None, dodge_y=None, tool=0):
+    """Calculate original CxChanger path for any configured T0..T11 datum."""
+    if type(tool) is not int or not 0<=tool<12:
+        raise ValueError('Invalid CxChanger hotend index')
+    if tool>=saved['config']['globals']['tool_count']:
+        raise ValueError('CxChanger hotend is not selected')
+    t=saved['config']['tools'][tool]
     g=saved['config']['globals']
     if t['dock_x'] is None or t['dock_y'] is None:
-        raise ValueError('Save CxChanger T0 dock XY datum first')
+        raise ValueError('Save CxChanger T'+str(tool)+' dock XY datum first')
     if not t.get('dock_reference_accepted',False):
         raise ValueError('CxChanger dock reference not accepted. Re-measure with Lineux and save the CxChanger datum.')
     x=finite(t['dock_x'],'CxChanger dock X',10,325)
