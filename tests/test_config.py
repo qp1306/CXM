@@ -235,7 +235,7 @@ class TestStore(unittest.TestCase):
                'variable_globals: '+repr(old_cfg['globals'])]
         lines += ['variable_t%d: %r'%(i,t) for i,t in enumerate(old_cfg['tools'])]
         lines+=['gcode:', '']
-        old='\\n'.join(lines)
+        old='\n'.join(lines)
         self.store.path.write_text(old)
         state=self.store.read()
         self.assertTrue(state['migration_required'])
