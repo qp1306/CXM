@@ -126,7 +126,8 @@ def validate(data, schema=SCHEMA):
             raise ValueError(f'Invalid T{n} settings')
         for key, spec in fields.items():
             check_value(key, tool[key], spec,
-                        nullable=key.startswith('dock_') or key.startswith('lineux_raw_'))
+                        nullable=key in ('dock_x','dock_y','dock_z',
+                                         'lineux_raw_x','lineux_raw_y'))
     return data
 
 
