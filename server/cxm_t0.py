@@ -70,23 +70,24 @@ def number(n,label,lo,hi):
         raise T0Error(label+' outside safe configured range')
     return float(n)
 
-def _safe_context(saved, *, require_homed=True, require_in_park=False):
+def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False):
     if saved['migration_required']:
         raise T0Error('CXM settings migration required before T0 testing')
-    # The commissioning command always targets tool index 0. Other enabled
-    # tool slots may exist, but they are never selected or moved by this API.
-    # Do not confuse "T0-only test" with "printer has one configured tool".
+    # The existing /t0 endpoints always use tool=0. A separate guarded bridge
+    # may reuse this read-only hardware preflight with T1..T11.
     count=saved['config']['globals'].get('tool_count')
     if type(count) is not int or not 1 <= count <= 12:
         raise T0Error('Invalid configured hotend count')
-    t=saved['config']['tools'][0]
+    if type(tool) is not int or not 0 <= tool < count:
+        raise T0Error('Selected hotend is outside configured tool count')
+    t=saved['config']['tools'][tool]
     if t['maintenance_lockout']:
-        raise T0Error('T0 is under maintenance lockout')
+        raise T0Error('T'+str(tool)+' is under maintenance lockout')
     if t['dock_x'] is None or t['dock_y'] is None:
-        raise T0Error('Save T0 dock X/Y first')
+        raise T0Error('Save T'+str(tool)+' dock X/Y first')
     # The Lineux calibration result is not a motion model. The CxChanger
     # engine owns the accepted locking-hole datum and the relative Y clearance.
-    p=plan(saved)
+    p=plan(saved,tool=tool)
     x=p['dock_reference_xy']['x']
     y=p['dock_reference_xy']['y']
     safe=p['safe_y']
@@ -128,10 +129,10 @@ def _safe_context(saved, *, require_homed=True, require_in_park=False):
     # acknowledgement plus powered motors, Z>=20 and idle printer.
     if require_in_park and (abs(pos[0]-x)>POSITION_TOL or abs(pos[1]-safe)>POSITION_TOL):
         raise T0Error('Carriage must be at verified staging X/Y before pickup/dropoff')
-    return {'pid':info['process_id'],'x':x,'y':y,'safe_y':safe,
+    return {'pid':info['process_id'],'tool':tool,'x':x,'y':y,'safe_y':safe,
             'position':pos[:3],'objects':objects,'revision':saved['revision']}
 
-def _wait_for_idle_after_move(saved, *, parked, expected_pid, timeout_sec=10.0):
+def _wait_for_idle_after_move(saved, *, parked, expected_pid, timeout_sec=10.0, tool=0):
     """Read-only wait for Klipper to settle after a completed G-code script.
 
     Moonraker can return from an M400-ended script before Klipper's
@@ -142,7 +143,7 @@ def _wait_for_idle_after_move(saved, *, parked, expected_pid, timeout_sec=10.0):
     deadline=time.monotonic()+timeout_sec
     while True:
         try:
-            ctx=_safe_context(saved,require_in_park=parked)
+            ctx=_safe_context(saved,tool=tool,require_in_park=parked)
         except T0Error as exc:
             if str(exc)!='Klipper is not idle':
                 raise
@@ -180,9 +181,9 @@ def _candidates(objects):
     return sorted(o for o in objects if
                   o.startswith('gcode_button ') or o.startswith('filament_switch_sensor '))
 
-def plan(saved,shift_x=None,dodge_y=None):
+def plan(saved,shift_x=None,dodge_y=None,*,tool=0):
     try:
-        return cxchanger_plan(saved,shift_x=shift_x,dodge_y=dodge_y)
+        return cxchanger_plan(saved,shift_x=shift_x,dodge_y=dodge_y,tool=tool)
     except (ValueError, KeyError, TypeError) as exc:
         raise T0Error(str(exc)) from exc
 
@@ -206,7 +207,12 @@ def _auto_snapshot(ctx, saved):
     # If already at the start of dock approach, no staging movement needed.
     # Otherwise never cross from inside the dock region blindly.
     can_stage=at_stage or ctx['position'][1]>=ctx['safe_y']-POSITION_TOL
-    reason=(fault if fault else
+    # Prevent the legacy T0-only endpoint from releasing a T1+ hotend when
+    # its shared presence switch is PRESSED.
+    from cxm_tools import mounted_other_tool
+    other=mounted_other_tool(pid=ctx['pid'],revision=ctx['revision'])
+    reason=('T'+str(other)+' is mounted; T0 controls cannot drop it' if other is not None else
+            fault if fault else
             None if can_stage else
             'Carriage is inside the dock approach zone; safely reposition before running an automatic test')
     return {'enabled':not bool(reason),'reason':reason,'fault':fault,
