@@ -387,6 +387,7 @@
     document.querySelector('[data-tab="settings"]')?.click();
     setTimeout(()=>get('cxmHistory')?.click(),250);
   });
+  window.addEventListener('cxm-config-migrated',()=>{if(!busy)load();});
   document.querySelector('[data-tab="calibration"]')?.addEventListener('click',()=>{
     if (!dirty) load(); // Preserve unsaved drafts when switching tabs.
   });
