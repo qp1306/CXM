@@ -41,7 +41,7 @@ def _stable_sensor(name,objects,wanted,*,timeout_s=POST_MOVE_SENSOR_TIMEOUT_S,
         if streak>=consecutive:
             return {'signal':wanted,'samples':samples,'consecutive':consecutive}
         if time.monotonic()>=deadline:
-            raise ToolError('Carriage sensor did not stabilise at '+str(wanted)+
+            raise ToolError('Carriage presence switch did not stabilise at '+str(wanted)+
                             ' after motion (last '+str(last)+', '+str(samples)+
                             ' samples within '+str(timeout_s)+' s). Inspect hotend seating and switch.')
         time.sleep(interval_s)
@@ -197,20 +197,46 @@ def automatic_toolchange(*,store,tool,expected_revision,kind,acknowledgement):
         MOVE_LOCK.release()
 
 def clear_fault(*,store,tool,expected_revision,acknowledgement):
-    if acknowledgement!='I_INSPECTED_SELECTED_TOOL_AND_CONFIRMED_EMPTY_CARRIAGE':
-        raise ToolError('Physical inspection and empty-carriage confirmation required')
+    """No movement; only recover a known, inspected physical state.
+
+    A failed pickup may read RELEASED at verification and PRESENT later. In
+    that exact case, allow a deliberate inspected Tn-mounted recovery without
+    forcing a mechanical removal or restarting the service to hide the fault.
+    All other PRESSED faults remain locked.
+    """
     if not MOVE_LOCK.acquire(blocking=False):
         raise ToolError('Another printer motion operation is running')
     try:
         current=_snapshot(store,tool)
         if current['_revision']!=expected_revision:
             raise ToolError('Configuration changed; refresh before clearing fault')
-        if current['automatic']['signal']!=AUTO_EMPTY:
-            raise ToolError('Cannot clear tool fault until carriage switch reads RELEASED and carriage is physically empty')
+        auto=current['automatic']
+        signal=auto['signal']
+        fault=auto.get('fault')
+        if not fault:
+            raise ToolError('No selected-tool fault to clear')
+        if signal==AUTO_EMPTY:
+            required='I_INSPECTED_SELECTED_TOOL_AND_CONFIRMED_EMPTY_CARRIAGE'
+        elif signal==AUTO_MOUNTED and fault.startswith(
+                'T'+str(tool)+' pickup result uncertain:'):
+            required='I_INSPECTED_SELECTED_TOOL_MOUNTED_AND_DOCK_EMPTY'
+        else:
+            raise ToolError('Carriage PRESENT with an unresolved fault other than a failed pickup. Inspect before recovery.')
+        if acknowledgement!=required:
+            raise ToolError('Physically inspect T'+str(tool)+
+                            ' and confirm its real mounted/empty state before clearing this fault')
+        # The required state must be sustained; a one-off switch reading is
+        # insufficient to dismiss a latched motion-verification fault.
+        confirmation=_stable_sensor(AUTO_SENSOR,current['_ctx']['objects'],signal,
+                                    timeout_s=1.25)
         with _LOCK:
             _context_guard(current['_ctx'])
+            if _STATE['fault']!=fault:
+                raise ToolError('Tool fault changed during inspection; refresh')
             _STATE['fault']=None
-            _STATE['mounted_tool']=None
-        return {'status':'TOOL_FAULT_CLEARED_NO_MOVEMENT','tool':tool}
+            _STATE['mounted_tool']=None  # operator-selected identity, not sensor ID
+        return {'status':'TOOL_FAULT_CLEARED_NO_MOVEMENT','tool':tool,
+                'signal':signal,'sensor_verification':confirmation,
+                'note':'No movement. Verify the selected tool physically before the next independently approved motion.'}
     finally:
         MOVE_LOCK.release()
