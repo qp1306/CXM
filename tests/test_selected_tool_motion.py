@@ -19,6 +19,13 @@ class Store:
     def read(self):
         return {'config':self.data,'revision':self.version,'migration_required':False}
 
+
+class Clock:
+    """Deterministic fast tests without actual sleeps."""
+    def __init__(self):self.now=0.0
+    def monotonic(self):return self.now
+    def sleep(self,seconds):self.now+=seconds
+
 class ToolAwareTests(unittest.TestCase):
     def setUp(self):
         self.store=Store()
@@ -62,6 +69,113 @@ class ToolAwareTests(unittest.TestCase):
             tools.automatic_toolchange(
                 store=self.store,tool=1,expected_revision=self.store.version,
                 kind='dropoff',acknowledgement='INVALID')
+        self.assertEqual(self.motions,[])
+
+
+    def test_post_move_sensor_waits_for_four_consistent_pressed_readings(self):
+        sequence=iter(['RELEASED','PRESSED','PRESSED','RELEASED',
+                       'PRESSED','PRESSED','PRESSED','PRESSED'])
+        clock=Clock()
+        with patch.object(tools,'_sensor_value',side_effect=lambda *_:next(sequence)), \
+             patch.object(tools,'time',clock):
+            outcome=tools._stable_sensor(t0.AUTO_SENSOR,[t0.AUTO_SENSOR],'PRESSED')
+        self.assertEqual(outcome['signal'],'PRESSED')
+        self.assertEqual(outcome['consecutive'],4)
+        self.assertEqual(outcome['samples'],8)
+        self.assertAlmostEqual(clock.now,7*tools.POST_MOVE_SENSOR_INTERVAL_S)
+
+    def test_post_move_sensor_never_certifies_non_stabilising_switch(self):
+        clock=Clock()
+        sequence=['PRESSED','PRESSED','RELEASED']
+        counter={'n':0}
+        def bouncing(*_):
+            n=counter['n']
+            counter['n']+=1
+            return sequence[n%len(sequence)]
+        with patch.object(tools,'_sensor_value',side_effect=bouncing), \
+             patch.object(tools,'time',clock):
+            with self.assertRaisesRegex(tools.ToolError,'did not stabilise'):
+                tools._stable_sensor(t0.AUTO_SENSOR,[t0.AUTO_SENSOR],'PRESSED')
+        self.assertLessEqual(clock.now,tools.POST_MOVE_SENSOR_TIMEOUT_S+
+                             tools.POST_MOVE_SENSOR_INTERVAL_S)
+
+    def test_delayed_pickup_sensor_settles_without_false_fault_or_second_motion(self):
+        clock=Clock()
+        counts={'reads':0}
+        def delayed_sensor(*_):
+            counts['reads']+=1
+            # First read before the actual move is EMPTY. The switch
+            # temporarily lags for two post-move reads, then settles.
+            return 'RELEASED' if counts['reads']<=3 else 'PRESSED'
+        with patch.object(tools,'_sensor_value',side_effect=delayed_sensor), \
+             patch.object(tools,'time',clock):
+            result=self.operation(1,'pickup')
+        self.assertEqual(result['status'],'T1_PICKUP_SENSOR_CONFIRMED')
+        self.assertGreaterEqual(result['sensor_verification']['samples'],6)
+        self.assertEqual(len(self.motions),1,'Verification must not issue more G-code')
+        self.assertIsNone(tools._STATE['fault'])
+
+    def test_stuck_released_after_pickup_still_latches_fault(self):
+        clock=Clock()
+        with patch.object(tools,'_sensor_value',return_value='RELEASED'), \
+             patch.object(tools,'time',clock):
+            with self.assertRaisesRegex(tools.ToolError,'did not stabilise'):
+                self.operation(1,'pickup')
+        self.assertEqual(len(self.motions),1)
+        self.assertIn('pickup result uncertain',tools._STATE['fault'])
+        self.assertFalse(tools.status(store=self.store,tool=1)['ready'])
+
+    def test_inspected_mounted_recovery_from_failed_pickup_is_no_motion(self):
+        self.signal='PRESSED'
+        fault='T1 pickup result uncertain: switch initially RELEASED, expected PRESSED.'
+        tools._STATE.update(pid=123,revision=self.store.version,mounted_tool=None,
+                            fault=fault,last_success='T1 pickup')
+        clock=Clock()
+        with patch.object(tools,'time',clock):
+            result=tools.clear_fault(
+                store=self.store,tool=1,expected_revision=self.store.version,
+                acknowledgement='I_INSPECTED_SELECTED_TOOL_MOUNTED_AND_DOCK_EMPTY')
+        self.assertEqual(result['status'],'TOOL_FAULT_CLEARED_NO_MOVEMENT')
+        self.assertEqual(result['signal'],'PRESSED')
+        self.assertEqual(result['sensor_verification']['consecutive'],4)
+        self.assertEqual(self.motions,[])
+        self.assertIsNone(tools._STATE['fault'])
+        ready=tools.status(store=self.store,tool=1)
+        self.assertEqual(ready['automatic']['action'],'dropoff')
+        self.assertTrue(ready['ready'])
+
+    def test_mounted_recovery_rejects_wrong_ack_or_other_fault(self):
+        self.signal='PRESSED'
+        tools._STATE.update(pid=123,revision=self.store.version,mounted_tool=None,
+                            fault='T1 pickup result uncertain: switch mismatch',
+                            last_success=None)
+        with self.assertRaisesRegex(tools.ToolError,'Physically inspect'):
+            tools.clear_fault(store=self.store,tool=1,expected_revision=self.store.version,
+                              acknowledgement='I_INSPECTED_SELECTED_TOOL_AND_CONFIRMED_EMPTY_CARRIAGE')
+        self.assertIsNotNone(tools._STATE['fault'])
+        tools._STATE['fault']='T1 dropoff result uncertain: still PRESSED'
+        with self.assertRaisesRegex(tools.ToolError,'unresolved fault'):
+            tools.clear_fault(store=self.store,tool=1,expected_revision=self.store.version,
+                              acknowledgement='I_INSPECTED_SELECTED_TOOL_MOUNTED_AND_DOCK_EMPTY')
+        self.assertEqual(self.motions,[])
+        self.assertIsNotNone(tools._STATE['fault'])
+
+    def test_recovery_rechecks_stable_signal_and_rejects_glitch(self):
+        self.signal='PRESSED'
+        tools._STATE.update(pid=123,revision=self.store.version,mounted_tool=None,
+                            fault='T1 pickup result uncertain: sensor late',last_success=None)
+        clock=Clock()
+        reads={'n':0}
+        def alternating(*_):
+            reads['n']+=1
+            if reads['n']==1:return 'PRESSED' # readiness preflight
+            return 'PRESSED' if reads['n']%2==0 else 'RELEASED'
+        with patch.object(tools,'_sensor_value',side_effect=alternating), \
+             patch.object(tools,'time',clock):
+            with self.assertRaisesRegex(tools.ToolError,'did not stabilise'):
+                tools.clear_fault(store=self.store,tool=1,expected_revision=self.store.version,
+                    acknowledgement='I_INSPECTED_SELECTED_TOOL_MOUNTED_AND_DOCK_EMPTY')
+        self.assertIsNotNone(tools._STATE['fault'])
         self.assertEqual(self.motions,[])
 
     def test_t1_pickup_and_dropoff_use_t1_datum_not_t0(self):
