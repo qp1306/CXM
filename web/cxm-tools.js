@@ -79,9 +79,9 @@ async function refresh(){
      ?'T'+n+' BLOCKED · '+(a.reason||result.blockers?.join('; ')||'Check carriage and printer.')
      :a.signal==='PRESSED'
        ?a.identity_source==='verified_pickup'
-         ?'T'+n+' SELECTED · Tool PRESENT (pickup previously confirmed). Approve dropoff.'
-         :'T'+n+' SELECTED · Tool PRESENT. Confirm it is physically T'+n+', then approve dropoff.'
-       :'T'+n+' SELECTED · Tool ABSENT. Approve pickup after checking T'+n+' is in its dock.');
+         ?'T'+n+' SELECTED · FILAMENT PRESENT (prior pickup confirmed). Approve dropoff.'
+         :'T'+n+' SELECTED · FILAMENT PRESENT. Confirm it is physically T'+n+', then approve dropoff.'
+       :'T'+n+' SELECTED · FILAMENT ABSENT. Approve pickup after checking T'+n+' is in its dock.');
    say('cxmToolGeometry','T'+n+' CxChanger dock X'+(result.saved_xy_mm?.x?.toFixed(3)??'—')+
      ' Y'+(result.saved_xy_mm?.y?.toFixed(3)??'—')+' · Selected-tool geometry');
  }catch(e){
