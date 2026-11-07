@@ -105,7 +105,7 @@ test('switching from T1 to T2 invalidates prior approval and never sends T1 coor
 
 test('backend block keeps all selected-tool motion disabled even when checkbox checked',async()=>{
  const h=harness('1');h.setBlocked(true);
- await h.tick();await h.tick();
+ await h.select(1);
  h.approve();
  assert.equal(h.node('cxmToolPickup').disabled,true);
  assert.equal(h.node('cxmToolDropoff').disabled,true);
