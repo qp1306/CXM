@@ -178,6 +178,11 @@
 @media(max-width:560px){.cxm-t0-auto-buttons{flex-direction:column}.cxm-t0-auto-buttons .btn{width:100%}}
 
 /* Unified CXM Control Centre UI — large one-step approval cards */
+#cxmToolMountedRecovery{margin:12px 0;padding:15px;border-color:#ba8d45}
+#cxmToolMountedRecovery[hidden]{display:none!important}
+#cxmToolMountedRecovery .btn{min-height:48px}
+#cxmToolMotionAck:disabled{cursor:not-allowed}
+
 .cxm-step.cxm-step-complete{border-color:#5fb98f;background:#1c352f}
 .cxm-step-complete #cxmLineuxReleaseBadge{color:#88ecc0;font-weight:800}
 .cxm-step-complete .cxm-approval-copy strong{color:#b1e7ce}
@@ -357,6 +362,10 @@
 <div class="panel cxm-t0-auto" id="cxmToolAuto" hidden aria-busy="false">
  <div class="panel-heading"><h3 id="cxmToolAutoTitle">Selected hotend · Pickup / Dropoff</h3><span class="panel-label">Live carriage switch</span></div>
  <p id="cxmToolAutoStatus" role="status" aria-live="polite">Checking selected hotend and Klipper…</p>
+ <div id="cxmToolMountedRecovery" class="dock-warning" hidden>
+  <p class="helper"><strong>Hotend already attached?</strong> The shared switch is PRESSED but cannot identify it. You must physically verify the selected hotend is mounted, its own dock is EMPTY, and X/Y has been genuinely homed without manual carriage movement.</p>
+  <button class="btn" id="cxmToolConfirmMounted" disabled>Confirm selected hotend already mounted (no movement)</button>
+ </div>
  <label class="cxm-capture-ack cxm-t0-motion-ack"><input id="cxmToolMotionAck" type="checkbox">
   <span class="cxm-approval-copy"><strong id="cxmToolMotionLabel">Approve selected hotend movement</strong>
   <small>Correct hotend physically in dock or on carriage · full XY path clear · emergency stop accessible · supervised operation</small></span></label>
@@ -780,7 +789,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-dock.js?v=0.9.6" defer></script>
 <script src="cxm-lineux.js?v=0.9.14" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
 <script src="cxm-t0-auto.js?v=1.2.3" defer></script>
-<script src="cxm-tools.js?v=0.1.0" defer></script>
+<script src="cxm-tools.js?v=0.1.1" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
