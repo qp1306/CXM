@@ -23,13 +23,17 @@ function harness(initial='1'){
    if(url==='/cxm/api/v1/config')payload=config;
    else if(url.startsWith('/cxm/api/v1/tools/status?')){
      const n=Number(new URL('http://localhost'+url).searchParams.get('tool'));
-     payload={tool:n,ready:!block,
+     const differentMounted=mounted!==null&&mounted!==n;
+     const reason=block?'T0 fault requires inspection':
+       differentMounted?'T'+mounted+' is recorded as mounted. Drop it off first.':null;
+     payload={tool:n,ready:!reason,
        saved_xy_mm:{x:n===1?267.6:230.31,y:65.94},
-       automatic:{enabled:!block,reason:block?'T0 fault requires inspection':null,
-                  signal,mounted_tool:mounted,fault}};
+       automatic:{enabled:!reason,reason,signal,mounted_tool:mounted,fault,
+         identity_source:mounted===n?'verified_pickup':
+            signal==='PRESSED'&&mounted===null?'operator_selected':null}};
    }else if(url==='/cxm/api/v1/tools/auto'){
      const body=JSON.parse(options.body);
-     assert.equal(body.acknowledgement,'I_CONFIRMED_SELECTED_TOOL_XY_PATH_CLEAR_AND_WILL_SUPERVISE');
+     assert.equal(body.acknowledgement,'I_CONFIRMED_SELECTED_HOTEND_IDENTITY_AND_FULL_XY_PATH_CLEAR');
      assert.equal(body.expected_revision,config.revision);
      signal=body.kind==='pickup'?'PRESSED':'RELEASED';
      mounted=body.kind==='pickup'?body.tool:null;
@@ -63,7 +67,7 @@ function harness(initial='1'){
 test('T0-only controls are never shown for T1–T11',()=>{
  assert.match(legacy,/root.hidden=!onlyT0\(\)/);
  assert.match(html,/id="cxmToolAuto" hidden/);
- assert.match(html,/src="cxm-tools\.js\?v=0\.1\.0"/);
+ assert.match(html,/src="cxm-tools\.js\?v=0\.1\.1"/);
 });
 
 test('T1 selection controls T1 geometry, one supervised pickup and same tool dropoff',async()=>{
@@ -112,6 +116,42 @@ test('backend block keeps all selected-tool motion disabled even when checkbox c
  await h.node('cxmToolPickup').listeners.click();
  assert.equal(h.calls.some(c=>c.url.endsWith('/tools/auto')),false);
  assert.match(h.node('cxmToolAutoStatus').textContent,/T0 fault requires inspection/);
+});
+
+
+test('operator-selected T1 with PRESENT enables dropoff after one approval, without prior pickup',async()=>{
+ const h=harness('1');h.setSignal('PRESSED');await h.select(1);
+ assert.match(h.node('cxmToolAutoStatus').textContent,/T1 SELECTED.*PRESENT/);
+ assert.match(h.node('cxmToolAutoStatus').textContent,/physically T1/);
+ assert.equal(h.node('cxmToolDropoff').disabled,true);
+ assert.equal(h.node('cxmToolMotionAck').disabled,false);
+ h.approve();assert.equal(h.node('cxmToolDropoff').disabled,false);
+ await h.node('cxmToolDropoff').listeners.click();
+ const sent=h.calls.filter(c=>c.url.endsWith('/tools/auto'));
+ assert.equal(sent.length,1);
+ assert.equal(JSON.parse(sent[0].options.body).tool,1);
+ assert.equal(JSON.parse(sent[0].options.body).kind,'dropoff');
+ assert.equal(h.node('cxmToolMotionAck').checked,false);
+ assert.match(h.node('cxmToolAutoStatus').textContent,/ABSENT/);
+});
+
+test('background status polling never replaces a useful PRESSED message with Checking',async()=>{
+ const h=harness('1');h.setSignal('PRESSED');await h.select(1);
+ const original=h.node('cxmToolAutoStatus').textContent;
+ h.node('calibrationTab').listeners.click();
+ assert.equal(h.node('cxmToolAutoStatus').textContent,original);
+ await h.tick();await h.tick();
+ assert.equal(h.node('cxmToolAutoStatus').textContent,original);
+});
+
+test('T1 successful pickup blocks T2 dropoff despite PRESSED shared switch',async()=>{
+ const h=harness('1');await h.tick();await h.tick();
+ h.approve();await h.node('cxmToolPickup').listeners.click();
+ await h.select(2);
+ assert.match(h.node('cxmToolAutoStatus').textContent,/T1 is recorded as mounted/);
+ h.approve();assert.equal(h.node('cxmToolDropoff').disabled,true);
+ assert.equal(h.node('cxmToolPickup').disabled,true);
+ assert.equal(h.calls.filter(c=>c.url.endsWith('/tools/auto')).length,1);
 });
 
 test('selection T0 hides selected-tool panel; no T1 request can be issued',async()=>{
