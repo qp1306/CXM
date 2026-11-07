@@ -211,10 +211,10 @@
   }
   async function migrate(){
     if(!snapshot || saving || !snapshot.migration_required)return;
-    const question=['Migrate CXM_variables.cfg to schema 2?',
+    const question=['Back up and migrate CXM_variables.cfg to schema 3?',
       'The original file will be backed up and all numeric calibration values preserved.',
-      'Every verification flag will start FALSE. Legacy T6–T11 were disabled by default,',
-      'so confirm their hardware separately before any future commissioning.',
+      'Previous dock and tool coordinates are retained for review, but old',
+      'CxChanger pickup, dropoff and docking verification will be cleared.',
       'This will not move the printer or restart Klipper.'].join('\n\n');
     if(!window.confirm(question))return;
     saving=true;status('Backing up and migrating…');
@@ -222,10 +222,11 @@
       const response=await postJSON('/migrate',{expected_revision:snapshot.revision});
       if(!response.saved)throw new Error('Migration not confirmed');
       const fresh=await getJSON(endpoint+'/config');
-      if(fresh.migration_required || fresh.config?.schema!==2)
-        throw new Error('Schema 2 could not be verified from disk');
+      if(fresh.migration_required || fresh.config?.schema!==3)
+        throw new Error('Schema 3 could not be verified from disk');
       snapshot=fresh;render();toolCards();
-      status('Schema 2 verified · backup preserved · all tools unverified');
+      window.dispatchEvent(new Event('cxm-config-migrated'));
+      status('Schema 3 verified · original file backed up · calibration preserved for review');
     }catch(e){
       status('Migration not verified: '+e.message,true);
       window.alert('CXM migration not verified: '+e.message);
@@ -276,5 +277,6 @@
   document.addEventListener('visibilitychange', () => {
     if(document.visibilityState==='visible' && !saving && !document.querySelector('[data-panel="tools"]').hidden) load();
   });
+  window.addEventListener('cxm-config-migrated',()=>{if(!saving)load();});
   load();
 })();

@@ -178,6 +178,15 @@
 @media(max-width:560px){.cxm-t0-auto-buttons{flex-direction:column}.cxm-t0-auto-buttons .btn{width:100%}}
 
 /* Unified CXM Control Centre UI — large one-step approval cards */
+.cxm-dock-migration{margin:17px 0 5px;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;border:2px solid #e4aa62;border-radius:12px;background:#382d1f}
+.cxm-dock-migration[hidden]{display:none!important}
+.cxm-dock-migration strong{color:#ffe0b0;font-size:18px}
+.cxm-dock-migration p{max-width:760px;color:#f1d5af;font-size:13px;line-height:1.5;margin:8px 0 0}
+.cxm-dock-migration .btn{min-height:51px;font-size:15px}
+.cxm-capture-ack:has(input:disabled){opacity:.55;cursor:not-allowed;border-color:#45566b}
+.cxm-capture-ack input[type="checkbox"]:disabled{cursor:not-allowed}
+@media(max-width:680px){.cxm-dock-migration .btn{width:100%;white-space:normal}}
+
 :root{--bg:#101722;--surface:#1a2533;--surface2:#223246;--stroke:#3c5069;--text:#f0f6ff;--muted:#acbed2;--blue:#78b9ff;--green:#6bd4a0}
 .topbar{background:#142030;border-bottom-color:#364c65}main{max-width:1380px;padding-top:25px}
 .page-heading h1{font-size:clamp(28px,3vw,35px);margin:5px 0}.page-heading p{font-size:14px}
@@ -214,6 +223,10 @@
 <section data-panel="calibration" hidden>
 <div class="section-title"><div><h2>Dock XY</h2><p>Home → Release → Align → Measure → Save</p></div><span class="count-pill">Provisional only</span></div>
 <div class="panel dock-top"><div class="dock-toolbar"><label for="cxmDockTool">Hotend</label><select id="cxmDockTool" disabled></select><span class="dock-status" id="cxmDockStatus">Loading configuration</span><button class="btn" id="cxmDockRefresh">Refresh</button></div><p class="muted" id="cxmDockSummary">Reading saved dock position…</p><div class="dock-safety">Shared extruder · saved dock XY is provisional until pickup is checked</div>
+<div class="cxm-dock-migration" id="cxmDockMigration" hidden role="status" aria-live="polite">
+ <div><strong>Configuration upgrade required</strong><p id="cxmDockMigrationText">An older CXM settings file is blocking calibration. Upgrade with an automatic backup; existing XY values are preserved for review.</p></div>
+ <button class="btn primary" id="cxmDockMigrate" disabled>Back up &amp; upgrade configuration</button>
+</div>
 <details class="cxm-advanced"><summary>Printer diagnostics (optional)</summary><div class="dock-live-preflight" aria-label="Read-only Klipper hardware preflight">
   <div><small>Klipper</small><strong id="cxmDockLiveKlipper">Checking…</strong></div>
   <div><small>Reported homing</small><strong id="cxmDockLiveHoming">Checking…</strong></div>
@@ -741,9 +754,9 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-state.js?v=0.9.4" defer></script>
 <script src="cxm-tool-picker.js?v=0.9.3" defer></script>
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
-<script src="cxm-settings.js?v=0.9.4" defer></script>
-<script src="cxm-dock.js?v=0.9.5" defer></script>
-<script src="cxm-lineux.js?v=0.9.12" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
+<script src="cxm-settings.js?v=0.9.5" defer></script>
+<script src="cxm-dock.js?v=0.9.6" defer></script>
+<script src="cxm-lineux.js?v=0.9.13" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
 <script src="cxm-t0-auto.js?v=1.2.2" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>

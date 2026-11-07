@@ -13,6 +13,23 @@ function feedback(message,kind='pending'){
 function selected(){return Number(el('cxmDockTool')?.value);}
 function controls(){
   const matching=result && Number.isInteger(tool) && selected()===tool;
+  // Backend retains final authority over movement. A pending Release XY
+  // acknowledgement is also the explicit trigger for a fresh live preflight
+  // after Mainsail homing, so do not erase it during transient readiness checks.
+  for(const [id,check] of [
+    ['cxmLineuxHomeAck',homeState],
+    ['cxmLineuxReleaseAck',releaseState],
+    ['cxmLineuxAck',state],
+    ['cxmLineuxKnownAck',knownState]
+  ]){
+    const input=el(id);
+    const blocked=check?.blockers?.some(reason=>
+      /configuration migration required|maintenance lockout/i.test(reason))===true;
+    input.disabled=busy||!check||blocked||
+      (id!=='cxmLineuxReleaseAck' && check.ready!==true);
+    if(blocked || (id!=='cxmLineuxReleaseAck' && check?.ready!==true))
+      input.checked=false;
+  }
   el('cxmLineuxHome').disabled=busy || !homeState?.ready || !el('cxmLineuxHomeAck').checked;
   el('cxmLineuxStart').disabled=busy || !state?.ready ||
     !el('cxmLineuxAck').checked;
@@ -349,6 +366,7 @@ el('cxmLineuxStart').addEventListener('click',measure);
 el('cxmLineuxToDraft').addEventListener('click',copy);
 el('cxmLineuxAck').addEventListener('change',controls);
 el('cxmDockTool').addEventListener('change',preflight);
+window.addEventListener('cxm-config-migrated',preflight);
 window.addEventListener('cxm-calibrate-tool',()=>setTimeout(preflight,0));
 preflight();
 })();
