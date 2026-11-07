@@ -199,13 +199,14 @@ get('cxmT0AutoClearFault').addEventListener('click',clearFault);
 get('cxmT0StartCycles').addEventListener('click',runCycles);
 get('cxmT0StopCycles').addEventListener('click',stopCycles);
 get('cxmT0Cycles').addEventListener('input',updateButtons);
-get('cxmDockTool')?.addEventListener('change',refresh);
+get('cxmDockTool')?.addEventListener('change',()=>{updateButtons();refresh();});
 document.querySelector('[data-tab="calibration"]')?.addEventListener('click',refresh);
 window.addEventListener('cxm-dock-saved',refresh);
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden)refresh();
 });
 setInterval(()=>{
+  updateButtons();
   if(!document.hidden&&onlyT0()){
     pollCycles();
     if(!busy&&!cycle?.running)refresh();

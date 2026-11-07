@@ -24,7 +24,7 @@ function path(){
       ' → Y'+y.toFixed(3)+' → X'+x.toFixed(3)+' → Y'+safe.toFixed(3)+'\n'+
       'DROPOFF: Y'+y.toFixed(3)+' → X'+(x+dx).toFixed(3)+
       ' → Y'+(y+dy).toFixed(3)+' → X'+x.toFixed(3)+' → Y'+safe.toFixed(3)+
-      '\nNo Z moves. Dock coordinates are unadjusted.';
+      '\nNo Z moves. Accepted CxChanger datum; geometry comes from Settings.';
   }catch(e){return 'PATH BLOCKED · '+e.message;}
 }
 function valid(){try{values();return !path().startsWith('PATH BLOCKED');}catch{return false;}}
@@ -69,6 +69,10 @@ async function refresh(){
   if(busy)return;
   try{
     state=await request('/status');
+    byId('cxmT0Shift').value=state.plan?.shift_x??'';
+    byId('cxmT0Dodge').value=state.plan?.dodge_y??'';
+    byId('cxmT0Shift').readOnly=true;
+    byId('cxmT0Dodge').readOnly=true;
     if(selected()!==0){set('cxmT0Status','T0 only — select T0 in Dock Calibration.');}
     else if(state.ready){
       set('cxmT0Status','T0 X'+state.saved_xy_mm.x.toFixed(3)+

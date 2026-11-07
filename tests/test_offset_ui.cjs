@@ -14,7 +14,7 @@ test('XY and Z editors have active inputs, saving and clear failure feedback',()
  for(const id of ['cxmXYEditTool','cxmXYEditX','cxmXYEditY','cxmXYEditSave','cxmXYEditStatus',
                    'cxmZEditTool','cxmZEditValue','cxmZEditSave','cxmZEditStatus'])
    assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/cxm-offset-editor\.js\?v=1\.0\.0/);
+ assert.match(html,/cxm-offset-editor\.js\?v=[\w.-]+/);
  assert.match(ui,/method:'POST'/);
  assert.match(ui,/\/cxm\/api\/v1\/offset/);
  assert.match(ui,/expected_revision:snapshot\.revision/);
@@ -30,7 +30,7 @@ test('high-density diagnostics are optional while baseline editors are visible',
  assert.match(xy,/id="cxmAxisTool"/);
  assert.match(z,/id="cxmZTool"/);
  assert.match(html,/Advanced · Diagnostics and system information/);
- assert.match(html,/T0 pickup &amp; dropoff tests/);
+ assert.match(html,/id="cxmT0Auto"/);
 });
 test('Settings has no duplicate docking or offset editor or obsolete dock Z',()=>{
  const s=web('cxm-settings.js');

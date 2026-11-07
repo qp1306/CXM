@@ -1,8 +1,25 @@
 # CXM Control Centre
 
-**CXM V0.9.0 commissioning development release** — GitHub-driven updater, protected AutoSave, and a view of disk-saved T0–T11 profiles (not yet active in Klipper).
+**Current scope: supervised T0 XY commissioning with separate Lineux measurement and CxChanger motion.**
 
-CXM is being built for a **single carriage-mounted extruder, shared filament switch and multiple exchangeable hotends** (T0–T11). Tool pickup/dropoff control is intentionally **not** enabled in this release.
+CXM uses a single carriage-mounted extruder and exchangeable hotends. The current
+T0 controls can perform supervised pickup/dropoff; this is not a production
+printing or T1–T11 toolchange release.
+
+Start with the [current first-test procedure](docs/cxchanger-first-test.md).
+It describes migration, the locking-hole datum, settings and the first physical cycle.
+The lower version-by-version sections are historical; their “motion disabled”
+statements describe those older releases, not the current T0 controller.
+
+The 7 November readiness fixes make advanced manual tests use the same saved
+geometry as automatic/repeat tests, reject stale manual overrides, verify the
+configuration and Klipper identity after manual motion, and tolerate only the
+known transient idle-state delay. Tool selection immediately disables irrelevant
+T0 controls. CI now runs every browser regression test and JavaScript syntax check.
+
+Validation: 168 Python tests passed with Jinja2 installed (zero skipped),
+61 JavaScript tests passed, and all web JavaScript passed syntax checks.
+These are software/simulated-hardware results, not a physical printer pass.
 
 ## CxChanger movement architecture (schema 3)
 

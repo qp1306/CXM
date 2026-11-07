@@ -2,7 +2,7 @@
 
 Explicit operator-supervised actions only, scoped to T0. No printer.cfg
 editing, no Z movement, no heater control, and no automatic tool activation.
-The tested Lineux dock X/Y is used without x_docking_adjust correction.
+The accepted CxChanger datum and saved motion geometry are used throughout.
 """
 from __future__ import annotations
 import math
@@ -535,7 +535,7 @@ def _gcode(points,kind):
 
 
 def motion(*,store,expected_revision,kind,acknowledgement,
-           shift_x=-3.0,dodge_y=14.0):
+           shift_x=None,dodge_y=None):
     if kind not in ('stage','pickup','dropoff'):
         raise T0Error('Unsupported test command')
     if acknowledgement!='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH':
@@ -546,7 +546,15 @@ def motion(*,store,expected_revision,kind,acknowledgement,
         saved=store.read()
         if saved['revision']!=expected_revision: raise T0Error('T0 coordinates changed; refresh')
         ctx=_safe_context(saved,require_in_park=(kind!='stage'))
-        points=plan(saved,shift_x,dodge_y)[kind]
+        geometry=plan(saved)
+        # Legacy clients may send preview values, but may not override the
+        # saved geometry used by automatic and repeat tests.
+        for value,key in ((shift_x,'shift_x'),(dodge_y,'dodge_y')):
+            if value is not None and (type(value) not in (int,float) or
+                    not math.isfinite(value) or value!=geometry[key]):
+                raise T0Error('Test geometry differs from saved Settings; refresh before moving')
+        shift_x,dodge_y=geometry['shift_x'],geometry['dodge_y']
+        points=geometry[kind]
         first_dropoff=False
         with SESSION_LOCK:
             _invalidate(ctx)
@@ -587,9 +595,14 @@ def motion(*,store,expected_revision,kind,acknowledgement,
             # staging test and manual inspection are always required.
             SESSION['stage']=None
         code=_gcode(points,kind)
+        if store.read()['revision']!=expected_revision:
+            raise T0Error('CXM settings changed before T0 movement; refresh')
         _rpc('/printer/gcode/script',{'script':code})
         # Re-evaluate actual position, motor power, and state after motion.
-        after=_safe_context(store.read(),require_in_park=True)
+        finished=store.read()
+        if finished['revision']!=expected_revision:
+            raise T0Error('CXM configuration changed during T0 test')
+        after=_wait_for_idle_after_move(finished,parked=True,expected_pid=ctx['pid'])
         if kind!='stage':
             with SESSION_LOCK:
                 sensor=SESSION['sensor']

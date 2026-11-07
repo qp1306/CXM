@@ -619,8 +619,8 @@ class T0Test(unittest.TestCase):
         self.assertFalse(result['sensor_confirmed'])
         self.assertEqual(self.machine.scripts[-1].splitlines(),
             ['G90','G1 X298.98000 Y65.88000 F240',
-             'G1 X295.98000 Y65.88000 F180',
-             'G1 X295.98000 Y79.88000 F240',
+             'G1 X294.18000 Y65.88000 F180',
+             'G1 X294.18000 Y79.88000 F240',
              'G1 X298.98000 Y79.88000 F240',
              'G1 X298.98000 Y120.00000 F240','M400'])
         status=c.status(self.store)
@@ -701,6 +701,28 @@ class T0Test(unittest.TestCase):
             self.assertFalse(c.status(self.store)['ready'])
             setattr(self.machine,attr,True if attr=='enabled' else 'xyz')
         self.assertFalse(c.status(self.store)['sensor_calibrated'])
+
+    def test_manual_geometry_must_match_saved_settings(self):
+        self.store.data['globals']['cxm_shift_x']=-5.5
+        self.store.data['globals']['cxm_dodge_y']=16.0
+        with self.assertRaisesRegex(c.T0Error,'differs from saved'):
+            c.motion(store=self.store,expected_revision=self.store.rev,
+                     kind='stage',shift_x=-4.8,dodge_y=14,
+                     acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertEqual(self.machine.scripts,[])
+        c.motion(store=self.store,expected_revision=self.store.rev,kind='stage',
+                 acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertEqual(c.SESSION['path'],{'shift_x':-5.5,'dodge_y':16.0})
+
+    def test_manual_stage_waits_through_transient_printing(self):
+        self.machine.busy_reads_after_move=2
+        with patch.object(c.time,'sleep'):
+            result=c.motion(store=self.store,expected_revision=self.store.rev,
+                     kind='stage',
+                     acknowledgement='I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH')
+        self.assertEqual(result['status'],'SUPERVISED_T0_STAGE_COMPLETE')
+        self.assertEqual(len(self.machine.scripts),1)
+        self.assertEqual(self.machine.busy_read_count,2)
 
     def test_test_paths_reject_unsafe_geometry(self):
         for dx,dy in [(0,14),(-9,14),(-3,40)]:

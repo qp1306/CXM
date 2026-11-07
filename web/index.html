@@ -321,10 +321,10 @@
    <div class="panel-heading"><h3>T0 · Supervised XY motion test</h3><span class="panel-label">Slow speed · one action at a time</span></div>
    <p class="helper" id="cxmT0Status" role="status">Checking T0 motion safety…</p>
    <div class="cxm-t0-grid">
-    <label>Lateral unlock X (mm)<input id="cxmT0Shift" type="number" min="-8" max="-1" step="0.1" value="-4.8"></label>
-    <label>Y dodge (mm)<input id="cxmT0Dodge" type="number" min="5" max="25" step="0.1" value="14.0"></label>
+    <label>Saved X latch travel (mm)<input id="cxmT0Shift" type="number" min="-8" max="-1" step="0.1" value="-4.8"></label>
+    <label>Saved Y dodge (mm)<input id="cxmT0Dodge" type="number" min="5" max="25" step="0.1" value="14.0"></label>
    </div>
-   <p class="helper">Advanced manual test overrides only. These inputs do NOT change saved CxChanger settings or the automatic/repeat routine. For permanent values use Settings: X latch, Y dodge and relative safe clearance. The staging location is always dock Y + safe clearance. Check each waypoint physically; XY only.</p>
+   <p class="helper">These read-only values come from Settings and are shared by manual, automatic and repeat tests. To adjust them use Settings: X latch, Y dodge and relative safe clearance. The staging location is always dock Y + safe clearance. Check each waypoint physically; XY only.</p>
    <p id="cxmT0Plan" class="cxm-t0-path" role="status">Motion path preview unavailable until readiness is checked.</p>
    <div class="buttons">
     <button class="btn" id="cxmT0Refresh">Refresh T0 status</button>
@@ -717,8 +717,8 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.4" defer></script>
 <script src="cxm-dock.js?v=0.9.5" defer></script>
-<script src="cxm-lineux.js?v=0.9.11" defer></script><script src="cxm-t0.js?v=0.9.13" defer></script>
-<script src="cxm-t0-auto.js?v=1.2.0" defer></script>
+<script src="cxm-lineux.js?v=0.9.11" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
+<script src="cxm-t0-auto.js?v=1.2.1" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
