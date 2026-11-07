@@ -418,3 +418,32 @@ strength, heater or thermistor switching, Z offset or full commissioning.
 No \`printer.cfg\` edits or Klipper restart are required simply for this web
 and loopback-service update. The CXM service may restart itself to load new
 Python code, which clears ephemeral mounted-tool identity.
+
+
+## T1–T11 carriage sensor stabilisation and fault recovery
+
+For selected-hotend pickup/dropoff, CXM now waits for **four consecutive**
+PRESSED (pickup) or RELEASED (dropoff) readings from the actual Klipper
+carriage switch, sampled roughly 150 ms apart within a 2.5-second
+post-motion window. Checking begins **after** the ordered CxChanger motion
+script completes and Klipper is idle. The read-only check does **not**
+retry any tool movement or alter dock geometry. If the expected state
+never stabilises, the original hard fault remains latched and later
+moves remain blocked. T0's proven movement/sensor logic is not changed.
+
+An earlier failed T1–T11 pickup can leave a latched fault if the switch was
+temporarily RELEASED at verification and subsequently reads PRESSED.
+Following **physical inspection**, the Dock XY panel offers a special,
+no-motion clear action **only** for an actual failed-pickup fault with the
+same selected tool and currently PRESSED switch. The operator must verify
+the selected hotend is genuinely coupled/secure and that its dock is empty.
+The backend then rechecks that PRESSED is stable for four samples and clears
+**only that fault**. An unrelated dropoff fault while PRESSED stays blocked.
+When the switch is RELEASED and the carriage is genuinely empty, the
+existing inspected-empty fault-clear path still applies.
+
+The switch establishes presence, **not hotend identity**; human inspection
+still matters. An update of the CXM Python backend may restart the CXM
+service and lose ephemeral fault records: absence of the old fault after an
+update is not proof that the physical issue was fixed. Do not initiate
+more motion until the real tool, coupler and dock have been inspected.
