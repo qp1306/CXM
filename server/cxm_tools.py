@@ -10,6 +10,7 @@ T0's existing tested API remains separate and unchanged.
 from __future__ import annotations
 
 import threading
+import time
 from cxm_lineux import MOVE_LOCK, _rpc, MeasurementError
 from cxm_t0 import (_safe_context, _wait_for_idle_after_move, _sensor_value,
                     AUTO_SENSOR, AUTO_MOUNTED, AUTO_EMPTY, AUTO_STATE,
@@ -18,6 +19,32 @@ from cxm_cxchanger import plan as geometry_plan, automatic_script
 
 class ToolError(MeasurementError):
     pass
+
+# Klipper's gcode_button status can lag the physical pickup/release briefly.
+# Require sustained state after M400/idle, without issuing any more movement.
+POST_MOVE_SENSOR_TIMEOUT_S=2.5
+POST_MOVE_SENSOR_INTERVAL_S=0.15
+POST_MOVE_SENSOR_CONSECUTIVE=4
+
+def _stable_sensor(name,objects,wanted,*,timeout_s=POST_MOVE_SENSOR_TIMEOUT_S,
+                   interval_s=POST_MOVE_SENSOR_INTERVAL_S,
+                   consecutive=POST_MOVE_SENSOR_CONSECUTIVE):
+    """Read-only debounced verification. Unexpected/missing samples fail closed."""
+    deadline=time.monotonic()+timeout_s
+    streak=0
+    samples=0
+    last=None
+    while True:
+        last=_sensor_value(name,objects)
+        samples+=1
+        streak=streak+1 if last==wanted else 0
+        if streak>=consecutive:
+            return {'signal':wanted,'samples':samples,'consecutive':consecutive}
+        if time.monotonic()>=deadline:
+            raise ToolError('Carriage sensor did not stabilise at '+str(wanted)+
+                            ' after motion (last '+str(last)+', '+str(samples)+
+                            ' samples within '+str(timeout_s)+' s). Inspect hotend seating and switch.')
+        time.sleep(interval_s)
 
 _LOCK=threading.Lock()
 _STATE={'pid':None,'revision':None,'mounted_tool':None,'fault':None,'last_success':None}
@@ -145,11 +172,9 @@ def automatic_toolchange(*,store,tool,expected_revision,kind,acknowledgement):
         if fresh['revision']!=expected_revision:
             raise ToolError('CXM settings changed during motion. Inspect physical tool.')
         end=_wait_for_idle_after_move(fresh,parked=True,expected_pid=ctx['pid'],tool=tool)
-        final_signal=_sensor_value(AUTO_SENSOR,end['objects'])
         wanted=AUTO_MOUNTED if kind=='pickup' else AUTO_EMPTY
-        if final_signal!=wanted:
-            raise ToolError('T'+str(tool)+' '+kind+' failed: presence switch reports '+str(final_signal)+
-                            ', expected '+wanted+'. Inspect the carriage and dock.')
+        confirmation=_stable_sensor(AUTO_SENSOR,end['objects'],wanted)
+        final_signal=confirmation['signal']
         with _LOCK:
             _context_guard(end)
             _STATE['mounted_tool']=tool if kind=='pickup' else None
@@ -159,7 +184,8 @@ def automatic_toolchange(*,store,tool,expected_revision,kind,acknowledgement):
                 'tool':tool,'kind':kind,'signal':final_signal,
                 'identity_source':(auto['identity_source'] if kind=='dropoff' else 'operator_selected'),
                 'position_mm':end['position'],'staging_performed':not auto['at_stage'],
-                'note':'Presence switch transition verified; visually inspect tool seating. No tool commissioned.'}
+                'sensor_verification':confirmation,
+                'note':'Presence switch sustained after movement; visually inspect tool seating. No tool commissioned.'}
     except Exception as exc:
         if sent:
             with _LOCK:
