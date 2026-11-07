@@ -10,6 +10,7 @@ const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
 
 function harness(initial='1'){
  const nodes={},calls=[],docListeners={},windowListeners={};
+ let intervalCallback=null,holdStatus=false,releaseStatus=null;
  const node=id=>nodes[id]||(nodes[id]={
    value:id==='cxmDockTool'?initial:'',disabled:true,hidden:false,checked:false,
    textContent:'',listeners:{},style:{},setAttribute(){},
@@ -19,6 +20,10 @@ function harness(initial='1'){
  const config={revision:'a'.repeat(64)};
  async function fetch(url,options={}){
    calls.push({url,options});
+   if(url.startsWith('/cxm/api/v1/tools/status?')&&holdStatus){
+     holdStatus=false;
+     await new Promise(resolve=>{releaseStatus=resolve;});
+   }
    let payload;
    if(url==='/cxm/api/v1/config')payload=config;
    else if(url.startsWith('/cxm/api/v1/tools/status?')){
@@ -52,7 +57,7 @@ function harness(initial='1'){
  };
  const window={addEventListener:(type,fn)=>{windowListeners[type]=fn;},
                confirm:()=>true};
- const context={document,window,fetch,setInterval:()=>{}};
+ const context={document,window,fetch,setInterval:fn=>{intervalCallback=fn;}};
  vm.runInNewContext(source,context,{filename:'cxm-tools.js'});
  const tick=()=>new Promise(resolve=>setImmediate(resolve));
  const select=async n=>{
@@ -61,13 +66,16 @@ function harness(initial='1'){
    await tick();await tick();
  };
  const approve=()=>{node('cxmToolMotionAck').checked=true;node('cxmToolMotionAck').listeners.change();};
- return {node,calls,select,approve,tick,setBlocked:v=>{block=v;},setSignal:v=>{signal=v;}};
+ return {node,calls,select,approve,tick,
+   poll:()=>intervalCallback?.(),holdNextStatus:()=>{holdStatus=true;},
+   releaseStatus:()=>{if(!releaseStatus)throw Error('No held status request');releaseStatus();releaseStatus=null;},
+   setBlocked:v=>{block=v;},setSignal:v=>{signal=v;}};
 }
 
 test('T0-only controls are never shown for T1–T11',()=>{
  assert.match(legacy,/root.hidden=!onlyT0\(\)/);
  assert.match(html,/id="cxmToolAuto" hidden/);
- assert.match(html,/src="cxm-tools\.js\?v=0\.1\.1"/);
+ assert.match(html,/src="cxm-tools\.js\?v=0\.1\.2"/);
 });
 
 test('T1 selection controls T1 geometry, one supervised pickup and same tool dropoff',async()=>{
@@ -152,6 +160,53 @@ test('T1 successful pickup blocks T2 dropoff despite PRESSED shared switch',asyn
  h.approve();assert.equal(h.node('cxmToolDropoff').disabled,true);
  assert.equal(h.node('cxmToolPickup').disabled,true);
  assert.equal(h.calls.filter(c=>c.url.endsWith('/tools/auto')).length,1);
+});
+
+
+test('background status polling never disables an approved T1 dropoff or clears the checkbox',async()=>{
+ const h=harness('1');h.setSignal('PRESSED');await h.select(1);
+ h.approve();
+ assert.equal(h.node('cxmToolDropoff').disabled,false);
+ const message=h.node('cxmToolAutoStatus').textContent;
+ h.holdNextStatus();
+ h.poll();await h.tick();
+ assert.equal(h.node('cxmToolMotionAck').checked,true);
+ assert.equal(h.node('cxmToolMotionAck').disabled,false);
+ assert.equal(h.node('cxmToolDropoff').disabled,false);
+ assert.equal(h.node('cxmToolAutoStatus').textContent,message,
+   'polling must not replace a valid status with Checking...');
+ h.releaseStatus();await h.tick();await h.tick();
+ assert.equal(h.node('cxmToolMotionAck').checked,true);
+ assert.equal(h.node('cxmToolDropoff').disabled,false);
+});
+
+test('a real switch transition revokes approval and updates available action',async()=>{
+ const h=harness('1');h.setSignal('PRESSED');await h.select(1);
+ h.approve();
+ assert.equal(h.node('cxmToolDropoff').disabled,false);
+ h.setSignal('RELEASED');h.poll();await h.tick();await h.tick();
+ assert.equal(h.node('cxmToolMotionAck').checked,false);
+ assert.equal(h.node('cxmToolDropoff').disabled,true);
+ assert.equal(h.node('cxmToolPickup').disabled,true);
+ assert.match(h.node('cxmToolAutoStatus').textContent,/FILAMENT ABSENT/);
+ h.approve();
+ assert.equal(h.node('cxmToolPickup').disabled,false);
+});
+
+test('an operator can start approved movement while read-only polling is in flight',async()=>{
+ const h=harness('1');h.setSignal('PRESSED');await h.select(1);
+ h.approve();
+ h.holdNextStatus();
+ h.poll();await h.tick();
+ assert.equal(h.node('cxmToolDropoff').disabled,false);
+ await h.node('cxmToolDropoff').listeners.click();
+ const sent=h.calls.filter(c=>c.url.endsWith('/tools/auto'));
+ assert.equal(sent.length,1);
+ assert.equal(JSON.parse(sent[0].options.body).kind,'dropoff');
+ assert.equal(h.node('cxmToolMotionAck').checked,false,'approval is one-time');
+ h.releaseStatus();await h.tick();await h.tick();
+ assert.match(h.node('cxmToolAutoStatus').textContent,/FILAMENT ABSENT/);
+ assert.equal(h.node('cxmToolDropoff').disabled,true);
 });
 
 test('selection T0 hides selected-tool panel; no T1 request can be issued',async()=>{
