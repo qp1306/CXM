@@ -23,8 +23,23 @@ function buttons(){
  get('cxmToolPickup').disabled=!ready||auto?.signal!=='RELEASED';
  get('cxmToolDropoff').disabled=!ready||auto?.signal!=='PRESSED'||
    !(auto?.mounted_tool===null||auto?.mounted_tool===n);
- get('cxmToolFaultBox').hidden=!show||!sameTool||!auto?.fault;
- get('cxmToolClearFault').disabled=busy||!sameTool||!auto?.fault||auto?.signal!=='RELEASED';
+ const fault=auto?.fault;
+ const canRecoverMounted=typeof fault==='string'&&
+   fault.startsWith('T'+n+' pickup result uncertain:')&&auto?.signal==='PRESSED';
+ const canRecoverEmpty=typeof fault==='string'&&auto?.signal==='RELEASED';
+ get('cxmToolFaultBox').hidden=!show||!sameTool||!fault;
+ get('cxmToolClearFault').disabled=busy||!sameTool||
+   !(canRecoverMounted||canRecoverEmpty);
+ if(show&&sameTool&&fault){
+   say('cxmToolFaultHelp',canRecoverMounted
+     ?'T'+n+' pickup verification failed but the carriage now reads FILAMENT PRESENT. Visually confirm T'+n+' is firmly mounted and its dock is empty. Clearing this specific pickup fault issues NO motion.'
+     :canRecoverEmpty
+       ?'The carriage reads FILAMENT ABSENT. Verify it is physically empty and inspect T'+n+' and its dock before clearing. NO movement.'
+       :'Fault locked. The carriage is PRESENT and this is not a recoverable pickup fault; inspect the actual mounted tool and dock.');
+   say('cxmToolClearFault',canRecoverMounted
+     ?'Confirm T'+n+' mounted & clear pickup fault'
+     :'Clear fault after inspection');
+ }
  root.setAttribute('aria-busy',busy?'true':'false');
  if(show){
    say('cxmToolAutoTitle','T'+n+' · Pickup / Dropoff');
@@ -128,9 +143,16 @@ async function command(kind){
 }
 async function clearFault(){
  const n=selected();
- if(!active()||busy||live?.tool!==n||!live.automatic?.fault||
-    live.automatic?.signal!=='RELEASED')return;
- if(!window.confirm('Confirm T'+n+' and its dock have been physically inspected, the carriage is EMPTY and the switch is RELEASED. Clearing does not move the printer.'))return;
+ if(!active()||busy||live?.tool!==n||!live.automatic?.fault)return;
+ const auto=live.automatic;
+ const mounted=auto.signal==='PRESSED'&&
+   auto.fault.startsWith('T'+n+' pickup result uncertain:');
+ const empty=auto.signal==='RELEASED';
+ if(!mounted&&!empty)return;
+ const question=mounted
+   ?'CONFIRM T'+n+' IS PHYSICALLY MOUNTED?\\n\\nInspect the coupling, T'+n+' locking mechanism and empty T'+n+' dock. The carriage switch now reports FILAMENT PRESENT. Confirm it is truly T'+n+' and secure.\\n\\nClear this failed-pickup fault WITHOUT MOVEMENT?'
+   :'CONFIRM T'+n+' CARRIAGE IS PHYSICALLY EMPTY?\\n\\nInspect tool, dock and switch. FILAMENT ABSENT must match the actual empty carriage.\\n\\nClear fault WITHOUT MOVEMENT?';
+ if(!window.confirm(question))return;
  requestId++;
  checking=false;
  busy=true;buttons();
@@ -138,8 +160,10 @@ async function clearFault(){
    const cfg=await read(base+'/config');
    if(selected()!==n)throw Error('Tool selection changed; no action taken');
    await post('clear-fault',{tool:n,expected_revision:cfg.revision,
-     acknowledgement:'I_INSPECTED_SELECTED_TOOL_AND_CONFIRMED_EMPTY_CARRIAGE'});
-   say('cxmToolAutoResult','T'+n+' fault cleared · no motion.');
+     acknowledgement:mounted
+       ?'I_INSPECTED_SELECTED_TOOL_MOUNTED_AND_DOCK_EMPTY'
+       :'I_INSPECTED_SELECTED_TOOL_AND_CONFIRMED_EMPTY_CARRIAGE'});
+   say('cxmToolAutoResult','T'+n+' fault cleared · '+(mounted?'mounted T'+n+' inspected':'empty carriage inspected')+' · NO MOTION. Approve any subsequent operation separately.');
  }catch(e){say('cxmToolAutoResult','T'+n+' fault not cleared: '+e.message);}
  finally{busy=false;await refresh();}
 }
