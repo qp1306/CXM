@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CXM v0.2 bootstrap: read-only preflight by default, explicit --apply."""
+"""CXM config API bootstrap and safe Nginx timeout upgrade. Read-only preflight by default."""
 import argparse
 import datetime
 from pathlib import Path
@@ -21,9 +21,22 @@ location /cxm/api/ {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_connect_timeout 2s;
-    proxy_read_timeout 6s;
+    proxy_read_timeout 150s;
 }
 '''
+# Older CXM bootstrap releases used a six-second gateway timeout. Homing
+# legitimately runs longer than that; the Lineux service allows 125 seconds.
+LEGACY_PROXY = PROXY.replace('proxy_read_timeout 150s;', 'proxy_read_timeout 6s;')
+
+def updated_proxy_snippet(current):
+    """Upgrade only the exact historic CXM block; leave other Nginx config intact."""
+    if current.count(PROXY.strip()) == 1:
+        return current
+    if current.count(LEGACY_PROXY.strip()) == 1:
+        return current.replace(LEGACY_PROXY.strip(), PROXY.strip(), 1)
+    if 'location /cxm/api/' in current:
+        raise RuntimeError('Unrecognised or duplicated /cxm/api/ configuration; refusing to overwrite')
+    return PROXY+'\n'+current
 
 def cmd(*args):
     return subprocess.run([str(a) for a in args],check=True,text=True,
@@ -51,7 +64,7 @@ def install_file(dest, content, sudo=False):
         Path(temp).unlink(missing_ok=True)
 
 def main():
-    p=argparse.ArgumentParser(description='CXM v0.2 config backend bootstrap (dry-run by default)')
+    p=argparse.ArgumentParser(description='CXM config API bootstrap and gateway timeout repair (dry-run by default)')
     p.add_argument('--apply',action='store_true')
     p.add_argument('--config-dir',default=str(Path.home()/'printer_data/config'))
     p.add_argument('--repo',default=str(Path.home()/'CXM'))
@@ -68,9 +81,7 @@ def main():
     if not snippet.is_file():
         raise RuntimeError('CXM Nginx snippet not found; install V0.1 first')
     current=snippet.read_text(encoding='utf-8')
-    if 'location /cxm/api/' in current and PROXY.strip() not in current:
-        raise RuntimeError('Unrecognised /cxm/api/ configuration: refusing to overwrite')
-    new_snippet=current if PROXY.strip() in current else PROXY+'\n'+current
+    new_snippet=updated_proxy_snippet(current)
     python=sys.executable if Path(sys.executable).is_file() else '/usr/bin/python3'
     unit_text=(f'[Unit]\nDescription=CXM Configuration Manager\nAfter=network.target moonraker.service\n\n'
                f'[Service]\nType=simple\nUser={cmd("id","-un")}\n'
@@ -83,6 +94,8 @@ def main():
     print('Config storage: ',config/'CXM_variables.cfg')
     print('Python service: ',unit)
     print('Nginx proxy: ',snippet)
+    print('Gateway read timeout: 150s (CXM motion RPC up to 125s)')
+    print('Nginx change: ', 'required' if new_snippet != current else 'already current')
     print('Klipper restart: not required')
     if not a.apply:
         print('DRY RUN only. Use --apply after reviewing.')
