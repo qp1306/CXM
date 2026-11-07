@@ -7,7 +7,8 @@ import unittest
 from unittest import mock
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server'))
-from cxm_config import Store, template, render, parse, LEGACY_FIELDS, SCHEMA
+from cxm_config import (Store, template, render, parse, LEGACY_FIELDS,
+                        V2_GLOBAL_FIELDS, V2_FIELDS, SCHEMA)
 
 class TestStore(unittest.TestCase):
     def setUp(self):
@@ -146,9 +147,9 @@ class TestStore(unittest.TestCase):
                 self.store.save_dock(0,{'x':3,'y':4},initial['revision'])
         self.assertEqual(initial,self.store.read())
 
-    def test_schema_two_default_never_ready_and_verification_protected(self):
+    def test_schema_three_default_never_ready_and_verification_protected(self):
         data=self.store.read()
-        self.assertEqual(data['config']['schema'],2)
+        self.assertEqual(data['config']['schema'],3)
         self.assertFalse(data['migration_required'])
         self.assertFalse(data['config']['tools'][10]['maintenance_lockout'])
         for t in data['config']['tools']:
@@ -164,7 +165,7 @@ class TestStore(unittest.TestCase):
 
     def test_legacy_read_only_projection_and_explicit_atomic_migration(self):
         original=self.store.read()['config']
-        legacy={'schema':1,'globals':original['globals'].copy(),
+        legacy={'schema':1,'globals':{k:original['globals'][k] for k in V2_GLOBAL_FIELDS},
                 'tools':[{k:tool[k] for k in LEGACY_FIELDS if k!='enabled'}
                          |{'enabled':n<6} for n,tool in enumerate(original['tools'])]}
         legacy['globals']['tool_count']=12
@@ -200,8 +201,8 @@ class TestStore(unittest.TestCase):
         self.assertEqual(self.store.read()['config']['tools'][10]['offset_y'],0.123)
         self.assertFalse(self.store.read()['config']['tools'][10]['commissioned'])
         restored=self.store.rollback(migration['backup'],migration['revision'])
-        self.assertEqual(self.store.read()['config']['schema'],2)
-        self.assertFalse(self.store.read()['migration_required'])
+        self.assertEqual(self.store.read()['config']['schema'],3)
+        self.assertTrue(self.store.read()['migration_required'])
         self.assertEqual(self.store.read()['config']['tools'][10]['dock_x'],279.25)
         self.assertTrue(restored['saved'])
 
@@ -212,7 +213,7 @@ class TestStore(unittest.TestCase):
             for key in list(tool):
                 if key not in LEGACY_FIELDS:
                     del tool[key]
-        old='[gcode_macro _CXM_VARIABLES]\nvariable_schema_version: 1\nvariable_globals: '+repr(config['globals'])+'\n'
+        old='[gcode_macro _CXM_VARIABLES]\nvariable_schema_version: 1\nvariable_globals: '+repr({k:config['globals'][k] for k in V2_GLOBAL_FIELDS})+'\n'
         old+=''.join('variable_t%d: %s\n'%(i,repr(t)) for i,t in enumerate(values))
         old+='gcode:\n  {% set cxm_values_loaded = 1 %}\n'
         self.store.path.write_text(old)
@@ -222,6 +223,47 @@ class TestStore(unittest.TestCase):
                 self.store.migrate(rev)
         self.assertEqual(self.store.path.read_text(),old)
         self.assertTrue(self.store.read()['migration_required'])
+
+    def test_schema2_migration_preserves_coordinates_but_requires_new_cxchanger_datum(self):
+        config=self.store.read()['config']
+        old_cfg={'schema':2,
+            'globals':{k:config['globals'][k] for k in V2_GLOBAL_FIELDS},
+            'tools':[{k:t[k] for k in V2_FIELDS} for t in config['tools']]}
+        old_cfg['tools'][0]['dock_x']=301.38
+        old_cfg['tools'][0]['dock_y']=65.99
+        lines=['[gcode_macro _CXM_VARIABLES]', 'variable_schema_version: 2',
+               'variable_globals: '+repr(old_cfg['globals'])]
+        lines += ['variable_t%d: %r'%(i,t) for i,t in enumerate(old_cfg['tools'])]
+        lines+=['gcode:', '']
+        old='\\n'.join(lines)
+        self.store.path.write_text(old)
+        state=self.store.read()
+        self.assertTrue(state['migration_required'])
+        self.assertEqual(state['config']['tools'][0]['dock_x'],301.38)
+        self.assertFalse(state['config']['tools'][0]['dock_reference_accepted'])
+        with self.assertRaises(RuntimeError):
+            self.store.save_dock(0,{'x':301.38,'y':65.99},state['revision'])
+        result=self.store.migrate(state['revision'])
+        self.assertEqual(self.store.read()['config']['schema'],3)
+        self.assertFalse(self.store.read()['migration_required'])
+        self.assertFalse(self.store.read()['config']['tools'][0]['dock_reference_accepted'])
+        self.assertEqual((self.store.backups/result['backup']).read_text(),old)
+
+    def test_save_lineux_raw_and_cxchanger_datum_as_two_values_with_verified_conversion(self):
+        state=self.store.read()
+        raw={'x':299.0,'y':66.0}
+        actual={'x':299.0,'y':66.0}
+        with self.assertRaisesRegex(ValueError,'must equal Lineux'):
+            self.store.save_dock(0,{'x':302.0,'y':66.0},state['revision'],raw_xy=raw)
+        res=self.store.save_dock(0,actual,state['revision'],raw_xy=raw)
+        t=self.store.read()['config']['tools'][0]
+        self.assertEqual([t['lineux_raw_x'],t['lineux_raw_y']],[299.0,66.0])
+        self.assertTrue(t['dock_reference_accepted'])
+        self.assertEqual([t['dock_x'],t['dock_y']],[299.0,66.0])
+        self.assertEqual(len(self.store.history()),1)
+        updated=self.store.set_value('global','x_docking_adjust',3,res['revision'])
+        self.assertFalse(self.store.read()['config']['tools'][0]['dock_reference_accepted'])
+        self.assertTrue(updated['saved'])
 
     def test_maintenance_and_speed_invalidate_previous_verification(self):
         data=self.store.read()['config']
