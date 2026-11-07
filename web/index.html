@@ -354,6 +354,24 @@
   <button class="btn" id="cxmT0AutoClearFault" disabled>Clear fault after inspection</button>
  </div>
 </div>
+<div class="panel cxm-t0-auto" id="cxmToolAuto" hidden aria-busy="false">
+ <div class="panel-heading"><h3 id="cxmToolAutoTitle">Selected hotend · Pickup / Dropoff</h3><span class="panel-label">Live carriage switch</span></div>
+ <p id="cxmToolAutoStatus" role="status" aria-live="polite">Checking selected hotend and Klipper…</p>
+ <label class="cxm-capture-ack cxm-t0-motion-ack"><input id="cxmToolMotionAck" type="checkbox">
+  <span class="cxm-approval-copy"><strong id="cxmToolMotionLabel">Approve selected hotend movement</strong>
+  <small>Correct hotend physically in dock or on carriage · full XY path clear · emergency stop accessible · supervised operation</small></span></label>
+ <div class="buttons cxm-t0-auto-buttons">
+  <button class="btn primary" id="cxmToolPickup" disabled>Pick up selected hotend</button>
+  <button class="btn primary" id="cxmToolDropoff" disabled>Drop off selected hotend</button>
+ </div>
+ <p class="helper" id="cxmToolGeometry">Reading selected CxChanger dock geometry…</p>
+ <p class="helper">The switch proves presence, not hotend identity. T1–T11 dropoff is permitted only after a verified pickup of the same tool in this controller session. Repeat cycles remain T0-only during initial multi-tool commissioning.</p>
+ <p id="cxmToolAutoResult" class="helper" role="status" aria-live="polite"></p>
+ <div id="cxmToolFaultBox" class="cxm-t0-auto-fault" hidden>
+  <p class="helper">Inspect hotend, dock and carriage. Clearing a fault requires a physically EMPTY carriage and a RELEASED switch.</p>
+  <button class="btn" id="cxmToolClearFault" disabled>Clear fault after inspection</button>
+ </div>
+</div>
 <details class="panel cxm-dock-optional cxm-advanced">
  <summary>Advanced T0 motion &amp; sensor tests</summary>
  <p class="helper">Slow, supervised tests. Home XYZ first and keep X/Y motors powered; do not hand-move the carriage after homing.</p>
@@ -761,7 +779,8 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-settings.js?v=0.9.5" defer></script>
 <script src="cxm-dock.js?v=0.9.6" defer></script>
 <script src="cxm-lineux.js?v=0.9.14" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
-<script src="cxm-t0-auto.js?v=1.2.2" defer></script>
+<script src="cxm-t0-auto.js?v=1.2.3" defer></script>
+<script src="cxm-tools.js?v=0.1.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
