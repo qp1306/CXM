@@ -5,7 +5,7 @@ const get=id=>document.getElementById(id);
 const root=get('cxmToolAuto');
 if(!root)return;
 const base='/cxm/api/v1';
-let live=null,busy=false,checking=false,lastSignal=null;
+let live=null,busy=false,checking=false,lastSignal=null,lastSelected=null,requestId=0;
 const selected=()=>Number(get('cxmDockTool')?.value);
 const active=()=>Number.isInteger(selected())&&selected()>=1&&selected()<=11;
 const say=(id,v)=>{get(id).textContent=v;};
@@ -44,19 +44,26 @@ async function post(path,body){
  return d;
 }
 async function refresh(){
- if(busy||checking)return;
- const n=selected();
- live=null;get('cxmToolMotionAck').checked=false;lastSignal=null;
+ if(busy)return;
+ const n=selected(),token=++requestId;
+ if(n!==lastSelected){
+   live=null;lastSignal=null;get('cxmToolMotionAck').checked=false;
+   lastSelected=n;
+ }
  buttons();
  if(!active())return;
  checking=true;
  say('cxmToolAutoStatus','Checking live T'+n+' readiness…');
  try{
    const result=await read(base+'/tools/status?tool='+n);
-   if(selected()!==n)return;
+   if(selected()!==n||token!==requestId)return;
    if(result.tool!==n)throw Error('Backend reported the wrong hotend');
+   if(lastSignal!==null && result.automatic?.signal!==lastSignal)
+     get('cxmToolMotionAck').checked=false;
    live=result;
    lastSignal=result.automatic?.signal;
+   if(result.ready!==true||result.automatic?.enabled!==true)
+     get('cxmToolMotionAck').checked=false;
    const a=result.automatic||{};
    say('cxmToolAutoStatus',!result.ready||!a.enabled
      ?'T'+n+' BLOCKED · '+(a.reason||result.blockers?.join('; ')||'Check carriage and printer.')
@@ -66,8 +73,8 @@ async function refresh(){
    say('cxmToolGeometry','T'+n+' CxChanger dock X'+(result.saved_xy_mm?.x?.toFixed(3)??'—')+
      ' Y'+(result.saved_xy_mm?.y?.toFixed(3)??'—')+' · Selected-tool geometry');
  }catch(e){
-   if(selected()===n){live=null;say('cxmToolAutoStatus','T'+n+' unavailable · '+e.message);}
- }finally{checking=false;buttons();}
+   if(selected()===n&&token===requestId){live=null;get('cxmToolMotionAck').checked=false;say('cxmToolAutoStatus','T'+n+' unavailable · '+e.message);}
+ }finally{if(token===requestId){checking=false;buttons();}}
 }
 async function command(kind){
  const n=selected(),a=live?.automatic;
@@ -114,7 +121,7 @@ get('cxmToolPickup').addEventListener('click',()=>command('pickup'));
 get('cxmToolDropoff').addEventListener('click',()=>command('dropoff'));
 get('cxmToolMotionAck').addEventListener('change',buttons);
 get('cxmToolClearFault').addEventListener('click',clearFault);
-get('cxmDockTool')?.addEventListener('change',refresh);
+get('cxmDockTool')?.addEventListener('change',()=>{get('cxmToolMotionAck').checked=false;lastSelected=null;refresh();});
 document.querySelector('[data-tab="calibration"]')?.addEventListener('click',refresh);
 window.addEventListener('cxm-dock-saved',refresh);
 window.addEventListener('cxm-config-migrated',refresh);
