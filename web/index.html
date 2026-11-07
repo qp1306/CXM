@@ -220,7 +220,7 @@
    <label class="cxm-capture-ack"><input id="cxmLineuxReleaseAck" type="checkbox"> XYZ is homed, Z is physically at least 20 mm clear, the gantry is level and supported, and I can safely release the carriage.</label>
    <div class="buttons"><button class="btn" id="cxmLineuxReleaseXY" disabled>Release X/Y motors only</button></div>
    <p class="helper" id="cxmLineuxReleaseStatus" role="status">Checking motor-release readiness…</p>
-   <div class="panel-heading"><h3>3 · Align dock by hand</h3><span class="panel-label">X/Y off · Z motors on</span></div>
+   <div class="panel-heading"><h3>3 · Align CxChanger locking screw to dock hole</h3><span class="panel-label">X/Y off · Z motors on</span></div>
    <p class="helper">Move the carriage by hand to the dock reference. <strong>Do not jog X/Y afterward.</strong> Check the +3 mm X clearance and the complete path to both endstops.</p>
    <div class="panel-heading"><h3>4 · Measure dock XY</h3><span class="panel-label">One-click Lineux calculation · provisional XY</span></div>
    <p class="helper">Confirm the travel path is clear, then measure.</p>
@@ -715,8 +715,8 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-state.js?v=0.9.4" defer></script>
 <script src="cxm-tool-picker.js?v=0.9.3" defer></script>
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
-<script src="cxm-settings.js?v=0.9.3" defer></script>
-<script src="cxm-dock.js?v=0.9.4" defer></script>
+<script src="cxm-settings.js?v=0.9.4" defer></script>
+<script src="cxm-dock.js?v=0.9.5" defer></script>
 <script src="cxm-lineux.js?v=0.9.11" defer></script><script src="cxm-t0.js?v=0.9.13" defer></script>
 <script src="cxm-t0-auto.js?v=1.2.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
