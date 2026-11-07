@@ -242,8 +242,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected offset parameters')
                 result=self.server.store.save_offsets(**body)
             elif self.path=='/v1/dock':
-                if set(body) != {'tool','xy','expected_revision'}:
-                    raise ValueError('Unexpected dock parameters')
+                if set(body) not in ({'tool','xy','expected_revision'},
+                                     {'tool','xy','expected_revision','raw_xy'}):
+                    raise ValueError('Unexpected dock datum parameters')
                 result=self.server.store.save_dock(**body)
             elif self.path=='/v1/migrate':
                 if set(body) != {'expected_revision'}:
