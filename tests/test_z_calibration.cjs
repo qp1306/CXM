@@ -52,7 +52,7 @@ test('no runtime motion, writes, fabricated optical measurements, or automatic v
  assert.match(script,/CXMToolPicker\?\.sync/);
  assert.match(script,/status\.textContent=.*read-only|Read-only saved profiles/);
  assert.match(html,/cxm-z\.js\?v=0\.9\.3/);
- assert.match(html,/CXM <span>Control Centre<\/span>/);
+ assert.match(html,/id="cxmPageTitle">Hotends<\/h1>/);
 });
 
 test('V0.8.0 Touch statistics and offline test are visible, but physical Z is locked',()=>{

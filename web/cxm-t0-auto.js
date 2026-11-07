@@ -5,13 +5,13 @@ const get=id=>document.getElementById(id);
 const root=get('cxmT0Auto');
 if(!root)return;
 const API='/cxm/api/v1/t0';
-let live=null,busy=false,checking=false,lastError='';
+let live=null,busy=false,checking=false,lastError='',lastSensorSignal=null;
 let cycle=null,cycleChecking=false,cycleStopping=false;
 const onlyT0=()=>get('cxmDockTool')?.value==='0';
 function say(id,message){get(id).textContent=message;}
 function updateButtons(){
   const auto=live?.automatic;
-  const good=!busy&&!cycle?.running&&onlyT0()&&live?.ready===true&&auto?.enabled===true;
+  const good=!busy&&!cycle?.running&&onlyT0()&&live?.ready===true&&auto?.enabled===true&&get('cxmT0MotionAck').checked===true;
   get('cxmT0AutoPickup').disabled=!good||auto?.signal!=='RELEASED';
   get('cxmT0AutoDropoff').disabled=!good||auto?.signal!=='PRESSED';
   get('cxmT0AutoFaultBox').hidden=!(auto?.fault);
@@ -45,6 +45,9 @@ async function refresh(){
   checking=true;
   try{
     live=await getJSON(API+'/status');
+    const observed=live?.automatic?.signal;
+    if(lastSensorSignal!==null&&observed!==lastSensorSignal)get('cxmT0MotionAck').checked=false;
+    lastSensorSignal=observed;
     if(!onlyT0()){
       say('cxmT0AutoStatus','Select T0 to use these controls.');
     }else if(!live.ready||!live.automatic?.enabled){
@@ -62,7 +65,7 @@ async function refresh(){
       ' · CxChanger XY motion: see saved geometry in Settings');
     updateButtons();
   }catch(e){
-    live=null;
+    live=null;lastSensorSignal=null;get('cxmT0MotionAck').checked=false;
     say('cxmT0AutoStatus','Live status unavailable · '+e.message);
     updateButtons();
   }finally{checking=false;}
@@ -97,13 +100,9 @@ async function runCycles(){
   const count=Number(get('cxmT0Cycles').value);
   if(busy||checking||cycle?.running||!onlyT0()||
      live?.ready!==true||!live.automatic?.enabled||
-     !Number.isInteger(count)||count<1||count>20)return;
-  if(!window.confirm('RUN '+count+' T0 PICKUP + DROPOFF CYCLES?\\n\\n'+
-    'CXM uses the saved T0 dock and Safe Y settings.\\n'+
-    'If T0 is mounted, it drops it off first (not counted).\\n'+
-    'Every cycle then picks up and drops off T0 and checks the real switch.\\n'+
-    'Stay with the printer. Confirm the complete physical path is clear.\\n'+
-    'Stop button finishes the current cycle; use emergency stop immediately if unsafe.'))return;
+     (!Number.isInteger(count)||count<1||count>20||!get('cxmT0MotionAck').checked))return;
+
+  get('cxmT0MotionAck').checked=false;
   busy=true;
   updateButtons();
   say('cxmT0CycleStatus','Starting '+count+' supervised cycles…');
@@ -147,18 +146,14 @@ async function stopCycles(){
 }
 
 async function command(kind){
-  if(busy||checking||cycle?.running||!onlyT0()||live?.ready!==true||live.automatic?.enabled!==true)return;
+  if(busy||checking||cycle?.running||!onlyT0()||live?.ready!==true||live.automatic?.enabled!==true||!get('cxmT0MotionAck').checked)return;
   const signal=kind==='pickup'?'RELEASED':'PRESSED';
   if(live.automatic.signal!==signal)return;
   const physical=kind==='pickup'
     ? 'Carriage is EMPTY and T0 is seated in its dock.'
     : 'T0 is fully attached and its dock is EMPTY.';
-  if(!window.confirm('TEST T0 '+kind.toUpperCase()+'?\n\n'+
-      'CXM will stage automatically at Safe Y, then run the known T0 XY path.\n'+
-      'Confirm physically: '+physical+'\n'+
-      'Confirm the full staging and toolchange paths are clear.\n'+
-      'The test is supervised: keep emergency stop available.\n\n'+
-      'Continue with the actual printer movement?'))return;
+
+  get('cxmT0MotionAck').checked=false;
   busy=true;
   updateButtons();
   say('cxmT0AutoResult','T0 '+kind+' running · supervise the carriage and dock.');
@@ -199,7 +194,8 @@ get('cxmT0AutoClearFault').addEventListener('click',clearFault);
 get('cxmT0StartCycles').addEventListener('click',runCycles);
 get('cxmT0StopCycles').addEventListener('click',stopCycles);
 get('cxmT0Cycles').addEventListener('input',updateButtons);
-get('cxmDockTool')?.addEventListener('change',()=>{updateButtons();refresh();});
+get('cxmT0MotionAck').addEventListener('change',updateButtons);
+get('cxmDockTool')?.addEventListener('change',()=>{get('cxmT0MotionAck').checked=false;updateButtons();refresh();});
 document.querySelector('[data-tab="calibration"]')?.addEventListener('click',refresh);
 window.addEventListener('cxm-dock-saved',refresh);
 document.addEventListener('visibilitychange',()=>{

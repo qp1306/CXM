@@ -66,7 +66,7 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
 
 test('Lineux live measurement is gated, provisional, and separate from protected dock AutoSave',()=>{
  const lineux=fs.readFileSync(path.join(__dirname,'../web/cxm-lineux.js'),'utf8');
- assert.match(html,/<h3>Measure dock position<\/h3>/);
+ assert.match(html,/<h3>Automatic dock measurement<\/h3>/);
  assert.match(html,/cxm-lineux\.js\?v=0\.9\.11/);
  for(const id of ['cxmLineuxAck','cxmLineuxPreflight','cxmLineuxStart',
                   'cxmLineuxResult','cxmLineuxToDraft',
@@ -74,14 +74,18 @@ test('Lineux live measurement is gated, provisional, and separate from protected
                   'cxmLineuxHome','cxmLineuxHomeAck','cxmLineuxHomeStatus'])
    assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/id="cxmLineuxStart" disabled/);
+ assert.match(html,/id="cxmLineuxHomeAck" type="checkbox"/);
+ assert.match(html,/id="cxmLineuxReleaseAck" type="checkbox"/);
+ assert.match(html,/id="cxmLineuxAck" type="checkbox"/);
+ assert.doesNotMatch(lineux,/window\.confirm\('HOME AND PREPARE|window\.confirm\('RELEASE COREXY|window\.confirm\('START LINEUX DOCK MEASUREMENT/);
  assert.match(html,/id="cxmLineuxToDraft" disabled/);
  assert.match(html,/id="cxmLineuxKnownStart" disabled/);
  assert.match(html,/id="cxmLineuxKnownAck"/);
  assert.match(html,/Advanced diagnostic · known-position Lineux accuracy check \(optional\)/);
- assert.match(html,/1 · Home &amp; Z20/);
+ assert.match(html,/1 · Home printer/);
  assert.match(html,/Advanced: old MCU step-count calculator/);
  assert.match(html,/2 · Release X\/Y/);
- assert.match(html,/3 · Align CxChanger locking screw to dock hole/);
+ assert.match(html,/3 · Align dock by hand/);
  assert.match(html,/4 · Measure dock XY/);
  assert.match(lineux,/I_CONFIRM_Z_SUPPORTED_RELEASE_XY/);
  assert.match(lineux,/I_CONFIRM_CLEAR_G28_AND_Z20_PATH/);
@@ -104,13 +108,13 @@ test('Lineux live measurement is gated, provisional, and separate from protected
 test('dock layout follows measure → save and optional T0 tests, with all safety controls',()=>{
  const section=html.split('<section data-panel="calibration" hidden>')[1]
                    .split('</section>')[0];
- const auto=section.indexOf('<h3>Measure dock position</h3>');
+ const auto=section.indexOf('<h3>Automatic dock measurement</h3>');
  const align=section.indexOf('<h3>Save dock XY</h3>');
  const verify=section.indexOf('T0 · Pickup / Dropoff');
  const advanced=section.indexOf('Advanced T0 motion &amp; sensor tests');
  const recovery=section.indexOf('Recovery and backups');
  assert.ok(auto>=0 && align>auto && verify>align && advanced>verify && recovery>advanced);
- assert.match(section,/Check the measured X\/Y values, then save/);
+ assert.match(section,/Review X\/Y before saving/);
  assert.match(section,/id="cxmLineuxStart" disabled/);
  assert.match(section,/id="cxmLineuxToDraft" disabled/);
  assert.match(section,/id="cxmT0Stage" disabled/);

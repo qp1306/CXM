@@ -147,10 +147,8 @@ async function homeAndLift(){
   if(busy || !homeState?.ready || !el('cxmLineuxHomeAck').checked)return;
   const n=selected();
   if(n!==homeState.tool)return;
-  if(!window.confirm('HOME AND PREPARE T'+n+' DOCK MEASUREMENT?\\n\\n'+
-    'Runs G28, G90, Z20, then parks X195/Y170.\\n'+
-    'The printer WILL MOVE. Check all real XYZ clearances, gantry level and the full travel path.\\n\\n'+
-    'Only proceed if no print is running and the path is physically clear.'))return;
+
+  el('cxmLineuxHomeAck').checked=false; // one fresh approval for every motion
   busy=true;controls();
   el('cxmLineuxHomeStatus').textContent='Homing and raising to Z20…';
   try{
@@ -180,11 +178,8 @@ async function releaseXY(){
   if(busy || !releaseState?.ready || !el('cxmLineuxReleaseAck').checked)return;
   const n=selected();
   if(n!==releaseState.tool)return;
-  if(!window.confirm('RELEASE COREXY X/Y MOTORS FOR T'+n+'?\n\n'+
-    'Only stepper_x and stepper_y will be released. All four Z motors remain powered.\n'+
-    'The carriage will be free to move by hand. Confirm Z is physically supported, '+ 
-    'the gantry is level and you have at least 20 mm actual clearance.\n\n'+
-    'Do not jog X/Y after hand-positioning. Continue with Measure selected dock.'))return;
+
+  el('cxmLineuxReleaseAck').checked=false; // do not reuse an old approval
   busy=true;controls();
   el('cxmLineuxReleaseStatus').textContent='Releasing X/Y only; Z motors stay powered…';
   try{
@@ -279,14 +274,8 @@ async function measure(){
   if(busy || !state?.ready || !el('cxmLineuxAck').checked)return;
   const n=selected();
   if(n!==state.tool)return;
-  if(!window.confirm('START LINEUX DOCK MEASUREMENT FOR T'+n+'?\n\n'+
-    'Both CoreXY motors are OFF and all four Z motors are ON and level. '+
-    'You physically positioned the carriage at T'+n+' dock datum, with at least 15 mm '+
-    'actual Z clearance, +3 mm positive X clearance and unobstructed Y/Y/X homing.\n\n'+
-    'Klipper displayed X/Y is STALE after moving by hand; this is correct for dock measurement.\n\n'+
-    'The unchanged Lineux engine will set a kinematic position, jog X, home Y, then home X. '+
-    'CXM Homing V2.0 homes Y a second time when X is requested.\n\n'+
-    'The motors WILL MOVE. Keep emergency stop accessible. No XY coordinates will be saved.'))return;
+
+  el('cxmLineuxAck').checked=false; // new safety review for each measurement
   busy=true;result=null;tool=null;controls();
   feedback('Executing Lineux calibration. Do not interfere with the printer…');
   try{
