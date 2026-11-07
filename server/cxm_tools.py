@@ -18,13 +18,13 @@ class ToolError(MeasurementError):
     pass
 
 _LOCK=threading.Lock()
-_STATE={'pid':None,'revision':None,'mounted_tool':None,'fault':None,'last_success':None}
+_STATE={'pid':None,'revision':None,'mounted_tool':None,'identity_source':None,'fault':None,'last_success':None}
 
 def _context_guard(ctx):
     """Caller holds _LOCK. Invalidate tool identity on Klipper/config change."""
     if _STATE['pid'] != ctx['pid'] or _STATE['revision'] != ctx['revision']:
         _STATE.update(pid=ctx['pid'],revision=ctx['revision'],
-                      mounted_tool=None,fault=None,last_success=None)
+                      mounted_tool=None,identity_source=None,fault=None,last_success=None)
 
 def mounted_other_tool(*,pid,revision):
     """Never allow legacy T0 to drop off a T1+ proven to be mounted."""
@@ -61,14 +61,18 @@ def _snapshot(store,tool):
         if known is not None and signal==AUTO_EMPTY:
             _STATE['fault']='Presence switch unexpectedly RELEASED while T'+str(known)+' was recorded mounted; inspect the coupling.'
             _STATE['mounted_tool']=None
+            _STATE['identity_source']=None
             known=None
         fault=_STATE['fault']
         last=_STATE['last_success']
+        identity_source=_STATE['identity_source']
     # A fault in the proven T0 controller must be physically inspected and
     # cleared there before a different tool is moved.
     t0_fault=(AUTO_STATE['fault'] if
               AUTO_STATE['pid']==ctx['pid'] and
               AUTO_STATE['revision']==ctx['revision'] else None)
+    may_confirm_mounted=(signal==AUTO_MOUNTED and known is None and
+        fault is None and not t0_fault and can_stage)
     if t0_fault:
         reason='T0 fault needs inspection/clearance before T'+str(tool)+' testing: '+str(t0_fault)
     elif fault:
@@ -85,8 +89,9 @@ def _snapshot(store,tool):
             'safe_y_mm':p['safe_y'],'position_mm':ctx['position'],
             'automatic':{'enabled':not bool(reason),'reason':reason,'signal':signal,
                          'action':'dropoff' if signal==AUTO_MOUNTED else 'pickup',
-                         'mounted_tool':known,'at_stage':at_stage,'fault':fault,
-                         'last_success':last},
+                         'mounted_tool':known,'identity_source':identity_source,
+                         'can_confirm_mounted':may_confirm_mounted,
+                         'at_stage':at_stage,'fault':fault,'last_success':last},
             'blockers':[reason] if reason else [],
             '_ctx':ctx,'_geometry':p,'_revision':saved['revision']}
 
@@ -142,6 +147,7 @@ def automatic_toolchange(*,store,tool,expected_revision,kind,acknowledgement):
         with _LOCK:
             _context_guard(end)
             _STATE['mounted_tool']=tool if kind=='pickup' else None
+            _STATE['identity_source']='sensor_pickup' if kind=='pickup' else None
             _STATE['last_success']='T'+str(tool)+' '+kind
             _STATE['fault']=None
         return {'status':'T'+str(tool)+'_'+kind.upper()+'_SENSOR_CONFIRMED',
@@ -152,9 +158,53 @@ def automatic_toolchange(*,store,tool,expected_revision,kind,acknowledgement):
         if sent:
             with _LOCK:
                 _STATE['mounted_tool']=None
+                _STATE['identity_source']=None
                 _STATE['fault']=('T'+str(tool)+' '+kind+' result uncertain: '+str(exc)[:170]+
                     '. Inspect and clear only with an empty carriage.')
         raise
+    finally:
+        MOVE_LOCK.release()
+
+
+def confirm_mounted_for_first_dropoff(*,store,tool,expected_revision,acknowledgement):
+    """No-movement commissioning recovery for a hotend already attached.
+
+    A PRESSED switch only proves presence. The operator must independently
+    identify the specific hotend and verify its own dock is vacant. This
+    does not certify a machine-verified pickup. The guarded dropoff remains
+    separately acknowledged and uses only selected tool geometry.
+    """
+    if type(tool) is not int or not 1<=tool<=11:
+        raise ToolError('Confirm mounted supports selected T1–T11 only')
+    if acknowledgement!='I_IDENTIFIED_SELECTED_HOTEND_MOUNTED_EMPTY_DOCK_HOMED_XY_NOT_HAND_MOVED':
+        raise ToolError('Physically identify the attached T'+str(tool)+
+                        ', verify its dock is EMPTY and X/Y were genuinely homed and never hand-moved')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise ToolError('Another printer motion operation is running')
+    try:
+        snapshot=_snapshot(store,tool)
+        if snapshot['_revision']!=expected_revision:
+            raise ToolError('CXM configuration changed; refresh before confirming mounted identity')
+        auto=snapshot['automatic']
+        if not auto['can_confirm_mounted']:
+            raise ToolError(auto.get('reason') or
+                            'Cannot confirm mounted identity: check carriage switch, tool and dock')
+        ctx=snapshot['_ctx']
+        # A live PRESSED reading is required immediately before arming. A
+        # polling status alone is not sufficient to record operator identity.
+        if _sensor_value(AUTO_SENSOR,ctx['objects'])!=AUTO_MOUNTED:
+            raise ToolError('Carriage presence switch changed before confirmation')
+        with _LOCK:
+            _context_guard(ctx)
+            if (_STATE['mounted_tool'] is not None or _STATE['fault'] is not None or
+                (AUTO_STATE['pid']==ctx['pid'] and
+                 AUTO_STATE['revision']==ctx['revision'] and AUTO_STATE['fault'])):
+                raise ToolError('Mounted state changed or unresolved fault; refresh and inspect')
+            _STATE['mounted_tool']=tool
+            _STATE['identity_source']='operator_confirmed'
+        return {'status':'T'+str(tool)+'_MOUNTED_OPERATOR_CONFIRMED_NO_MOVEMENT',
+                'tool':tool,'identity_source':'operator_confirmed',
+                'note':'Operator identified hotend, switch PRESSED. No motion. Dropoff still requires a fresh clearance approval.'}
     finally:
         MOVE_LOCK.release()
 
@@ -173,6 +223,7 @@ def clear_fault(*,store,tool,expected_revision,acknowledgement):
             _context_guard(current['_ctx'])
             _STATE['fault']=None
             _STATE['mounted_tool']=None
+            _STATE['identity_source']=None
         return {'status':'TOOL_FAULT_CLEARED_NO_MOVEMENT','tool':tool}
     finally:
         MOVE_LOCK.release()
