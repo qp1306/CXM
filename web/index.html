@@ -230,7 +230,7 @@
     <button class="btn primary" id="cxmLineuxStart" disabled>Measure dock XY</button>
    </div>
    <p class="cxm-test-result" id="cxmLineuxResult" role="status">Awaiting live readiness check. No motion has occurred.</p>
-   <details class="cxm-advanced"><summary>Advanced X adjustment (optional)</summary><label class="cxm-capture-ack"><input id="cxmLineuxApplyAdjust" type="checkbox"> Include the separately configured X docking adjustment when copying to the draft (off by default)</label></details>
+   <p class="helper">Lineux measures carriage XY. The CxChanger docking-hole datum is calculated with the saved X/Y corrections in Settings (zero by default). Always confirm the locking screw is centred in the large dock hole before measuring.</p>
    <div class="buttons"><button class="btn" id="cxmLineuxToDraft" disabled>Copy measured X/Y to dock draft</button></div>
    <p class="helper">Measure dock XY performs movement only when Lineux is installed, Klipper is idle, the selected tool is not locked out and you confirm physical clearance. Copying X/Y creates an unsaved draft. Review it below and choose Save dock XY. Physical pickup is still a separate test.</p>
    <details class="cxm-lineux-known">
@@ -717,8 +717,8 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.3" defer></script>
 <script src="cxm-dock.js?v=0.9.4" defer></script>
-<script src="cxm-lineux.js?v=0.9.10" defer></script><script src="cxm-t0.js?v=0.9.13" defer></script>
-<script src="cxm-t0-auto.js?v=1.1.0" defer></script>
+<script src="cxm-lineux.js?v=0.9.11" defer></script><script src="cxm-t0.js?v=0.9.13" defer></script>
+<script src="cxm-t0-auto.js?v=1.2.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
