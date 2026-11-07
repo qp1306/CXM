@@ -30,7 +30,7 @@ function harness(initial='1'){
      const n=Number(new URL('http://localhost'+url).searchParams.get('tool'));
      const differentMounted=mounted!==null&&mounted!==n;
      const reason=block?'T0 fault requires inspection':
-       differentMounted?'T'+mounted+' is recorded as mounted. Drop it off first.':null;
+       differentMounted?'T'+mounted+' is recorded as mounted. Drop it off first.':fault;
      payload={tool:n,ready:!reason,
        saved_xy_mm:{x:n===1?267.6:230.31,y:65.94},
        automatic:{enabled:!reason,reason,signal,mounted_tool:mounted,fault,
@@ -45,7 +45,15 @@ function harness(initial='1'){
      payload={tool:body.tool,signal,kind:body.kind,
        status:'T'+body.tool+'_'+body.kind.toUpperCase()+'_SENSOR_CONFIRMED'};
    }else if(url==='/cxm/api/v1/tools/clear-fault'){
-     fault=null;payload={status:'TOOL_FAULT_CLEARED_NO_MOVEMENT'};
+     const body=JSON.parse(options.body);
+     const wanted=signal==='PRESSED'
+       ?'I_INSPECTED_SELECTED_TOOL_MOUNTED_AND_DOCK_EMPTY'
+       :'I_INSPECTED_SELECTED_TOOL_AND_CONFIRMED_EMPTY_CARRIAGE';
+     assert.equal(body.acknowledgement,wanted);
+     assert.equal(body.expected_revision,config.revision);
+     assert.equal(body.tool,Number(node('cxmDockTool').value));
+     fault=null;
+     payload={status:'TOOL_FAULT_CLEARED_NO_MOVEMENT',signal};
    }else throw Error('Unknown API '+url);
    return {ok:true,status:200,json:async()=>payload};
  }
@@ -69,13 +77,13 @@ function harness(initial='1'){
  return {node,calls,select,approve,tick,
    poll:()=>intervalCallback?.(),holdNextStatus:()=>{holdStatus=true;},
    releaseStatus:()=>{if(!releaseStatus)throw Error('No held status request');releaseStatus();releaseStatus=null;},
-   setBlocked:v=>{block=v;},setSignal:v=>{signal=v;}};
+   setBlocked:v=>{block=v;},setSignal:v=>{signal=v;},setFault:v=>{fault=v;}};
 }
 
 test('T0-only controls are never shown for T1–T11',()=>{
  assert.match(legacy,/root.hidden=!onlyT0\(\)/);
  assert.match(html,/id="cxmToolAuto" hidden/);
- assert.match(html,/src="cxm-tools\.js\?v=0\.1\.2"/);
+ assert.match(html,/src="cxm-tools\.js\?v=0\.1\.3"/);
 });
 
 test('T1 selection controls T1 geometry, one supervised pickup and same tool dropoff',async()=>{
@@ -207,6 +215,39 @@ test('an operator can start approved movement while read-only polling is in flig
  h.releaseStatus();await h.tick();await h.tick();
  assert.match(h.node('cxmToolAutoStatus').textContent,/FILAMENT ABSENT/);
  assert.equal(h.node('cxmToolDropoff').disabled,true);
+});
+
+
+test('PRESSED T1 failed-pickup fault offers inspected no-motion recovery, not movement',async()=>{
+ const h=harness('1');
+ h.setSignal('PRESSED');
+ h.setFault('T1 pickup result uncertain: presence switch RELEASED expected PRESSED');
+ await h.select(1);
+ assert.equal(h.node('cxmToolPickup').disabled,true);
+ assert.equal(h.node('cxmToolDropoff').disabled,true);
+ assert.equal(h.node('cxmToolClearFault').disabled,false);
+ assert.match(h.node('cxmToolFaultHelp').textContent,/PRESENT/);
+ assert.match(h.node('cxmToolClearFault').textContent,/Confirm T1 mounted/);
+ await h.node('cxmToolClearFault').listeners.click();
+ assert.equal(h.calls.filter(c=>c.url.endsWith('/tools/clear-fault')).length,1);
+ assert.equal(h.calls.filter(c=>c.url.endsWith('/tools/auto')).length,0);
+ assert.match(h.node('cxmToolAutoStatus').textContent,/FILAMENT PRESENT/);
+ assert.equal(h.node('cxmToolMotionAck').checked,false);
+ assert.equal(h.node('cxmToolDropoff').disabled,true);
+ h.approve();
+ assert.equal(h.node('cxmToolDropoff').disabled,false);
+});
+
+test('PRESSED T1 dropoff fault cannot be cleared by failed-pickup recovery',async()=>{
+ const h=harness('1');
+ h.setSignal('PRESSED');
+ h.setFault('T1 dropoff result uncertain: switch still PRESSED');
+ await h.select(1);
+ assert.equal(h.node('cxmToolClearFault').disabled,true);
+ assert.equal(h.node('cxmToolPickup').disabled,true);
+ assert.equal(h.node('cxmToolDropoff').disabled,true);
+ await h.node('cxmToolClearFault').listeners.click();
+ assert.equal(h.calls.some(c=>c.url.endsWith('/tools/clear-fault')),false);
 });
 
 test('selection T0 hides selected-tool panel; no T1 request can be issued',async()=>{
