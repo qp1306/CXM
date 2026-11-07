@@ -12,9 +12,11 @@ class Store:
     def __init__(self):
         self.data=template()
         self.data['globals']['tool_count']=1
-        self.data['globals']['safe_y']=120.0
+        self.data['globals']['safe_y']=120.0 # legacy value, never used for motion
+        self.data['globals']['cxm_safe_clearance_y']=54.12 # T0 datum 65.88 + 54.12 = 120
         self.data['tools'][0]['dock_x']=298.98
         self.data['tools'][0]['dock_y']=65.88
+        self.data['tools'][0]['dock_reference_accepted']=True
         self.rev='a'*64
     def read(self):
         return {'config':self.data,'revision':self.rev,'migration_required':False}
@@ -229,7 +231,9 @@ class T0Test(unittest.TestCase):
         self.assertFalse(c.cycle_status()['running'])
         self.assertIsNone(c.AUTO_STATE['fault'])
         self.assertEqual(self.machine.x,self.store.data['tools'][0]['dock_x'])
-        self.assertEqual(self.machine.y,self.store.data['globals']['safe_y'])
+        self.assertAlmostEqual(self.machine.y,
+          self.store.data['tools'][0]['dock_y']+
+          self.store.data['globals']['cxm_safe_clearance_y'])
         self.assertTrue(all(' Z' not in g for g in self.machine.scripts))
 
     def test_repeat_two_cycles_start_empty_and_ignore_manual_sensor_samples(self):
@@ -322,6 +326,29 @@ class T0Test(unittest.TestCase):
         self.assertEqual(result['completed_cycles'],1)
         self.assertEqual(len(self.machine.scripts),2)
 
+    def test_cxchanger_motion_is_relative_to_each_dock_and_ignores_lineux_legacy_safe_y(self):
+        p=c.plan(self.store.read())
+        self.assertEqual(p['motion_source'],'CxChanger')
+        self.assertAlmostEqual(p['safe_y'],120.0)
+        self.store.data['tools'][0]['dock_y']=85.0
+        self.assertAlmostEqual(c.plan(self.store.read())['safe_y'],139.12)
+        self.store.data['globals']['safe_y']=333.0
+        self.assertAlmostEqual(c.plan(self.store.read())['safe_y'],139.12)
+        self.store.data['globals']['cxm_shift_x']=-5.0
+        self.store.data['globals']['cxm_dodge_y']=16.0
+        p=c.plan(self.store.read())
+        self.assertEqual(p['dropoff'][1],(293.98,85.0))
+        self.assertEqual(p['dropoff'][2],(293.98,101.0))
+
+    def test_legacy_dock_reference_is_not_automatically_authorised(self):
+        self.store.data['tools'][0]['dock_reference_accepted']=False
+        self.machine.sensor=True
+        with self.assertRaisesRegex(c.T0Error,'Re-measure with Lineux'):
+            c.automatic_toolchange(store=self.store,expected_revision=self.store.rev,
+                kind='dropoff',
+                acknowledgement='I_CONFIRMED_T0_XY_PATH_CLEAR_AND_WILL_SUPERVISE')
+        self.assertEqual(self.machine.scripts,[])
+
     def test_one_click_dropoff_and_pickup_auto_stage_and_check_sensor(self):
         # No selected sensor, manual recording, or Approach button required.
         self.machine.sensor=True
@@ -341,12 +368,12 @@ class T0Test(unittest.TestCase):
         self.assertEqual(len(self.machine.scripts),1,
             'One submitted script contains staging AND all dropoff movements')
         self.assertEqual(self.machine.scripts[0].splitlines(),
-            ['G90','G1 Y120.00000 F600','G1 X302.19000 F600','M400',
+            ['G90','G1 Y120.09000 F600','G1 X302.19000 F600','M400',
              'G1 X302.19000 Y65.97000 F240',
              'G1 X297.39000 Y65.97000 F180',
              'G1 X297.39000 Y79.97000 F240',
              'G1 X302.19000 Y79.97000 F240',
-             'G1 X302.19000 Y120.00000 F240','M400'])
+             'G1 X302.19000 Y120.09000 F240','M400'])
         self.assertTrue(all(' Z' not in x for x in self.machine.scripts))
         status=c.status(self.store)
         self.assertEqual(status['automatic']['action'],'pickup')
@@ -363,7 +390,7 @@ class T0Test(unittest.TestCase):
              'G1 X297.39000 Y79.97000 F240',
              'G1 X297.39000 Y65.97000 F240',
              'G1 X302.19000 Y65.97000 F180',
-             'G1 X302.19000 Y120.00000 F240','M400'])
+             'G1 X302.19000 Y120.09000 F240','M400'])
         self.assertEqual(c.status(self.store)['automatic']['action'],'dropoff')
         self.assertEqual(c.SESSION['samples'],{})
 
@@ -679,7 +706,7 @@ class T0Test(unittest.TestCase):
         for dx,dy in [(0,14),(-9,14),(-3,40)]:
             with self.assertRaises(c.T0Error):
                 c.plan(self.store.read(),shift_x=dx,dodge_y=dy)
-        self.store.data['globals']['safe_y']=85
+        self.store.data['globals']['cxm_safe_clearance_y']=33
         with self.assertRaises(c.T0Error):
             c.plan(self.store.read())
 

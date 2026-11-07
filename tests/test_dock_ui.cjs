@@ -13,7 +13,7 @@ test('dock wizard loads and includes required user controls',()=>{
                    'cxmDockFeedback']) {
     assert.match(html,new RegExp('id="'+id+'"'));
   }
-  assert.match(html,/cxm-dock\.js\?v=0\.9\.4/);
+  assert.match(html,/cxm-dock\.js\?v=0\.9\.5/);
   assert.doesNotMatch(html,/id="cxmDockZ"/);
   assert.match(html,/data-panel="calibration"/);
   assert.match(cards,/data-cxm-calibrate/);
@@ -22,7 +22,7 @@ test('gantry dock coordinates require only X/Y, deliberate approval and server v
   assert.match(dock,/const axis = \['x','y'\]/);
   assert.match(dock,/!Number\.isFinite\(Number\(v\)\)/);
   assert.match(dock,/window\.confirm\(/);
-  assert.match(dock,/postJSON\('\/dock',\{tool:selected,xy,expected_revision:snapshot\.revision\}\)/);
+  assert.match(dock,/postJSON\('\/dock',\{tool:selected,xy,expected_revision:snapshot\.revision/);
   assert.match(dock,/stored\['dock_'\+name\] === xy\[name\]/);
   assert.match(dock,/fill\(\); \/\/ Re-enable inputs after the request and show the saved values/);
 });
@@ -32,7 +32,7 @@ test('V0.4 cannot issue motion or falsely verify hardware pickup',()=>{
   assert.match(html,/id="cxmT0Pickup" disabled/);
   assert.match(html,/id="cxmT0Dropoff" disabled/);
   assert.match(html,/Crosshair is a visual reference only/);
-  assert.match(dock,/NOT physically verified/);
+  assert.match(dock,/NOT accepted|NOT physically verified|unverified/i);
 });
  
 test('accept button remains disabled for blank, invalid or unchanged drafts',()=>{
@@ -67,9 +67,9 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
 test('Lineux live measurement is gated, provisional, and separate from protected dock AutoSave',()=>{
  const lineux=fs.readFileSync(path.join(__dirname,'../web/cxm-lineux.js'),'utf8');
  assert.match(html,/<h3>Measure dock position<\/h3>/);
- assert.match(html,/cxm-lineux\.js\?v=0\.9\.10/);
+ assert.match(html,/cxm-lineux\.js\?v=0\.9\.11/);
  for(const id of ['cxmLineuxAck','cxmLineuxPreflight','cxmLineuxStart',
-                  'cxmLineuxResult','cxmLineuxToDraft','cxmLineuxApplyAdjust',
+                  'cxmLineuxResult','cxmLineuxToDraft',
                   'cxmLineuxReleaseXY','cxmLineuxReleaseAck','cxmLineuxReleaseStatus',
                   'cxmLineuxHome','cxmLineuxHomeAck','cxmLineuxHomeStatus'])
    assert.match(html,new RegExp('id="'+id+'"'));
@@ -81,7 +81,7 @@ test('Lineux live measurement is gated, provisional, and separate from protected
  assert.match(html,/1 · Home &amp; Z20/);
  assert.match(html,/Advanced: old MCU step-count calculator/);
  assert.match(html,/2 · Release X\/Y/);
- assert.match(html,/3 · Align dock by hand/);
+ assert.match(html,/3 · Align CxChanger locking screw to dock hole/);
  assert.match(html,/4 · Measure dock XY/);
  assert.match(lineux,/I_CONFIRM_Z_SUPPORTED_RELEASE_XY/);
  assert.match(lineux,/I_CONFIRM_CLEAR_G28_AND_Z20_PATH/);
@@ -94,6 +94,9 @@ test('Lineux live measurement is gated, provisional, and separate from protected
  assert.match(lineux,/expected_revision:snapshot\.revision/);
  assert.match(lineux,/status!=='PROVISIONAL_LINEUX_UNVERIFIED'/);
  assert.match(lineux,/source:'lineux-live'/);
+ assert.match(lineux,/raw_xy:result\.raw_xy_mm/);
+ assert.match(dock,/rawDraft/);
+ assert.match(dock,/dock_reference_accepted/);
  assert.doesNotMatch(lineux,/\/printer\/gcode\/script/);
  assert.match(dock,/\['manual-mcu-review','lineux-live'\]/);
 });
@@ -149,7 +152,7 @@ test('T0 test controls are hardware-gated and never mark a tool verified',()=>{
  assert.match(t0,/I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH/);
  assert.match(t0,/first_dropoff_ready/);
  const auto=fs.readFileSync(path.join(__dirname,'../web/cxm-t0-auto.js'),'utf8');
- assert.match(html,/cxm-t0-auto\.js\?v=1\.1\.0/);
+ assert.match(html,/cxm-t0-auto\.js\?v=1\.2\.0/);
  for(const id of ['cxmT0AutoPickup','cxmT0AutoDropoff','cxmT0AutoStatus',
    'cxmT0AutoFaultBox','cxmT0AutoClearFault',
    'cxmT0Cycles','cxmT0StartCycles','cxmT0StopCycles','cxmT0CycleStatus'])

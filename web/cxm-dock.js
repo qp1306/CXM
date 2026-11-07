@@ -8,6 +8,7 @@
   const get = id => document.getElementById(id);
   const axis = ['x','y'];
   let snapshot = null, selected = 0, busy = false, dirty = false, activeAxis = 'x';
+  let rawDraft=null; // Lineux-measured reference, only for unchanged live capture.
 
   const report = (message, error = false) => {
     const el = get('cxmDockFeedback');
@@ -43,7 +44,9 @@
     try {
       const xy=readDraft();
       return axis.every(name=>xy[name]>=limits[name][0] && xy[name]<=limits[name][1])
-        && (axis.some(name=>xy[name]!==current()['dock_'+name]) || current().dock_z != null);
+        && (axis.some(name=>xy[name]!==current()['dock_'+name]) ||
+            current().dock_z != null || !current().dock_reference_accepted ||
+            (rawDraft && axis.some(name=>rawDraft[name]!==current()['lineux_raw_'+name])));
     } catch { return false; }
   }
   function updateActions() {
@@ -64,14 +67,18 @@
       el.value = tool?.['dock_'+name] == null ? '' : String(tool['dock_'+name]);
       el.disabled = !canEdit() || busy;
     }
-    dirty = false;
+    dirty = false;rawDraft=null;
     const hasValues = tool && axis.every(name => tool['dock_'+name] != null);
     get('cxmDockStatus').textContent = !tool ? 'No selected tool'
       : !canEdit() ? 'LOCKED / MIGRATION · read only'
-      : hasValues ? 'Saved · unverified' : 'Dock not calibrated';
+      : hasValues && tool.dock_reference_accepted ? 'CxChanger datum saved · unverified'
+      : hasValues ? 'Old XY reference · recapture/reaccept required'
+      : 'CxChanger datum not calibrated';
     get('cxmDockSummary').textContent = tool
-      ? 'T'+selected+' saved dock XY: '+axis.map(name => nice(tool['dock_'+name])).join(' / ')+
-        ' mm · source: CXM_variables.cfg · not active in Klipper'
+      ? 'T'+selected+' CxChanger locking-hole XY: '+
+        axis.map(name => nice(tool['dock_'+name])).join(' / ')+
+        ' mm · Lineux raw X'+nice(tool.lineux_raw_x)+' Y'+nice(tool.lineux_raw_y)+
+        ' · '+(tool.dock_reference_accepted?'accepted for supervised testing':'NOT accepted')
       : 'No profile selected. Choose a tool from the configured count.';
     updateActions(); // Never enable Save for empty or unchanged coordinates.
   }
@@ -224,14 +231,17 @@
     report('Validating and saving dock X/Y atomically…');
     let verified=false;
     try {
-      const reply = await postJSON('/dock',{tool:selected,xy,expected_revision:snapshot.revision});
+      const reply = await postJSON('/dock',{tool:selected,xy,expected_revision:snapshot.revision,
+        ...(rawDraft?{raw_xy:rawDraft}:{})});
       if (!reply.saved) throw new Error('The service did not confirm the save');
       const fresh = await getJSON('/config');
       const stored = fresh.config.tools[selected];
-      if (!axis.every(name => stored['dock_'+name] === xy[name]) || stored.dock_z !== null)
+      if (!axis.every(name => stored['dock_'+name] === xy[name]) ||
+          stored.dock_z !== null || stored.dock_reference_accepted!==true ||
+          (rawDraft && !axis.every(name=>stored['lineux_raw_'+name]===rawDraft[name])))
         throw new Error('Disk verification did not match the requested coordinates');
       snapshot = fresh;
-      dirty = false;
+      dirty = false;rawDraft=null;
       verified=true;
       window.dispatchEvent(new Event('cxm-dock-saved'));
     } catch (e) {
@@ -242,7 +252,8 @@
       get('cxmDockTool').disabled = !snapshot || !configured(snapshot.config).length;
       if (verified) {
         fill(); // Re-enable inputs after the request and show the saved values.
-        report('T'+selected+' dock X/Y saved on disk · no dock Z required · NOT physically verified.');
+        report('T'+selected+' CxChanger docking-hole XY saved with Lineux provenance if measured. '+
+          'Now run ONE supervised pickup/dropoff to verify physical geometry.');
       } else {
         // On failure, retain the user's draft and make its inputs editable.
         for (const name of axis) get('cxmDock'+name.toUpperCase()).disabled=!canEdit();
@@ -268,7 +279,7 @@
   for (const name of axis) {
     const node=get('cxmDock'+name.toUpperCase());
     node.addEventListener('focus',()=>activeAxis=name);
-    node.addEventListener('input',markDraft);
+    node.addEventListener('input',()=>{rawDraft=null;markDraft();});
   }
   root.querySelectorAll('[data-dock-adjust]').forEach(btn=>btn.addEventListener('click',()=>{
     const input=get('cxmDock'+activeAxis.toUpperCase());
@@ -300,11 +311,14 @@
           '? This will replace the current unsaved XY values.')) return;
     xInput.value=Number(proposal.x).toFixed(5);
     yInput.value=Number(proposal.y).toFixed(5);
+    rawDraft=proposal.source==='lineux-live'&&proposal.raw_xy &&
+        axis.every(a=>Number.isFinite(proposal.raw_xy[a]))
+      ? {x:proposal.raw_xy.x,y:proposal.raw_xy.y}:null;
     markDraft();
-    report('T'+selected+' provisional X/Y copied into draft. '+
+    report('T'+selected+' CxChanger docking-hole XY copied from Lineux measurement. '+
       (proposal.source==='manual-mcu-review'
-        ? 'No X docking adjustment applied; offline review performed no motion. '
-        : 'Lineux measurement may have moved the printer; review whether the separate X adjustment was selected. ')+
+        ? 'Manual review (no measurement provenance). '
+        : 'Captured Lineux raw XY + current X/Y datum offsets. ')+
       'No AutoSave or physical verification occurred.');
   });
   get('cxmDockAccept').addEventListener('click',accept);

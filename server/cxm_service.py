@@ -242,8 +242,9 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected offset parameters')
                 result=self.server.store.save_offsets(**body)
             elif self.path=='/v1/dock':
-                if set(body) != {'tool','xy','expected_revision'}:
-                    raise ValueError('Unexpected dock parameters')
+                if set(body) not in ({'tool','xy','expected_revision'},
+                                     {'tool','xy','expected_revision','raw_xy'}):
+                    raise ValueError('Unexpected dock datum parameters')
                 result=self.server.store.save_dock(**body)
             elif self.path=='/v1/migrate':
                 if set(body) != {'expected_revision'}:
@@ -275,7 +276,8 @@ def main():
     # systemd Restart=always relaunches the new Python code after a source change.
     watched=[Path(__file__),Path(__file__).with_name('cxm_config.py'),
              Path(__file__).with_name('cxm_lineux.py'),
-             Path(__file__).with_name('cxm_t0.py')]
+             Path(__file__).with_name('cxm_t0.py'),
+             Path(__file__).with_name('cxm_cxchanger.py')]
     before=[p.stat().st_mtime_ns for p in watched]
     def monitor_updates():
         while True:

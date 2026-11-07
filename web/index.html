@@ -220,7 +220,7 @@
    <label class="cxm-capture-ack"><input id="cxmLineuxReleaseAck" type="checkbox"> XYZ is homed, Z is physically at least 20 mm clear, the gantry is level and supported, and I can safely release the carriage.</label>
    <div class="buttons"><button class="btn" id="cxmLineuxReleaseXY" disabled>Release X/Y motors only</button></div>
    <p class="helper" id="cxmLineuxReleaseStatus" role="status">Checking motor-release readiness…</p>
-   <div class="panel-heading"><h3>3 · Align dock by hand</h3><span class="panel-label">X/Y off · Z motors on</span></div>
+   <div class="panel-heading"><h3>3 · Align CxChanger locking screw to dock hole</h3><span class="panel-label">X/Y off · Z motors on</span></div>
    <p class="helper">Move the carriage by hand to the dock reference. <strong>Do not jog X/Y afterward.</strong> Check the +3 mm X clearance and the complete path to both endstops.</p>
    <div class="panel-heading"><h3>4 · Measure dock XY</h3><span class="panel-label">One-click Lineux calculation · provisional XY</span></div>
    <p class="helper">Confirm the travel path is clear, then measure.</p>
@@ -230,7 +230,7 @@
     <button class="btn primary" id="cxmLineuxStart" disabled>Measure dock XY</button>
    </div>
    <p class="cxm-test-result" id="cxmLineuxResult" role="status">Awaiting live readiness check. No motion has occurred.</p>
-   <details class="cxm-advanced"><summary>Advanced X adjustment (optional)</summary><label class="cxm-capture-ack"><input id="cxmLineuxApplyAdjust" type="checkbox"> Include the separately configured X docking adjustment when copying to the draft (off by default)</label></details>
+   <p class="helper">Lineux measures carriage XY. The CxChanger docking-hole datum is calculated with the saved X/Y corrections in Settings (zero by default). Always confirm the locking screw is centred in the large dock hole before measuring.</p>
    <div class="buttons"><button class="btn" id="cxmLineuxToDraft" disabled>Copy measured X/Y to dock draft</button></div>
    <p class="helper">Measure dock XY performs movement only when Lineux is installed, Klipper is idle, the selected tool is not locked out and you confirm physical clearance. Copying X/Y creates an unsaved draft. Review it below and choose Save dock XY. Physical pickup is still a separate test.</p>
    <details class="cxm-lineux-known">
@@ -324,7 +324,7 @@
     <label>Lateral unlock X (mm)<input id="cxmT0Shift" type="number" min="-8" max="-1" step="0.1" value="-4.8"></label>
     <label>Y dodge (mm)<input id="cxmT0Dodge" type="number" min="5" max="25" step="0.1" value="14.0"></label>
    </div>
-   <p class="helper">These are <strong>unverified original CxChanger test-path starting values</strong>, not T0 calibration data. The approach uses saved T0 X/Y and configured Safe Y. Verify every waypoint has physical clearance. No Z or heater movement occurs.</p>
+   <p class="helper">Advanced manual test overrides only. These inputs do NOT change saved CxChanger settings or the automatic/repeat routine. For permanent values use Settings: X latch, Y dodge and relative safe clearance. The staging location is always dock Y + safe clearance. Check each waypoint physically; XY only.</p>
    <p id="cxmT0Plan" class="cxm-t0-path" role="status">Motion path preview unavailable until readiness is checked.</p>
    <div class="buttons">
     <button class="btn" id="cxmT0Refresh">Refresh T0 status</button>
@@ -715,10 +715,10 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-state.js?v=0.9.4" defer></script>
 <script src="cxm-tool-picker.js?v=0.9.3" defer></script>
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
-<script src="cxm-settings.js?v=0.9.3" defer></script>
-<script src="cxm-dock.js?v=0.9.4" defer></script>
-<script src="cxm-lineux.js?v=0.9.10" defer></script><script src="cxm-t0.js?v=0.9.13" defer></script>
-<script src="cxm-t0-auto.js?v=1.1.0" defer></script>
+<script src="cxm-settings.js?v=0.9.4" defer></script>
+<script src="cxm-dock.js?v=0.9.5" defer></script>
+<script src="cxm-lineux.js?v=0.9.11" defer></script><script src="cxm-t0.js?v=0.9.13" defer></script>
+<script src="cxm-t0-auto.js?v=1.2.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>

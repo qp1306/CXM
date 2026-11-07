@@ -9,8 +9,12 @@
   if (!root) return;
   const badge = document.getElementById('saveStatus');
   const definitions = {
-    global: [['tool_count', 'Configured tools', 1], ['safe_y', 'Safe Y position (mm)', 0.1],
-             ['x_docking_adjust', 'X docking adjustment (mm)', 0.01]],
+    global: [['tool_count', 'Configured tools', 1],
+             ['x_docking_adjust', 'Lineux to CxChanger datum X correction (mm)', 0.01],
+             ['y_docking_adjust', 'Lineux to CxChanger datum Y correction (mm)', 0.01],
+             ['cxm_shift_x', 'CxChanger lateral X latch movement (mm)', 0.1],
+             ['cxm_dodge_y', 'CxChanger Y dodge / docking thickness (mm)', 0.1],
+             ['cxm_safe_clearance_y', 'CxChanger safe travel from dock Y (mm)', 0.1]],
     tool: [['approach_speed', 'Approach speed (mm/min)', 1],
            ['dock_speed', 'Dock speed (mm/min)', 1]]
   };
@@ -66,7 +70,7 @@
         const count=snapshot.config.globals.tool_count;
         const locked=Array.from({length:count},(_,n)=>n)
           .filter(n=>snapshot.config.tools[n]?.maintenance_lockout===true);
-        hint.textContent=snapshot.migration_required?'Legacy config: explicit migration required before editing'
+        hint.textContent=snapshot.migration_required?'Old motion settings: back up and migrate to separate CxChanger movement geometry before testing'
           : locked.length?locked.length+' maintenance lockout(s) · inspect in Settings'
           :'Selected tools are NOT READY until calibrated and verified';
       }
@@ -104,7 +108,7 @@
     if (tool>=count || tool<0) tool=0;
     root.innerHTML=`<div class="panel" style="margin-top:16px">
       <div class="panel-heading"><h3>Printer settings</h3><span class="panel-label">AutoSave · backups</span></div>
-      <p class="muted">Settings save to disk automatically with a backup. Dock XY and tool offsets are edited on their own pages.</p>
+      <p class="muted">Lineux measures X/Y only. CxChanger uses the accepted locking-hole datum plus independent mechanical movements. Safe Y is now relative to EACH dock Y (not an absolute printer Y). Values save with backups; no Klipper restart is needed.</p>
       <div style="margin-top:20px"><h3>Global settings</h3>${fields('global',cfg.globals)}</div>
       <div style="margin-top:20px;display:flex;align-items:center;gap:14px"><h3 style="margin:0">Hotend settings</h3><select id="cxmToolChoice" style="padding:9px;border-radius:6px;background:#161b23;border:1px solid #465061;color:white">${cfg.tools.slice(0,count).map((profile,i)=>`<option value="${i}" ${tool===i?'selected':''}>T${i}${profile.maintenance_lockout===true?' · locked out':''}</option>`).join('')}</select></div>
       ${lockoutControl(cfg.tools[tool])}
@@ -127,7 +131,7 @@
       const heading=document.createElement('strong');
       heading.textContent='CONFIGURATION MIGRATION REQUIRED';
       const explanation=document.createElement('p');
-      explanation.textContent='Legacy schema 1 is loaded read-only. The reviewed schema-2 migration preserves coordinates/speeds, backs up the original, and sets ALL verification flags to false. No motor movement or Klipper restart.';
+      explanation.textContent='Older CXM motion settings are loaded read-only. Back up and migrate to schema 3: preserve old dock XY for inspection, but require a fresh CxChanger datum acceptance and independent mechanical movement settings. All old motion verification is invalidated. No motor movement or Klipper restart.';
       const button=document.createElement('button');
       button.id='cxmMigrate';button.className='btn';
       button.textContent='Back up and migrate configuration';

@@ -10,7 +10,8 @@ import re
 import tempfile
 from datetime import datetime, timezone
 
-SCHEMA = 2
+SCHEMA = 3
+PREVIOUS_SCHEMA = 2
 LEGACY_SCHEMA = 1
 TOOL_MAX = 12
 FIELDS = {
@@ -30,6 +31,9 @@ FIELDS = {
     "commissioned": ("bool", None, None),
     "dock_x": ("float", -50, 600),
     "dock_y": ("float", -50, 600),
+    "lineux_raw_x": ("float", -50, 600),
+    "lineux_raw_y": ("float", -50, 600),
+    "dock_reference_accepted": ("bool", None, None),
     "dock_z": ("float", -20, 600),  # Legacy field; gantry docks use XY only
     "offset_x": ("float", -20, 20),
     "offset_y": ("float", -20, 20),
@@ -42,7 +46,7 @@ LEGACY_FIELDS = {"enabled": ("bool", None, None), **{
     if key not in {"maintenance_lockout","offset_xy_accepted","offset_z_accepted",
         "dock_verified","offset_xy_verified","offset_z_verified","pickup_verified",
         "dropoff_verified","heater_verified","sensor_verified","reference_verified",
-        "commissioned"}
+        "commissioned","lineux_raw_x","lineux_raw_y","dock_reference_accepted"}
 }}
 EDITABLE_TOOL_FIELDS = {
     "maintenance_lockout","dock_x","dock_y",
@@ -54,6 +58,15 @@ GLOBAL_FIELDS = {
     "safe_y": ("float", 0, 600),
     "x_docking_adjust": ("float", -20, 20),
 }
+V2_GLOBAL_FIELDS = dict(GLOBAL_FIELDS)
+V2_FIELDS = {key:spec for key,spec in FIELDS.items()
+             if key not in ('lineux_raw_x','lineux_raw_y','dock_reference_accepted')}
+GLOBAL_FIELDS.update({
+    "y_docking_adjust": ("float", -20, 20),
+    "cxm_shift_x": ("float", -8, -1),
+    "cxm_dodge_y": ("float", 5, 25),
+    "cxm_safe_clearance_y": ("float", 35, 160),
+})
 
 def template():
     tools = []
@@ -67,11 +80,15 @@ def template():
             "heater_verified": False, "sensor_verified": False,
             "reference_verified": False, "commissioned": False,
             "dock_x": None, "dock_y": None, "dock_z": None,
+            "lineux_raw_x": None, "lineux_raw_y": None,
+            "dock_reference_accepted": False,
             "offset_x": 0.0, "offset_y": 0.0, "offset_z": 0.0,
             "approach_speed": 1200.0, "dock_speed": 800.0,
         })
     return {"schema": SCHEMA, "globals": {"tool_count": 6, "safe_y": 120.0,
-            "x_docking_adjust": 3.0}, "tools": tools}
+            "x_docking_adjust": 0.0, "y_docking_adjust": 0.0,
+            "cxm_shift_x": -4.8, "cxm_dodge_y": 14.0,
+            "cxm_safe_clearance_y": 44.0}, "tools": tools}
 
 def check_value(field, value, spec, *, nullable=False):
     typ, lo, hi = spec
@@ -96,18 +113,21 @@ def check_value(field, value, spec, *, nullable=False):
 def validate(data, schema=SCHEMA):
     if type(data) is not dict or set(data) != {'schema','globals','tools'} or data['schema'] != schema:
         raise ValueError('Unsupported CXM schema')
-    if type(data['globals']) is not dict or set(data['globals']) != set(GLOBAL_FIELDS):
+    global_fields = GLOBAL_FIELDS if schema==SCHEMA else V2_GLOBAL_FIELDS
+    if type(data['globals']) is not dict or set(data['globals']) != set(global_fields):
         raise ValueError('Invalid global settings')
-    for k, spec in GLOBAL_FIELDS.items():
+    for k, spec in global_fields.items():
         check_value(k, data['globals'][k], spec)
     if type(data['tools']) is not list or len(data['tools']) != TOOL_MAX:
         raise ValueError('Exactly 12 tool profiles are required')
-    fields = FIELDS if schema == SCHEMA else LEGACY_FIELDS
+    fields = FIELDS if schema == SCHEMA else V2_FIELDS if schema == PREVIOUS_SCHEMA else LEGACY_FIELDS
     for n, tool in enumerate(data['tools']):
         if type(tool) is not dict or set(tool) != set(fields):
             raise ValueError(f'Invalid T{n} settings')
         for key, spec in fields.items():
-            check_value(key, tool[key], spec, nullable=key.startswith('dock_'))
+            check_value(key, tool[key], spec,
+                        nullable=key in ('dock_x','dock_y','dock_z',
+                                         'lineux_raw_x','lineux_raw_y'))
     return data
 
 
@@ -121,7 +141,7 @@ def schema_on_disk(raw):
         version = ast.literal_eval(values[0])
     except (SyntaxError, ValueError) as exc:
         raise ValueError('Invalid CXM schema version') from exc
-    if type(version) is not int or version not in (LEGACY_SCHEMA, SCHEMA):
+    if type(version) is not int or version not in (LEGACY_SCHEMA, PREVIOUS_SCHEMA, SCHEMA):
         raise ValueError('Unsupported CXM schema version')
     return version
 
@@ -130,7 +150,7 @@ def upgrade_legacy(config):
     """Produce an UNVERIFIED schema-2 projection without changing source data."""
     validate(config, LEGACY_SCHEMA)
     out = template()
-    out['globals'] = copy.deepcopy(config['globals'])
+    out['globals'].update(copy.deepcopy(config['globals']))
     for n, old in enumerate(config['tools']):
         tool = out['tools'][n]
         for key in LEGACY_FIELDS:
@@ -142,6 +162,22 @@ def upgrade_legacy(config):
         # Regardless, ALL migrated tools are unverified and uncommissioned.
         tool['maintenance_lockout'] = n < 6 and not old['enabled']
     return out
+
+def upgrade_v2(config):
+    """Backed-up schema 2 migration: retain measured values, invalidate motion."""
+    validate(config, PREVIOUS_SCHEMA)
+    out=template()
+    out['globals'].update(copy.deepcopy(config['globals']))
+    for old,new in zip(config['tools'],out['tools']):
+        for key in V2_FIELDS:
+            new[key]=copy.deepcopy(old[key])
+        new['dock_reference_accepted']=False
+        new['dock_verified']=False
+        new['pickup_verified']=False
+        new['dropoff_verified']=False
+        new['commissioned']=False
+    return out
+
 
 def render(data):
     validate(data)
@@ -173,6 +209,8 @@ def parse(s):
     version = raw_data['schema']
     if version == LEGACY_SCHEMA:
         return upgrade_legacy(raw_data)
+    if version == PREVIOUS_SCHEMA:
+        return upgrade_v2(raw_data)
     if version == SCHEMA:
         return validate(raw_data)
     raise ValueError('Unsupported CXM schema version')
@@ -228,10 +266,10 @@ class Store:
             fcntl.flock(f, fcntl.LOCK_SH)
             d, raw = self._current()
             return {'config': d, 'revision': self._hash(raw), 'active_in_klipper': False,
-                    'migration_required': schema_on_disk(raw) == LEGACY_SCHEMA}
+                    'migration_required': schema_on_disk(raw) != SCHEMA}
 
     def migrate(self, expected_revision):
-        """Explicit, revision-checked v1 -> v2; one backup, atomic replacement."""
+        """Explicit, revision-checked v1/v2 -> v3; backup before replacement."""
         if type(expected_revision) is not str or not re.fullmatch(r'[0-9a-f]{64}', expected_revision):
             raise ValueError('Valid expected revision required')
         with self.lock.open('a+') as f:
@@ -275,8 +313,13 @@ class Store:
                     raise ValueError('Unknown global setting')
                 previous = data['globals'][key]
                 data['globals'][key] = check_value(key, value, GLOBAL_FIELDS[key])
-                if key in ('safe_y','x_docking_adjust') and previous != data['globals'][key]:
+                if key in ('safe_y','x_docking_adjust','y_docking_adjust',
+                            'cxm_shift_x','cxm_dodge_y','cxm_safe_clearance_y') and previous != data['globals'][key]:
                     for entry in data['tools']:
+                        if key in ('x_docking_adjust','y_docking_adjust') and (
+                                entry['lineux_raw_x'] is not None or
+                                entry['lineux_raw_y'] is not None):
+                            entry['dock_reference_accepted'] = False
                         entry['dock_verified'] = False
                         entry['pickup_verified'] = False
                         entry['dropoff_verified'] = False
@@ -289,6 +332,7 @@ class Store:
                 entry = data['tools'][tool]
                 entry[key] = check_value(key, value, FIELDS[key], nullable=key.startswith('dock_'))
                 if key.startswith('dock_'):
+                    entry['dock_reference_accepted'] = False
                     entry['dock_verified'] = False
                     entry['pickup_verified'] = False
                     entry['dropoff_verified'] = False
@@ -309,7 +353,7 @@ class Store:
             if new == old:
                 return {'saved': True, 'unchanged': True, 'revision': self._hash(old), 'active_in_klipper': False}
             return self._commit(old, new)
-    def save_dock(self, tool, xy, expected_revision):
+    def save_dock(self, tool, xy, expected_revision, raw_xy=None):
         """Save X/Y of a gantry-mounted dock atomically with backup.
 
         The physical dock moves with the gantry: there is no independent dock
@@ -327,8 +371,16 @@ class Store:
         values = {
             'dock_x': check_value('dock_x', xy['x'], FIELDS['dock_x']),
             'dock_y': check_value('dock_y', xy['y'], FIELDS['dock_y']),
-            'dock_z': None,  # Compatibility-only: never an absolute Z target
+            'dock_z': None,
+            'dock_reference_accepted': True,
+            'lineux_raw_x': None,
+            'lineux_raw_y': None,
         }
+        if raw_xy is not None:
+            if type(raw_xy) is not dict or set(raw_xy)!={'x','y'}:
+                raise ValueError('Lineux reference requires raw X and Y')
+            values['lineux_raw_x']=check_value('lineux_raw_x',raw_xy['x'],FIELDS['lineux_raw_x'])
+            values['lineux_raw_y']=check_value('lineux_raw_y',raw_xy['y'],FIELDS['lineux_raw_y'])
         with self.lock.open('a+') as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             data, old = self._current()
@@ -338,6 +390,13 @@ class Store:
                 raise RuntimeError('Explicit configuration migration required before editing')
             if tool >= data['globals']['tool_count'] or data['tools'][tool]['maintenance_lockout']:
                 raise ValueError('Tool outside count or in maintenance lockout')
+            if raw_xy is not None:
+                for axis in ('x','y'):
+                    offset=data['globals'][axis+'_docking_adjust']
+                    expected=round(values['lineux_raw_'+axis]+offset,4)
+                    if abs(values['dock_'+axis]-expected)>0.005:
+                        raise ValueError('CxChanger dock '+axis.upper()+' must equal Lineux '+axis.upper()+
+                                         ' plus the configured calibration offset')
             data = copy.deepcopy(data)
             entry = data['tools'][tool]
             changed = any(entry[k] != v for k, v in values.items())
