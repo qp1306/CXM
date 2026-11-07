@@ -297,9 +297,11 @@ async function measure(){
     if(answer.status!=='PROVISIONAL_LINEUX_UNVERIFIED'||answer.tool!==n||answer.verified!==false)
       throw Error('Measurement response not provisional for selected tool');
     result=answer;tool=n;
-    feedback('PROVISIONAL T'+n+': raw X '+answer.raw_xy_mm.x.toFixed(3)+' / Y '+
-      answer.raw_xy_mm.y.toFixed(3)+' mm; separately adjusted X preview '+
-      answer.adjusted_x_preview_mm.toFixed(3)+' mm. Not saved or verified.','pending');
+    feedback('LINEUX MEASURED T'+n+': raw X'+answer.raw_xy_mm.x.toFixed(3)+
+      ' Y'+answer.raw_xy_mm.y.toFixed(3)+
+      ' · CxChanger datum X'+answer.adjusted_x_preview_mm.toFixed(3)+
+      ' Y'+answer.adjusted_y_preview_mm.toFixed(3)+
+      '. Review the large-hole / locking-screw alignment before saving.','pending');
     await preflightAfterMeasurement();
   }catch(e){
     result=null;tool=null;
@@ -323,16 +325,19 @@ async function copy(){
   try{
     const latest=await fetch('/cxm/api/v1/config',{credentials:'same-origin',cache:'no-store'}).then(r=>r.json());
     if(latest.revision!==result.expected_revision)throw Error('Saved settings revision changed');
-    const adjust=el('cxmLineuxApplyAdjust').checked;
-    const x=adjust?result.adjusted_x_preview_mm:result.raw_xy_mm.x;
-    const y=result.raw_xy_mm.y;
+    // Lineux only measures. CxChanger movement must use the explicit
+    // locking-hole datum, with independently configured X/Y corrections.
+    const x=result.adjusted_x_preview_mm;
+    const y=result.adjusted_y_preview_mm;
     if(!Number.isFinite(x)||!Number.isFinite(y))throw Error('Measurement not finite');
-    if(!window.confirm('Copy PROVISIONAL Lineux X='+x.toFixed(3)+', Y='+y.toFixed(3)+
-       ' to T'+n+' dock DRAFT only?\n\n'+(adjust?'The separate X docking correction is included.':
-       'No X docking correction is applied.')+
-       '\n\nNo dock Z required. This does NOT save or verify the dock.'))return;
+    if(!window.confirm('Copy CxChanger T'+n+' docking-hole datum X'+
+       x.toFixed(3)+' Y'+y.toFixed(3)+'?\\n\\n'+
+       'Lineux measured X'+result.raw_xy_mm.x.toFixed(3)+
+       ' Y'+result.raw_xy_mm.y.toFixed(3)+
+       ' (X/Y corrections included).\\n'+
+       'Check locking-screw alignment. This is a DRAFT, not physical verification.'))return;
     window.dispatchEvent(new CustomEvent('cxm-dock-provisional-xy',
-      {detail:{tool:n,x,y,source:'lineux-live'}}));
+      {detail:{tool:n,x,y,raw_xy:result.raw_xy_mm,source:'lineux-live'}}));
     feedback('T'+n+' provisional XY sent to dock draft. Review and save X/Y in Dock Calibration; nozzle Z offsets are separate.');
     result=null;tool=null;
   }catch(e){feedback('Copy blocked: '+e.message,'bad');}
