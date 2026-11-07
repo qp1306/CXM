@@ -276,7 +276,8 @@ def main():
     # systemd Restart=always relaunches the new Python code after a source change.
     watched=[Path(__file__),Path(__file__).with_name('cxm_config.py'),
              Path(__file__).with_name('cxm_lineux.py'),
-             Path(__file__).with_name('cxm_t0.py')]
+             Path(__file__).with_name('cxm_t0.py'),
+             Path(__file__).with_name('cxm_cxchanger.py')]
     before=[p.stat().st_mtime_ns for p in watched]
     def monitor_updates():
         while True:
