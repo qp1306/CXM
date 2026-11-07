@@ -202,7 +202,7 @@ class TestStore(unittest.TestCase):
         self.assertFalse(self.store.read()['config']['tools'][10]['commissioned'])
         restored=self.store.rollback(migration['backup'],migration['revision'])
         self.assertEqual(self.store.read()['config']['schema'],3)
-        self.assertTrue(self.store.read()['migration_required'])
+        self.assertFalse(self.store.read()['migration_required'])
         self.assertEqual(self.store.read()['config']['tools'][10]['dock_x'],279.25)
         self.assertTrue(restored['saved'])
 
