@@ -13,8 +13,16 @@ function buttons(){
  const n=selected(),show=active();
  root.hidden=!show;
  const auto=live?.automatic;
- const ready=show&&!busy&&!checking&&live?.tool===n&&live?.ready===true&&
-   auto?.enabled===true&&get('cxmToolMotionAck').checked===true;
+ const canApprove=show&&!busy&&!checking&&live?.tool===n&&live?.ready===true&&
+   auto?.enabled===true;
+ const approval=get('cxmToolMotionAck');
+ approval.disabled=!canApprove;
+ if(!canApprove)approval.checked=false;
+ const ready=canApprove&&approval.checked===true;
+ const canConfirmMounted=show&&!busy&&!checking&&live?.tool===n&&
+   auto?.can_confirm_mounted===true;
+ get('cxmToolMountedRecovery').hidden=!canConfirmMounted;
+ get('cxmToolConfirmMounted').disabled=!canConfirmMounted;
  get('cxmToolPickup').disabled=!ready||auto?.signal!=='RELEASED';
  get('cxmToolDropoff').disabled=!ready||auto?.signal!=='PRESSED'||auto?.mounted_tool!==n;
  get('cxmToolFaultBox').hidden=!show||!auto?.fault;
@@ -53,7 +61,10 @@ async function refresh(){
  buttons();
  if(!active())return;
  checking=true;
- say('cxmToolAutoStatus','Checking live T'+n+' readiness…');
+ // Keep the last useful readiness message visible during background polling.
+ // Only show a loading message for a newly selected hotend.
+ if(!live||live.tool!==n)
+   say('cxmToolAutoStatus','Checking live T'+n+' readiness…');
  try{
    const result=await read(base+'/tools/status?tool='+n);
    if(selected()!==n||token!==requestId)return;
@@ -65,11 +76,15 @@ async function refresh(){
    if(result.ready!==true||result.automatic?.enabled!==true)
      get('cxmToolMotionAck').checked=false;
    const a=result.automatic||{};
-   say('cxmToolAutoStatus',!result.ready||!a.enabled
-     ?'T'+n+' BLOCKED · '+(a.reason||result.blockers?.join('; ')||'Check carriage and printer.')
-     :a.signal==='PRESSED'
-       ?'T'+n+' verified mounted in this session · Dropoff available after approval'
-       :'Carriage EMPTY · T'+n+' pickup available after approval');
+   say('cxmToolAutoStatus',a.can_confirm_mounted===true
+     ?'T'+n+' PRESENT · Tool identity not yet confirmed. Physically verify T'+n+' is mounted before first dropoff.'
+     :!result.ready||!a.enabled
+       ?'T'+n+' BLOCKED · '+(a.reason||result.blockers?.join('; ')||'Check carriage and printer.')
+       :a.signal==='PRESSED'
+         ?a.identity_source==='operator_confirmed'
+           ?'T'+n+' mounted · identity confirmed by operator, not pickup test. Dropoff requires approval.'
+           :'T'+n+' pickup verified by switch · Dropoff available after approval'
+         :'Carriage EMPTY · T'+n+' pickup available after approval');
    say('cxmToolGeometry','T'+n+' CxChanger dock X'+(result.saved_xy_mm?.x?.toFixed(3)??'—')+
      ' Y'+(result.saved_xy_mm?.y?.toFixed(3)??'—')+' · Selected-tool geometry');
  }catch(e){
@@ -102,6 +117,32 @@ async function command(kind){
    busy=false;await refresh();
  }
 }
+async function confirmMounted(){
+ const n=selected(),auto=live?.automatic;
+ if(!active()||busy||checking||live?.tool!==n||auto?.can_confirm_mounted!==true)return;
+ const question='CONFIRM HOTEND T'+n+' ALREADY MOUNTED?\\n\\n'+
+   'I have physically identified hotend T'+n+' on the carriage (NOT a different tool).\\n'+
+   'T'+n+' dock is EMPTY, its locking mechanism is clear, and the full dropoff XY path is clear.\\n'+
+   'Klipper XYZ are genuinely homed, XY has NOT been moved by hand since homing, and real Z clearance is safe.\\n\\n'+
+   'This confirmation issues NO movement. A separate checkbox approval is required before Dropoff.';
+ if(!window.confirm(question))return;
+ get('cxmToolMotionAck').checked=false;
+ busy=true;buttons();
+ say('cxmToolAutoResult','Recording inspected T'+n+' mounted identity · no movement…');
+ try{
+   const cfg=await read(base+'/config');
+   if(selected()!==n)throw Error('Selection changed; confirmation cancelled');
+   const r=await post('confirm-mounted',{tool:n,expected_revision:cfg.revision,
+     acknowledgement:'I_IDENTIFIED_SELECTED_HOTEND_MOUNTED_EMPTY_DOCK_HOMED_XY_NOT_HAND_MOVED'});
+   if(r.tool!==n||r.status!=='T'+n+'_MOUNTED_OPERATOR_CONFIRMED_NO_MOVEMENT')
+     throw Error('Backend could not confirm selected tool without movement');
+   say('cxmToolAutoResult','T'+n+' operator-confirmed on carriage. NO MOTION. Review actual clearance, then approve Dropoff T'+n+'.');
+ }catch(e){
+   say('cxmToolAutoResult','T'+n+' mounted confirmation blocked · '+e.message);
+ }finally{
+   busy=false;await refresh();
+ }
+}
 async function clearFault(){
  const n=selected();
  if(!active()||busy||checking||live?.tool!==n||!live.automatic?.fault||
@@ -121,6 +162,7 @@ get('cxmToolPickup').addEventListener('click',()=>command('pickup'));
 get('cxmToolDropoff').addEventListener('click',()=>command('dropoff'));
 get('cxmToolMotionAck').addEventListener('change',buttons);
 get('cxmToolClearFault').addEventListener('click',clearFault);
+get('cxmToolConfirmMounted').addEventListener('click',confirmMounted);
 get('cxmDockTool')?.addEventListener('change',()=>{get('cxmToolMotionAck').checked=false;lastSelected=null;refresh();});
 document.querySelector('[data-tab="calibration"]')?.addEventListener('click',refresh);
 window.addEventListener('cxm-dock-saved',refresh);
