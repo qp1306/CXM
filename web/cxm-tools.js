@@ -12,17 +12,25 @@ const say=(id,v)=>{get(id).textContent=v;};
 function buttons(){
  const n=selected(),show=active();
  root.hidden=!show;
- const auto=live?.automatic;
- const ready=show&&!busy&&!checking&&live?.tool===n&&live?.ready===true&&
-   auto?.enabled===true&&get('cxmToolMotionAck').checked===true;
+ const sameTool=live?.tool===n;
+ const auto=sameTool?live?.automatic:null;
+ const canApprove=show&&!busy&&!checking&&sameTool&&live.ready===true&&
+   auto?.enabled===true;
+ get('cxmToolMotionAck').disabled=!canApprove;
+ if(!canApprove)get('cxmToolMotionAck').checked=false;
+ const ready=canApprove&&get('cxmToolMotionAck').checked===true;
  get('cxmToolPickup').disabled=!ready||auto?.signal!=='RELEASED';
- get('cxmToolDropoff').disabled=!ready||auto?.signal!=='PRESSED'||auto?.mounted_tool!==n;
- get('cxmToolFaultBox').hidden=!show||!auto?.fault;
- get('cxmToolClearFault').disabled=busy||checking||!auto?.fault||auto?.signal!=='RELEASED';
+ get('cxmToolDropoff').disabled=!ready||auto?.signal!=='PRESSED'||
+   !(auto?.mounted_tool===null||auto?.mounted_tool===n);
+ get('cxmToolFaultBox').hidden=!show||!sameTool||!auto?.fault;
+ get('cxmToolClearFault').disabled=busy||checking||!sameTool||!auto?.fault||auto?.signal!=='RELEASED';
  root.setAttribute('aria-busy',busy?'true':'false');
  if(show){
    say('cxmToolAutoTitle','T'+n+' · Pickup / Dropoff');
    say('cxmToolMotionLabel','Approve T'+n+' movement');
+   say('cxmToolApprovalDetail',auto?.signal==='PRESSED'
+     ?'I physically confirm T'+n+' is the mounted hotend, its dock is EMPTY, and the full dropoff XY path is clear.'
+     :'I confirm the carriage is EMPTY, T'+n+' is in its dock, and the full pickup XY path is clear.');
    say('cxmToolPickup','Pick up T'+n);
    say('cxmToolDropoff','Drop off T'+n);
  }
@@ -53,7 +61,9 @@ async function refresh(){
  buttons();
  if(!active())return;
  checking=true;
- say('cxmToolAutoStatus','Checking live T'+n+' readiness…');
+ // Preserve a meaningful blocked/ready status during background polling.
+ // "Checking..." is shown only on first load or a changed tool selection.
+ if(!live||live.tool!==n)say('cxmToolAutoStatus','Checking live T'+n+' readiness…');
  try{
    const result=await read(base+'/tools/status?tool='+n);
    if(selected()!==n||token!==requestId)return;
@@ -68,8 +78,10 @@ async function refresh(){
    say('cxmToolAutoStatus',!result.ready||!a.enabled
      ?'T'+n+' BLOCKED · '+(a.reason||result.blockers?.join('; ')||'Check carriage and printer.')
      :a.signal==='PRESSED'
-       ?'T'+n+' verified mounted in this session · Dropoff available after approval'
-       :'Carriage EMPTY · T'+n+' pickup available after approval');
+       ?a.identity_source==='verified_pickup'
+         ?'T'+n+' SELECTED · FILAMENT PRESENT (prior pickup confirmed). Approve dropoff.'
+         :'T'+n+' SELECTED · FILAMENT PRESENT. Confirm it is physically T'+n+', then approve dropoff.'
+       :'T'+n+' SELECTED · FILAMENT ABSENT. Approve pickup after checking T'+n+' is in its dock.');
    say('cxmToolGeometry','T'+n+' CxChanger dock X'+(result.saved_xy_mm?.x?.toFixed(3)??'—')+
      ' Y'+(result.saved_xy_mm?.y?.toFixed(3)??'—')+' · Selected-tool geometry');
  }catch(e){
@@ -81,7 +93,8 @@ async function command(kind){
  if(!active()||busy||checking||live?.tool!==n||live?.ready!==true||
     !a?.enabled||!get('cxmToolMotionAck').checked)return;
  if(kind==='pickup' && a.signal!=='RELEASED')return;
- if(kind==='dropoff' && (a.signal!=='PRESSED'||a.mounted_tool!==n))return;
+ if(kind==='dropoff' && (a.signal!=='PRESSED'||
+    !(a.mounted_tool===null||a.mounted_tool===n)))return;
  get('cxmToolMotionAck').checked=false;
  busy=true;buttons();
  say('cxmToolAutoResult','T'+n+' '+kind+' started · supervise hotend and dock.');
@@ -90,7 +103,7 @@ async function command(kind){
    // Selection cannot change what tool this request targets.
    if(selected()!==n)throw Error('Tool selection changed during preflight; movement cancelled');
    const outcome=await post('auto',{tool:n,kind,expected_revision:config.revision,
-     acknowledgement:'I_CONFIRMED_SELECTED_TOOL_XY_PATH_CLEAR_AND_WILL_SUPERVISE'});
+     acknowledgement:'I_CONFIRMED_SELECTED_HOTEND_IDENTITY_AND_FULL_XY_PATH_CLEAR'});
    if(outcome.tool!==n || outcome.status!=='T'+n+'_'+kind.toUpperCase()+'_SENSOR_CONFIRMED')
      throw Error('Backend did not verify the selected tool');
    say('cxmToolAutoResult','T'+n+' '+kind+' · switch '+outcome.signal+

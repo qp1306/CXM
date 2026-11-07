@@ -359,7 +359,7 @@
  <p id="cxmToolAutoStatus" role="status" aria-live="polite">Checking selected hotend and Klipper…</p>
  <label class="cxm-capture-ack cxm-t0-motion-ack"><input id="cxmToolMotionAck" type="checkbox">
   <span class="cxm-approval-copy"><strong id="cxmToolMotionLabel">Approve selected hotend movement</strong>
-  <small>Correct hotend physically in dock or on carriage · full XY path clear · emergency stop accessible · supervised operation</small></span></label>
+  <small id="cxmToolApprovalDetail">Physically confirm the selected hotend and full XY path are safe; supervise movement</small></span></label>
  <div class="buttons cxm-t0-auto-buttons">
   <button class="btn primary" id="cxmToolPickup" disabled>Pick up selected hotend</button>
   <button class="btn primary" id="cxmToolDropoff" disabled>Drop off selected hotend</button>
@@ -780,7 +780,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-dock.js?v=0.9.6" defer></script>
 <script src="cxm-lineux.js?v=0.9.14" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
 <script src="cxm-t0-auto.js?v=1.2.3" defer></script>
-<script src="cxm-tools.js?v=0.1.0" defer></script>
+<script src="cxm-tools.js?v=0.1.1" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
