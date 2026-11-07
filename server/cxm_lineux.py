@@ -417,9 +417,13 @@ def perform_measurement(*, tool, expected_revision, acknowledgement, store):
         if latest['revision']!=snapshot['revision']:
             raise MeasurementError('Settings changed during measurement; result discarded')
         adjust=_num(latest['config']['globals']['x_docking_adjust'],'x_docking_adjust')
+        adjust_y=_num(latest['config']['globals']['y_docking_adjust'],'y_docking_adjust')
         return {'status':'PROVISIONAL_LINEUX_UNVERIFIED',
                 'tool':tool,'expected_revision':expected_revision,
                 'raw_xy_mm':xy,'separate_x_docking_adjust_mm':adjust,
+                'separate_y_docking_adjust_mm':adjust_y,
                 'adjusted_x_preview_mm':round(xy['x']+adjust,4),
+                'adjusted_y_preview_mm':round(xy['y']+adjust_y,4),
+                'datum_kind':'Lineux measured carriage XY, converted to CxChanger locking-hole datum',
                 'save_permitted':False,'verified':False,
-                'note':'No coordinates saved. Use the separate dock draft review; dock Z and physical verification remain required.'}
+                'note':'Measurement is raw Lineux XY. Apply reviewed X/Y datum correction in the draft; CxChanger motion uses only accepted dock XY. No coordinates saved yet.'}
