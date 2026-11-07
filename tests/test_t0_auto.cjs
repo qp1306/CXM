@@ -9,10 +9,10 @@ function setup(initialSignal='PRESSED'){
   const ids=['cxmT0Auto','cxmT0AutoPickup','cxmT0AutoDropoff',
     'cxmT0AutoStatus','cxmT0AutoGeometry','cxmT0AutoResult',
     'cxmT0AutoFaultBox','cxmT0AutoClearFault','cxmDockTool',
-    'cxmT0Cycles','cxmT0StartCycles','cxmT0StopCycles','cxmT0CycleStatus'];
+    'cxmT0Cycles','cxmT0StartCycles','cxmT0StopCycles','cxmT0CycleStatus','cxmT0MotionAck'];
   const nodes={};
   ids.forEach(id=>nodes[id]={
-    disabled:true,hidden:id==='cxmT0AutoFaultBox',textContent:'',
+    disabled:true,hidden:id==='cxmT0AutoFaultBox',textContent:'',checked:false,
     value:id==='cxmDockTool'?'0':id==='cxmT0Cycles'?'3':'',
     listeners:{},setAttribute(name,value){this[name]=value},
     addEventListener(name,cb){this.listeners[name]=cb;},
@@ -75,9 +75,13 @@ function setup(initialSignal='PRESSED'){
     setFault:v=>fault=v};
 }
 
+function approve(t){t.nodes.cxmT0MotionAck.checked=true;t.nodes.cxmT0MotionAck.listeners.change();}
+
 test('live PRESSED shows only Dropoff; no manual recording or staging needed',async()=>{
   const t=setup('PRESSED');
   await t.tick();
+  assert.equal(t.nodes.cxmT0AutoDropoff.disabled,true,'requires fresh approval');
+  approve(t);
   assert.equal(t.nodes.cxmT0AutoDropoff.disabled,false);
   assert.equal(t.nodes.cxmT0AutoPickup.disabled,true);
   assert.match(t.nodes.cxmT0AutoStatus.textContent,/PRESSED/);
@@ -90,20 +94,23 @@ test('live PRESSED shows only Dropoff; no manual recording or staging needed',as
   assert.equal(JSON.parse(posted.opts.body).kind,'dropoff');
   assert.equal(t.signal(),'RELEASED');
   assert.equal(t.nodes.cxmT0AutoDropoff.disabled,true);
-  assert.equal(t.nodes.cxmT0AutoPickup.disabled,false);
+  assert.equal(t.nodes.cxmT0AutoPickup.disabled,true,'approval consumed after dropoff');
+  assert.equal(t.nodes.cxmT0MotionAck.checked,false);
   assert.ok(!t.calls.some(c=>c.url.includes('/stage')||c.url.includes('/sensor')));
 });
 
 test('RELEASED shows only Pickup and changes after completed action',async()=>{
   const t=setup('RELEASED');
   await t.tick();
+  assert.equal(t.nodes.cxmT0AutoPickup.disabled,true);
+  approve(t);
   assert.equal(t.nodes.cxmT0AutoPickup.disabled,false);
   assert.equal(t.nodes.cxmT0AutoDropoff.disabled,true);
   t.nodes.cxmT0AutoPickup.listeners.click();
   await t.tick();await t.tick();
   assert.equal(t.signal(),'PRESSED');
   assert.equal(t.nodes.cxmT0AutoPickup.disabled,true);
-  assert.equal(t.nodes.cxmT0AutoDropoff.disabled,false);
+  assert.equal(t.nodes.cxmT0AutoDropoff.disabled,true,'pickup consumes approval');
 });
 
 test('fault blocks buttons; recovery requires explicit acknowledgement',async()=>{
@@ -118,13 +125,15 @@ test('fault blocks buttons; recovery requires explicit acknowledgement',async()=
   t.nodes.cxmT0AutoClearFault.listeners.click();
   await t.tick();await t.tick();
   assert.equal(t.nodes.cxmT0AutoFaultBox.hidden,true);
-  assert.equal(t.nodes.cxmT0AutoDropoff.disabled,false);
+  assert.equal(t.nodes.cxmT0AutoDropoff.disabled,true,'fault clear does not approve motion');
   assert.ok(t.calls.some(c=>c.url==='/cxm/api/v1/t0/clear-fault'));
 });
 
 test('repeat three cycles uses one backend cycle command and no manual staging',async()=>{
   const t=setup('RELEASED');
   await t.tick();await t.tick();
+  assert.equal(t.nodes.cxmT0StartCycles.disabled,true);
+  approve(t);
   assert.equal(t.nodes.cxmT0StartCycles.disabled,false);
   t.nodes.cxmT0StartCycles.listeners.click();
   await t.tick();await t.tick();await t.tick();
@@ -146,7 +155,20 @@ test('repeat count must be a whole number from 1 to 20',async()=>{
   assert.equal(t.nodes.cxmT0StartCycles.disabled,true);
   t.nodes.cxmT0Cycles.value='3';
   t.nodes.cxmT0Cycles.listeners.input();
+  assert.equal(t.nodes.cxmT0StartCycles.disabled,true);
+  approve(t);
   assert.equal(t.nodes.cxmT0StartCycles.disabled,false);
+});
+
+test('unchecked approval blocks direct motion calls',async()=>{
+  const t=setup('RELEASED');
+  await t.tick();
+  await t.nodes.cxmT0AutoPickup.listeners.click();
+  assert.equal(t.calls.some(c=>c.url==='/cxm/api/v1/t0/auto'),false);
+  approve(t);
+  await t.nodes.cxmT0AutoPickup.listeners.click();
+  assert.equal(t.calls.some(c=>c.url==='/cxm/api/v1/t0/auto'),true);
+  assert.equal(t.nodes.cxmT0MotionAck.checked,false);
 });
 
 test('controller is T0-only: other selected hotends keep both buttons disabled',async()=>{
