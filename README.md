@@ -383,27 +383,36 @@ These use only the selected tool's accepted saved CxChanger locking-hole X/Y
 datum and shared relative X-latch/Y-dodge/safe-clearance settings; **Lineux
 is used for locating the datum, not moving the hotend**.
 
-Each test is gated by Klipper READY/IDLE, physical homing, at least Z20,
+Each test is gated by Klipper READY/IDLE, genuine homing, at least Z20,
 powered X/Y and four Z steppers, accepted XY datum, maintenance lockout,
 safe XY waypoint bounds and a fresh approval. The shared
-\`gcode_button cxm_tool_detect\` reports PRESENT/EMPTY, **not which hotend is
-attached**. Therefore a selected-tool dropoff is only allowed after the
-running backend has confirmed pickup of that same T1–T11 via the switch.
-If the process or configuration changes, identity evidence expires and a
-pressed switch cannot authorise an arbitrary tool dropoff. T0's controller
-also refuses to drop off a different tool while its successful pickup is
-tracked in the same backend session. **Manual recovery may be required after
-a service restart with a hotend already attached.**
+\`gcode_button cxm_tool_detect\` reports the physical **FILAMENT PRESENT**
+(hotend on the carriage) or **FILAMENT ABSENT** (empty carriage) state. It
+**does not electrically identify a hotend**. The hotend selected at the
+beginning of Dock XY calibration (T0–T11) is the operator-declared tool
+identity and supplies the corresponding CxChanger XY geometry.
 
-A prior unresolved T0 pickup/dropoff fault must be physically inspected and
-cleared through T0 before another tool is tested. If the carriage switch
-remains PRESSED, do not try T1 pickup; establish which tool is actually
-mounted, then return the printer to a safe known condition.
+- **Selected T1 + ABSENT** → after physical path approval, allow Pickup T1;
+  expect the switch to become PRESENT.
+- **Selected T1 + PRESENT** → after visually confirming the attached hotend
+  is in fact T1, its dock is empty, and the dropoff route is safe, approve
+  Dropoff T1; expect the switch to become ABSENT. A prior controller pickup
+  is **not required**, e.g. if T1 was attached before the service restarted.
+- A verified successful pickup that records another hotend (e.g. T1
+  mounted but T2 selected) continues to block cross-tool motion. Switching
+  the UI tool number alone does **not** prove the physical hotend changed.
+- A prior unresolved T0 motion fault also blocks T1–T11 operations until
+  it has been physically inspected and cleared.
 
-For initial commissioning, test each newly installed T1/T2 individually,
-starting with the carriage physically empty: save Lineux XY, verify the real
-docking path with clearance at every waypoint, approve Pickup, inspect,
-approve Dropoff, inspect. Repeat cycles are **not yet enabled for T1–T11**.
+The approval checkbox is the deliberate operator identity/path confirmation;
+no duplicate modal or second 'already mounted' confirmation is required.
+No tool electrical identity is inferred from the carriage switch.
+
+For initial commissioning, test each newly installed T1/T2 individually:
+save Lineux XY, physically verify every waypoint, approve the single
+appropriate Pickup or Dropoff for the real presence state, inspect the
+mechanism and switch after each move. Repeat cycles remain **T0-only**
+until T1/T2 have completed individual physical tests.
 These movements verify only the presence-switch transition, not tool seating
 strength, heater or thermistor switching, Z offset or full commissioning.
 No \`printer.cfg\` edits or Klipper restart are required simply for this web
