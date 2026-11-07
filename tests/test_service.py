@@ -127,7 +127,7 @@ class TestAPI(unittest.TestCase):
             item['enabled']=i<6
             old_tools.append(item)
         raw=['[gcode_macro _CXM_VARIABLES]','variable_schema_version: 1',
-             'variable_globals: '+repr(config['globals'])]
+             'variable_globals: '+repr({k:config['globals'][k] for k in cxm_config.V2_GLOBAL_FIELDS})]
         raw += ['variable_t%d: %s'%(i,repr(t)) for i,t in enumerate(old_tools)]
         raw += ['gcode:','  {% set cxm_values_loaded = 1 %}','']
         self.store.path.write_text('\n'.join(raw))
@@ -143,7 +143,7 @@ class TestAPI(unittest.TestCase):
             migrated=self.call('/v1/migrate',{'expected_revision':current['revision']},headers)
         self.assertTrue(migrated['saved'])
         self.assertFalse(self.call('/v1/config')['migration_required'])
-        self.assertEqual(self.call('/v1/config')['config']['schema'],2)
+        self.assertEqual(self.call('/v1/config')['config']['schema'],3)
         self.assertEqual(len(self.store.history()),1)
         with patch('cxm_service.printer_safe',return_value=True):
             with self.assertRaises(urllib.error.HTTPError) as error:
