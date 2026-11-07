@@ -38,6 +38,15 @@ def _snapshot(store,tool):
     saved=store.read()
     if saved['migration_required']:
         raise ToolError('CXM configuration migration required')
+    count=saved['config']['globals']['tool_count']
+    if tool>=count:
+        raise ToolError('T'+str(tool)+' is outside the configured hotend count')
+    profile=saved['config']['tools'][tool]
+    if profile['maintenance_lockout']:
+        raise ToolError('T'+str(tool)+' is under maintenance lockout')
+    if (profile['dock_x'] is None or profile['dock_y'] is None or
+        profile['dock_reference_accepted'] is not True):
+        raise ToolError('T'+str(tool)+' CxChanger dock XY must be measured and accepted before movement')
     ctx=_safe_context(saved,tool=tool)
     p=geometry_plan(saved,tool=tool)
     if AUTO_SENSOR not in ctx['objects']:
