@@ -11,6 +11,9 @@ const onlyT0=()=>get('cxmDockTool')?.value==='0';
 function say(id,message){get(id).textContent=message;}
 function updateButtons(){
   const auto=live?.automatic;
+  // T0's dedicated commissioning controls must never appear under T1–T11.
+  root.hidden=!onlyT0();
+  if(!onlyT0())get('cxmT0MotionAck').checked=false;
   const good=!busy&&!cycle?.running&&onlyT0()&&live?.ready===true&&auto?.enabled===true&&get('cxmT0MotionAck').checked===true;
   get('cxmT0AutoPickup').disabled=!good||auto?.signal!=='RELEASED';
   get('cxmT0AutoDropoff').disabled=!good||auto?.signal!=='PRESSED';
