@@ -9,6 +9,7 @@
   const axis = ['x','y'];
   let snapshot = null, selected = 0, busy = false, dirty = false, activeAxis = 'x';
   let rawDraft=null; // Lineux-measured reference, only for unchanged live capture.
+  let migrationMessage='';
 
   const report = (message, error = false) => {
     const el = get('cxmDockFeedback');
@@ -87,7 +88,7 @@
     const pending=snapshot?.migration_required===true;
     box.hidden=!pending;
     button.disabled=!pending||busy;
-    if(pending)get('cxmDockMigrationText').textContent=
+    if(pending)get('cxmDockMigrationText').textContent=migrationMessage||
       'Saved coordinates stay in place. The current file is backed up, then upgraded to schema 3. '+
       'Old motion verification is cleared and must be tested again. No motors move and Klipper does not restart.';
   }
@@ -218,7 +219,8 @@
       'No printer movement or Klipper restart. Continue?'))return;
     busy=true;renderMigration();
     const feedback=get('cxmDockMigrationText');
-    feedback.textContent='Checking saved revision and preparing backup…';
+    migrationMessage='Checking saved revision and preparing backup…';
+    feedback.textContent=migrationMessage;
     try{
       const before=await getJSON('/config');
       if(before.revision!==snapshot.revision)throw Error('Configuration changed. Refresh and review before upgrading.');
@@ -236,13 +238,14 @@
       if(after.config.globals.tool_count!==count||
          after.config.tools.some((t,n)=>tracked.some((k,i)=>t[k]!==values[n][i])))
         throw Error('Saved XY or offsets differ after migration; inspect backup history.');
-      snapshot=after;dirty=false;rawDraft=null;
+      snapshot=after;dirty=false;rawDraft=null;migrationMessage='';
       render();
       report('Configuration upgraded to schema 3 with verified backup '+reply.backup+
         '. Saved XY retained; confirm the dock datum and independently test each movement.');
       window.dispatchEvent(new Event('cxm-config-migrated'));
     }catch(e){
-      feedback.textContent='Upgrade not verified: '+e.message+' No movement was commanded.';
+      migrationMessage='Upgrade not verified: '+e.message+' No movement was commanded.';
+      feedback.textContent=migrationMessage;
       report('Configuration upgrade: '+e.message,true);
       // A server-side commit may have succeeded before a later check failed.
       // Read disk again rather than repeating the migration on stale state.
