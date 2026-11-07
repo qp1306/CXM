@@ -1,8 +1,10 @@
 """Guarded selected-hotend XY commissioning for T1–T11.
 
-The shared carriage switch detects presence, NOT tool identity.
-A dropoff is enabled only after this service positively confirmed pickup
-of exactly that tool in the same Klipper process and config revision.
+The selected hotend is the operator-declared identity. The shared carriage
+switch reports only PRESENT or ABSENT: it cannot identify which tool is
+mounted. A PRESSED signal permits a supervised dropoff of the selected tool
+only after a fresh physical-identity/path approval. Verified pickup history
+still prevents switching to a different tool while one is known mounted.
 T0's existing tested API remains separate and unchanged.
 """
 from __future__ import annotations
@@ -75,18 +77,23 @@ def _snapshot(store,tool):
         reason=fault
     elif not can_stage:
         reason='Carriage is inside the selected dock approach zone; safely rehome/park first'
-    elif signal==AUTO_MOUNTED and known != tool:
-        reason='Carriage switch PRESSED but mounted hotend identity is not verified as T'+str(tool)+'. Do not drop an unknown hotend into this dock.'
     elif known is not None and known != tool:
-        reason='T'+str(known)+' is still recorded as mounted. Drop it off safely before selecting T'+str(tool)
+        reason='T'+str(known)+' is recorded as mounted. Select T'+str(known)+
+               ' and safely drop it off before operating T'+str(tool)
     else:
         reason=None
+    # The switch is only a presence sensor, never a tool-ID sensor. If it
+    # reads PRESSED with no recorded pickup, selection + separate deliberate
+    # approval supplies the operator's declared tool identity.
+    identity_source=('verified_pickup' if known==tool else
+                     'operator_selected' if signal==AUTO_MOUNTED and known is None else
+                     None)
     return {'ready':not bool(reason),'tool':tool,'saved_xy_mm':p['dock_reference_xy'],
             'safe_y_mm':p['safe_y'],'position_mm':ctx['position'],
             'automatic':{'enabled':not bool(reason),'reason':reason,'signal':signal,
                          'action':'dropoff' if signal==AUTO_MOUNTED else 'pickup',
-                         'mounted_tool':known,'at_stage':at_stage,'fault':fault,
-                         'last_success':last},
+                         'mounted_tool':known,'identity_source':identity_source,
+                         'at_stage':at_stage,'fault':fault,'last_success':last},
             'blockers':[reason] if reason else [],
             '_ctx':ctx,'_geometry':p,'_revision':saved['revision']}
 
@@ -103,8 +110,8 @@ def automatic_toolchange(*,store,tool,expected_revision,kind,acknowledgement):
         raise ToolError('This endpoint supports selected T1–T11 only')
     if kind not in ('pickup','dropoff'):
         raise ToolError('Choose pickup or dropoff')
-    if acknowledgement != 'I_CONFIRMED_SELECTED_TOOL_XY_PATH_CLEAR_AND_WILL_SUPERVISE':
-        raise ToolError('Physically confirm selected hotend and complete XY path')
+    if acknowledgement != 'I_CONFIRMED_SELECTED_HOTEND_IDENTITY_AND_FULL_XY_PATH_CLEAR':
+        raise ToolError('Confirm selected hotend identity, carriage state and complete XY path')
     if not MOVE_LOCK.acquire(blocking=False):
         raise ToolError('Another printer motion operation is running')
     sent=False
@@ -120,8 +127,12 @@ def automatic_toolchange(*,store,tool,expected_revision,kind,acknowledgement):
         expected=AUTO_EMPTY if kind=='pickup' else AUTO_MOUNTED
         if auto['signal']!=expected:
             raise ToolError('Wrong operation for live carriage switch state')
-        if kind=='dropoff' and auto['mounted_tool']!=tool:
-            raise ToolError('Mounted tool identity not verified; cannot drop off T'+str(tool))
+        if kind=='dropoff' and auto['mounted_tool'] not in (None,tool):
+            raise ToolError('Another hotend is recorded as mounted; cannot drop off T'+str(tool))
+        # When PRESSED but without verified pickup history, the operator has
+        # explicitly selected T{tool} and approved its identity/path. This is
+        # a declaration, NOT positive electrical identification. The sensor
+        # transition after the move must still independently confirm release.
         if kind=='pickup' and auto['mounted_tool'] is not None:
             raise ToolError('Carriage must be empty before pickup')
         script=automatic_script(before['_geometry'],kind,at_stage=auto['at_stage'],
@@ -146,6 +157,7 @@ def automatic_toolchange(*,store,tool,expected_revision,kind,acknowledgement):
             _STATE['fault']=None
         return {'status':'T'+str(tool)+'_'+kind.upper()+'_SENSOR_CONFIRMED',
                 'tool':tool,'kind':kind,'signal':final_signal,
+                'identity_source':(auto['identity_source'] if kind=='dropoff' else 'operator_selected'),
                 'position_mm':end['position'],'staging_performed':not auto['at_stage'],
                 'note':'Presence switch transition verified; visually inspect tool seating. No tool commissioned.'}
     except Exception as exc:
