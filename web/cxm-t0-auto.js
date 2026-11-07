@@ -59,7 +59,7 @@ async function refresh(){
     say('cxmT0AutoGeometry',
       'T0 dock X'+(live.saved_xy_mm?.x?.toFixed(3)??'—')+
       ' Y'+(live.saved_xy_mm?.y?.toFixed(3)??'—')+
-      ' · Unlock X −4.8 mm · Y dodge 14 mm · XY only');
+      ' · CxChanger XY motion: see saved geometry in Settings');
     updateButtons();
   }catch(e){
     live=null;
