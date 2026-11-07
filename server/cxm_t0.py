@@ -10,6 +10,9 @@ import threading
 import time
 import urllib.parse
 from cxm_lineux import _rpc, MOVE_LOCK, MeasurementError
+from cxm_cxchanger import (plan as cxchanger_plan,
+                           gcode as cxchanger_gcode,
+                           automatic_script as cxchanger_script)
 
 SESSION_LOCK=threading.Lock()
 SESSION={'pid':None,'revision':None,'stage':None,'sensor':None,
@@ -24,8 +27,7 @@ POSITION_TOL=0.2
 AUTO_SENSOR='gcode_button cxm_tool_detect'
 AUTO_MOUNTED='PRESSED'
 AUTO_EMPTY='RELEASED'
-AUTO_SHIFT_X=-4.8
-AUTO_DODGE_Y=14.0
+# Motion distances now come exclusively from schema-3 CXM_variables.cfg.
 AUTO_STATE={'pid':None,'revision':None,'fault':None,'last_success':None}
 CYCLE_LOCK=threading.Lock()
 CYCLE_MAX=20
@@ -82,13 +84,12 @@ def _safe_context(saved, *, require_homed=True, require_in_park=False):
         raise T0Error('T0 is under maintenance lockout')
     if t['dock_x'] is None or t['dock_y'] is None:
         raise T0Error('Save T0 dock X/Y first')
-    x=number(t['dock_x'],'Dock X',0,335)
-    y=number(t['dock_y'],'Dock Y',0,362)
-    safe=number(saved['config']['globals']['safe_y'],'Configured safe Y',0,362)
-    if safe<y+35:
-        raise T0Error('Configured safe Y is too close to dock for guarded path')
-    if x<10 or x>325 or y<10 or y>320:
-        raise T0Error('T0 dock outside supervised test zone')
+    # The Lineux calibration result is not a motion model. The CxChanger
+    # engine owns the accepted locking-hole datum and the relative Y clearance.
+    p=plan(saved)
+    x=p['dock_reference_xy']['x']
+    y=p['dock_reference_xy']['y']
+    safe=p['safe_y']
     info=_rpc('/printer/info')
     if info.get('state')!='ready' or type(info.get('process_id')) is not int:
         raise T0Error('Klipper not ready or identity unavailable')
@@ -179,21 +180,12 @@ def _candidates(objects):
     return sorted(o for o in objects if
                   o.startswith('gcode_button ') or o.startswith('filament_switch_sensor '))
 
-def plan(saved,shift_x=-3.0,dodge_y=14.0):
-    # Geometry follows the original CxChanger sequence. These are tentative
-    # mechanical adjustments, NOT a claim of verified actual T0 geometry.
-    t=saved['config']['tools'][0]
-    x=number(t['dock_x'],'Dock X',0,335)
-    y=number(t['dock_y'],'Dock Y',0,362)
-    safe=number(saved['config']['globals']['safe_y'],'Safe Y',0,362)
-    dx=number(shift_x,'Lateral shift X',-8,-1)
-    dy=number(dodge_y,'Dodge Y',5,25)
-    if x+dx<5 or x+dx>330 or y+dy+20>safe:
-        raise T0Error('Pickup/dropoff path conflicts with physical limits or safe Y')
-    return {'stage':[(x,safe)],
-            'pickup':[(x,y+dy),(x+dx,y+dy),(x+dx,y),(x,y),(x,safe)],
-            'dropoff':[(x,y),(x+dx,y),(x+dx,y+dy),(x,y+dy),(x,safe)],
-            'shift_x':dx,'dodge_y':dy,'safe_y':safe}
+def plan(saved,shift_x=None,dodge_y=None):
+    try:
+        return cxchanger_plan(saved,shift_x=shift_x,dodge_y=dodge_y)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise T0Error(str(exc)) from exc
+
 
 def _auto_snapshot(ctx, saved):
     """Actual Klipper sensor state; never derived from staging history."""
@@ -201,7 +193,7 @@ def _auto_snapshot(ctx, saved):
         _auto_invalidate(ctx)
         fault=AUTO_STATE['fault']
         last=AUTO_STATE['last_success']
-    p=plan(saved,AUTO_SHIFT_X,AUTO_DODGE_Y)
+    p=plan(saved)
     if AUTO_SENSOR not in ctx['objects']:
         return {'enabled':False,'sensor':AUTO_SENSOR,
                 'reason':'T0 carriage switch is not registered in Klipper'}
@@ -222,23 +214,16 @@ def _auto_snapshot(ctx, saved):
             'action':'dropoff' if attached else 'pickup',
             'at_stage':at_stage,
             'staging_x_mm':ctx['x'],'staging_y_mm':ctx['safe_y'],
-            'shift_x_mm':AUTO_SHIFT_X,'dodge_y_mm':AUTO_DODGE_Y,
+            'shift_x_mm':p['shift_x'],'dodge_y_mm':p['dodge_y'],
+            'safe_clearance_mm':p['clearance_y'],
             'plan':p,'last_success':last,
             'note':'Switch signal is a tool-presence indication, not independent mechanical-latch proof.'}
 
 
 def _automatic_script(path, kind, *, at_stage):
-    """Build ONE sequential XY script for staging and tool movement.
-
-    Keep the original tested path and feeds. M400 between stages guarantees
-    that the X positioning at Safe Y completes before entering dock Y.
-    Moonraker receives one /printer/gcode/script request for the whole cycle.
-    """
-    movement=_gcode(path[kind],kind).splitlines()
-    if at_stage:
-        return '\n'.join(movement)
-    stage=_gcode(path['stage'],'stage').splitlines()
-    return '\n'.join(stage+movement[1:])
+    return cxchanger_script(path,kind,at_stage=at_stage,
+                            safe_feed=SAFE_FEED,test_feed=TEST_FEED,
+                            latch_feed=LATCH_FEED)
 
 
 def automatic_toolchange(*,store,expected_revision,kind,acknowledgement):
@@ -279,7 +264,7 @@ def _automatic_toolchange_locked(*,store,expected_revision,kind,acknowledgement)
         if auto['signal']!=expected:
             raise T0Error('T0 switch indicates '+('attached' if auto['attached'] else 'empty')+
                           '; '+kind+' is the wrong operation')
-        p=plan(saved,AUTO_SHIFT_X,AUTO_DODGE_Y)
+        p=plan(saved)
         with SESSION_LOCK:
             # Ordinary test session does not determine hardware state.
             # Clear obsolete staging state to avoid cross-workflow approval.
@@ -546,22 +531,8 @@ def record_sensor(*,store,expected_revision,name,condition,acknowledgement):
             'note':'Sensor signal evidence only; visually verify coupling for every supervised test.'}
 
 def _gcode(points,kind):
-    if kind=='stage':
-        speeds=[SAFE_FEED]
-    elif kind=='pickup':
-        speeds=[TEST_FEED,TEST_FEED,TEST_FEED,LATCH_FEED,TEST_FEED]
-    else:
-        speeds=[TEST_FEED,LATCH_FEED,TEST_FEED,TEST_FEED,TEST_FEED]
-    lines=['G90']
-    if kind=='stage':
-        # Go to the known-configured safe-Y line before crossing toward dock X
-        x,y=points[0]
-        lines.extend([f'G1 Y{y:.5f} F{SAFE_FEED}',f'G1 X{x:.5f} F{SAFE_FEED}'])
-    else:
-        for (x,y),feed in zip(points,speeds):
-            lines.append(f'G1 X{x:.5f} Y{y:.5f} F{feed}')
-    lines.append('M400')
-    return '\n'.join(lines)
+    return cxchanger_gcode(points,kind,SAFE_FEED,TEST_FEED,LATCH_FEED)
+
 
 def motion(*,store,expected_revision,kind,acknowledgement,
            shift_x=-3.0,dodge_y=14.0):
