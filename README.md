@@ -509,3 +509,35 @@ source update may restart only the CXM backend. During an active run,
 its automatic source-reload monitor defers the restart until the pass
 finishes, but external reboots/service restarts and printer emergencies
 cannot be made safe by a web UI.
+
+## Multi-tool XY cycle: optional faster clear-corridor travel
+
+The **Tools → Multi-tool XY cycle test** panel now offers an **opt-in**
+**Faster clear-travel mode (30 mm/s)** checkbox. It starts unchecked.
+First run a successful supervised standard-speed pass.
+
+- **Standard (default):** existing 600 mm/min (10 mm/s) Y-then-X staging;
+  240 mm/min (4 mm/s) docking approach and retreat; 180 mm/min (3 mm/s)
+  locking/releasing X motion.
+- **Faster (opt-in):** 1800 mm/min (30 mm/s) only within the safe clearance
+  corridor: speed drops to 4 mm/s 10 mm **before** the Y-dodge point;
+  retreat remains slow until 10 mm **beyond** the Y-dodge point.
+  Coupling, dodge, latch and final approach use the exact standard speeds.
+  Same coordinates, Y-first safe staging, and M400 barriers. No Z motion,
+  extrusion, heater commands, Lineux calibration or printer.cfg edits.
+- Changing the profile revokes the existing approval. The mode cannot
+  change mid-run. The backend accepts only standard and faster profiles,
+  never arbitrary feed values. The regular T0 and T1+ single-tool motion
+  scripts remain unchanged.
+- Per-step event logs now include observed elapsed seconds (motion request
+  plus post-motion sensor confirmation). Compare equivalent supervised
+  passes, not commanded speed alone.
+
+**First physical faster-mode test:** use only T0 and T1, already proven
+individually, with an empty carriage and truly homed XYZ. Inspect that the
+new fast corridor has clearance from other docks, magnets and projections.
+Select the Faster checkbox, review the separate physical safety approval
+and supervise one two-tool pass with access to the actual emergency stop.
+Only add T2 if that passes. If rubbing, skipped steps or unusual sounds
+occur, stop the machine, inspect, and revert to Standard. CI simulations
+cannot prove clearance or mechanical suitability at higher feed rates.
