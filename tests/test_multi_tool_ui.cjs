@@ -92,9 +92,34 @@ test('Tools page exposes explicit one-pass mechanical test, not a printing readi
  assert.match(html,/id="cxmMultiPanel"/);
  assert.match(html,/id="cxmMultiAck" type="checkbox" disabled/);
  assert.match(html,/id="cxmMultiStop" disabled/);
- assert.match(html,/src="cxm-multi\.js\?v=0\.1\.3"/);
+ assert.match(html,/src="cxm-multi\.js\?v=0\.2\.0"/);
+  assert.match(html,/id="cxmMultiRapid" type="checkbox"/);
  assert.match(html,/NOT READY.*printing commissioning is incomplete/);
  assert.match(html,/physical emergency stop/);
+});
+
+test('rapid native mode is opt-in, revokes approval and adds execution_mode only when selected',async()=>{
+  const h=harness();await h.tick();await h.tick();
+  assert.equal(h.get('cxmMultiRapid').checked,false);
+  h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+  h.get('cxmMultiRapid').checked=true;
+  h.get('cxmMultiRapid').listeners.change();
+  assert.equal(h.get('cxmMultiAck').checked,false);
+  assert.equal(h.get('cxmMultiStart').disabled,true);
+  assert.match(h.get('cxmMultiStatus').textContent,/RAPID KLIPPER/);
+  h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+  await h.click('cxmMultiStart');
+  const p=h.calls.find(x=>x.url.endsWith('/multi/start'));
+  assert.equal(JSON.parse(p.options.body).execution_mode,'rapid');
+  assert.equal(h.get('cxmMultiRapid').disabled,true);
+});
+
+test('existing standard mode never sends execution_mode or silently enables rapid',async()=>{
+  const h=harness();await h.tick();await h.tick();
+  h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+  await h.click('cxmMultiStart');
+  const p=h.calls.find(x=>x.url.endsWith('/multi/start'));
+  assert.equal('execution_mode' in JSON.parse(p.options.body),false);
 });
 
 test('three eligible docks are shown selected with saved coordinates and no motion until approval',async()=>{
