@@ -48,7 +48,8 @@ class MultiPassTests(unittest.TestCase):
             return {'pid':self.pid,'revision':saved['revision'],'tool':tool,
                     'x':p['dock_reference_xy']['x'],'y':p['dock_reference_xy']['y'],
                     'safe_y':p['safe_y'],'position':list(self.position),
-                    'objects':[t0.AUTO_SENSOR]}
+                    'objects':[t0.AUTO_SENSOR],
+                    'sensor_signal':self.signal if kwargs.get('sensor_name') else None}
         def rpc(url,data=None):
             self.assertEqual(url,'/printer/gcode/script')
             script=data['script']
@@ -158,17 +159,21 @@ class MultiPassTests(unittest.TestCase):
         # movement gets its own four-sample post confirmation. Do not repeat
         # that stable preflight verification when nothing else has moved.
         original_stable=multi._stable_sensor
-        original_live=multi._sensor_value
-        with patch.object(multi,'_stable_sensor',wraps=original_stable) as stable, \
-             patch.object(multi,'_sensor_value',wraps=original_live) as live:
+        original_context=multi._safe_context
+        sensor_queries=[]
+        def context(saved,**kw):
+            sensor_queries.append(kw.get('sensor_name'))
+            return original_context(saved,**kw)
+        with (patch.object(multi,'_stable_sensor',wraps=original_stable) as stable,
+              patch.object(multi,'_safe_context',side_effect=context)):
             self.start(cycles=1)
             result=self.wait()
         self.assertEqual(result['state'],'complete')
         self.assertEqual(len(self.sent),6)
         self.assertEqual(stable.call_count,7,
                          '1 initial stable check and 6 post-motion checks')
-        self.assertEqual(live.call_count,7,
-                         '1 initial sensor read and 6 fresh pre-action reads')
+        self.assertEqual(sensor_queries,[t0.AUTO_SENSOR]*7,
+                         'startup and every step include fresh carriage switch in live Klipper status')
         self.assertEqual(self.signal,'RELEASED')
 
     def test_repeated_runs_revalidate_empty_between_cycles(self):
@@ -186,11 +191,13 @@ class MultiPassTests(unittest.TestCase):
         # Simulate a switch becoming unexpectedly RELEASED after a successful
         # pickup and before the next preflight, despite prior stable PRESSED.
         count={'n':0}
-        def live(*args):
+        original_context=multi._safe_context
+        def context(saved,**kw):
+            ctx=original_context(saved,**kw)
             count['n']+=1
-            if count['n']==3:return 'RELEASED'
-            return self.signal
-        with patch.object(multi,'_sensor_value',side_effect=live):
+            if count['n']==3:ctx['sensor_signal']='RELEASED'
+            return ctx
+        with patch.object(multi,'_safe_context',side_effect=context):
             self.start()
             result=self.wait()
         self.assertEqual(result['state'],'failed')

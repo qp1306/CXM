@@ -71,7 +71,7 @@ def number(n,label,lo,hi):
     return float(n)
 
 def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False,
-                  validated_objects=None, expected_pid=None):
+                  validated_objects=None, expected_pid=None, sensor_name=None):
     if saved['migration_required']:
         raise T0Error('CXM settings migration required before T0 testing')
     # The existing /t0 endpoints always use tool=0. A separate guarded bridge
@@ -117,6 +117,14 @@ def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False,
     for key,field in [('print_stats','state'),('virtual_sdcard','is_active'),
                       ('pause_resume','is_paused')]:
         if key in objects: query[key]=field
+    # The multi-tool controller can request the carriage switch in the SAME
+    # live Klipper snapshot as homing, powered steppers, idle and print state.
+    # This avoids a second 250ms object-query request before each movement.
+    # Standalone T0 and T1+ routes leave sensor_name unset, unchanged.
+    if sensor_name is not None:
+        if sensor_name != AUTO_SENSOR or sensor_name not in objects:
+            raise T0Error('Carriage presence switch unavailable for combined live status')
+        query[sensor_name]='state'
     status=_rpc('/printer/objects/query?'+urllib.parse.urlencode(query)).get('status',{})
     if status.get('idle_timeout',{}).get('state') not in ('Idle','Ready'):
         raise T0Error('Klipper is not idle')
@@ -129,6 +137,11 @@ def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False,
         raise T0Error('Virtual SD print active or unknown')
     if 'pause_resume' in objects and status.get('pause_resume',{}).get('is_paused') is not False:
         raise T0Error('Printer paused')
+    sensor_signal=None
+    if sensor_name is not None:
+        sensor_signal=status.get(sensor_name,{}).get('state')
+        if sensor_signal not in (AUTO_MOUNTED,AUTO_EMPTY):
+            raise T0Error('Carriage switch live state unavailable in combined status')
     homed=status.get('toolhead',{}).get('homed_axes','')
     pos=status.get('toolhead',{}).get('position',[])
     motors=status.get('stepper_enable',{}).get('steppers',{})
@@ -147,7 +160,8 @@ def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False,
     if require_in_park and (abs(pos[0]-x)>POSITION_TOL or abs(pos[1]-safe)>POSITION_TOL):
         raise T0Error('Carriage must be at verified staging X/Y before pickup/dropoff')
     return {'pid':info['process_id'],'tool':tool,'x':x,'y':y,'safe_y':safe,
-            'position':pos[:3],'objects':objects,'revision':saved['revision']}
+            'position':pos[:3],'objects':objects,'revision':saved['revision'],
+            'sensor_signal':sensor_signal}
 
 def _wait_for_idle_after_move(saved, *, parked, expected_pid, timeout_sec=10.0,
                               tool=0, validated_objects=None):
