@@ -9,7 +9,7 @@ const source=fs.readFileSync(path.join(__dirname,'../web/cxm-multi.js'),'utf8');
 
 function harness({lockedTwo=false}={}){
  const nodes={},listeners={},calls=[],allChoices=[],windowListeners={};
- let timer=null,state='idle',step=0,selected=[],blockedStart=false;
+ let timer=null,state='idle',step=0,selected=[],blockedStart=false,travelProfile='standard';
  const mk=(tag='div')=>({
    tagName:tag,textContent:'',value:'',checked:false,disabled:false,hidden:false,
    children:[],style:{},dataset:{},className:'',listeners:{},
@@ -29,7 +29,7 @@ function harness({lockedTwo=false}={}){
  }
  function snapshot(){
    return {running:state==='running',state,stop_requested:false,
-     revision:'a'.repeat(64),candidates:candidates(),
+     travel_profile:travelProfile,revision:'a'.repeat(64),candidates:candidates(),
      tools:selected,total_steps:Math.max(0,selected.length*2),
      completed_steps:step,last_event:state==='running'?'T0 pickup started':'No pass started',
      error:null,results:[]};
@@ -42,6 +42,8 @@ function harness({lockedTwo=false}={}){
      const body=JSON.parse(options.body);
      assert.equal(body.acknowledgement,'I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH');
      assert.equal(body.expected_revision,'a'.repeat(64));
+     assert.ok(['standard','faster'].includes(body.travel_profile));
+     travelProfile=body.travel_profile;
      if(blockedStart)return {ok:false,status:400,json:async()=>({error:'Carriage FILAMENT PRESENT'})};
      selected=body.tools;state='running';reply={started:true,tools:selected,total_steps:selected.length*2};
    }else if(url==='/cxm/api/v1/tools/multi/stop'){
@@ -80,7 +82,7 @@ test('Tools page exposes explicit one-pass mechanical test, not a printing readi
  assert.match(html,/id="cxmMultiPanel"/);
  assert.match(html,/id="cxmMultiAck" type="checkbox" disabled/);
  assert.match(html,/id="cxmMultiStop" disabled/);
- assert.match(html,/src="cxm-multi\.js\?v=0\.1\.0"/);
+ assert.match(html,/src="cxm-multi\.js\?v=0\.1\.1"/);
  assert.match(html,/NOT READY.*printing commissioning is incomplete/);
  assert.match(html,/physical emergency stop/);
 });
@@ -104,6 +106,34 @@ test('three eligible docks are shown selected with saved coordinates and no moti
  assert.equal(h.get('cxmMultiStop').disabled,false);
  assert.equal(h.get('cxmMultiAck').checked,false);
  assert.match(h.get('cxmMultiStatus').textContent,/RUNNING/);
+});
+
+
+test('faster option is explicitly opt-in and revokes an already-ticked movement approval',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ assert.equal(h.get('cxmMultiFastTransfer').checked,false,'default must stay original proven speed');
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ assert.equal(h.get('cxmMultiStart').disabled,false);
+ h.get('cxmMultiFastTransfer').checked=true;
+ h.get('cxmMultiFastTransfer').listeners.change();
+ assert.equal(h.get('cxmMultiAck').checked,false);
+ assert.equal(h.get('cxmMultiStart').disabled,true);
+ assert.match(h.get('cxmMultiStatus').textContent,/30 mm\/s/);
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const post=h.calls.find(c=>c.url.endsWith('/multi/start'));
+ assert.equal(JSON.parse(post.options.body).travel_profile,'faster');
+ assert.equal(h.get('cxmMultiFastTransfer').disabled,true,'speed is immutable while moving');
+ assert.match(h.get('cxmMultiStatus').textContent,/FASTER CLEAR TRAVEL/);
+});
+
+test('without faster opt-in the server receives standard profile',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const post=h.calls.find(c=>c.url.endsWith('/multi/start'));
+ assert.equal(JSON.parse(post.options.body).travel_profile,'standard');
+ assert.match(h.get('cxmMultiStatus').textContent,/STANDARD TRAVEL/);
 });
 
 test('ineligible T2 cannot be included; selecting fewer than two disables Start',async()=>{
