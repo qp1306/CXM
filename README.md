@@ -655,3 +655,37 @@ verification time (previously ~1 s per move), **not** a guarantee of
 mechanical performance. Compare a supervised one-pass T0/T1 test before
 and after installation using the live per-step timing diagnostics before
 testing repeated three-tool cycles.
+
+
+## Reduce redundant Moonraker queries during continuous multi-tool testing
+
+The current known physical baseline is **21.74 seconds** for a
+six-movement T0/T1/T2 test after removing duplicated pre-motion sensor
+debouncing. A substantial part of the remaining software overhead was
+the same three-request Klipper readiness procedure repeated before and
+after every move: `/printer/info`, `/printer/objects/list`, and
+`/printer/objects/query`.
+
+The multi-tool worker now **discovers available Klipper objects once at
+the beginning of a guarded run** and holds an immutable list scoped to
+the Klipper process ID. Every single preflight, every after-motion idle
+and parked-position check, and every between-cycle readiness check still
+queries **fresh `/printer/info` and live toolhead/motor/idle/print status**.
+The cached registry is used only if a fresh `/printer/info` confirms the
+exact same ready Klipper process. A process change fails closed before
+the cached list is used. An expected `print_stats` object that lacks a
+live valid state also fails closed.
+
+As a result each repeated _safe_context call uses two Moonraker GETs
+rather than three, but all required physical and process safety
+conditions remain verified on each step. Existing individual T0 and
+T1–T11 routes **without** a cached registry still perform their
+original discovery calls. No changes to G-code, M400, tool geometry,
+motor speeds, restart behaviour, stop conditions or four-sample
+post-motion carriage switch verification.
+
+To validate: install the CXM update; physically inspect the empty
+carriage and selected docks; run one supervised three-tool cycle at a
+previously proven travel speed; compare the six per-phase diagnostics
+with the earlier 21.74 s baseline. The change is software tested, **not**
+yet measured on this printer.

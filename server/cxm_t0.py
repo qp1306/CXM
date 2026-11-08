@@ -70,7 +70,8 @@ def number(n,label,lo,hi):
         raise T0Error(label+' outside safe configured range')
     return float(n)
 
-def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False):
+def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False,
+                  validated_objects=None, expected_pid=None):
     if saved['migration_required']:
         raise T0Error('CXM settings migration required before T0 testing')
     # The existing /t0 endpoints always use tool=0. A separate guarded bridge
@@ -94,7 +95,20 @@ def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False):
     info=_rpc('/printer/info')
     if info.get('state')!='ready' or type(info.get('process_id')) is not int:
         raise T0Error('Klipper not ready or identity unavailable')
-    objects=_rpc('/printer/objects/list').get('objects',[])
+    if validated_objects is not None:
+        # An object registry snapshot is reusable only inside the same
+        # physically verified Klipper process. Never trust it across a
+        # restart, nor allow callers to pass it without a PID guard.
+        if type(expected_pid) is not int:
+            raise T0Error('Cached Klipper objects require a verified process ID')
+        if info['process_id']!=expected_pid:
+            raise T0Error('Klipper process changed; cached objects are invalid')
+        if type(validated_objects) not in (tuple,list) or not all(
+                type(x) is str for x in validated_objects):
+            raise T0Error('Cached Klipper object registry invalid')
+        objects=list(validated_objects)
+    else:
+        objects=_rpc('/printer/objects/list').get('objects',[])
     necessary={'toolhead','stepper_enable','idle_timeout'}
     if not necessary.issubset(set(objects)):
         raise T0Error('Cannot verify homing, motor power and idle status')
@@ -106,8 +120,11 @@ def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False):
     status=_rpc('/printer/objects/query?'+urllib.parse.urlencode(query)).get('status',{})
     if status.get('idle_timeout',{}).get('state') not in ('Idle','Ready'):
         raise T0Error('Klipper is not idle')
-    if status.get('print_stats',{}).get('state') not in (None,'standby','complete','cancelled','error'):
-        raise T0Error('Printer has a print active or paused')
+    if 'print_stats' in objects and status.get('print_stats',{}).get('state') not in (
+            'standby','complete','cancelled','error'):
+        # If an object we already verified exists has disappeared from
+        # the query, do not infer an idle printer from a missing state.
+        raise T0Error('Printer has a print active, paused or unknown state')
     if 'virtual_sdcard' in objects and status.get('virtual_sdcard',{}).get('is_active') is not False:
         raise T0Error('Virtual SD print active or unknown')
     if 'pause_resume' in objects and status.get('pause_resume',{}).get('is_paused') is not False:
@@ -132,7 +149,8 @@ def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False):
     return {'pid':info['process_id'],'tool':tool,'x':x,'y':y,'safe_y':safe,
             'position':pos[:3],'objects':objects,'revision':saved['revision']}
 
-def _wait_for_idle_after_move(saved, *, parked, expected_pid, timeout_sec=10.0, tool=0):
+def _wait_for_idle_after_move(saved, *, parked, expected_pid, timeout_sec=10.0,
+                              tool=0, validated_objects=None):
     """Read-only wait for Klipper to settle after a completed G-code script.
 
     Moonraker can return from an M400-ended script before Klipper's
@@ -143,7 +161,10 @@ def _wait_for_idle_after_move(saved, *, parked, expected_pid, timeout_sec=10.0, 
     deadline=time.monotonic()+timeout_sec
     while True:
         try:
-            ctx=_safe_context(saved,tool=tool,require_in_park=parked)
+            ctx=_safe_context(saved,tool=tool,require_in_park=parked,
+                              validated_objects=validated_objects,
+                              expected_pid=(expected_pid if validated_objects is not None
+                                            else None))
         except T0Error as exc:
             if str(exc)!='Klipper is not idle':
                 raise

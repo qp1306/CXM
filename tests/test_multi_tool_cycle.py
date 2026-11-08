@@ -57,8 +57,10 @@ class MultiPassTests(unittest.TestCase):
             if self.fail_kind!='stuck':
                 self.signal='PRESSED' if self.signal=='RELEASED' else 'RELEASED'
             return {}
-        def settle(saved,*,parked,expected_pid,tool):
+        def settle(saved,*,parked,expected_pid,tool,validated_objects=None):
             self.assertTrue(parked)
+            if validated_objects is not None:
+                self.assertIn(t0.AUTO_SENSOR,validated_objects)
             self.assertEqual(expected_pid,self.pid)
             p=plan(saved,tool=tool)
             self.position=[p['dock_reference_xy']['x'],p['safe_y'],20.]
@@ -213,6 +215,55 @@ class MultiPassTests(unittest.TestCase):
         self.assertEqual(stable.call_count,2,
                          'direct caller must verify both pre and post')
         self.assertEqual(len(self.sent),1)
+
+
+    def test_multitool_step_reuses_verified_objects_for_both_live_state_checks(self):
+        ctx=multi._safe_context(self.store.read(),tool=0)
+        self.assertIn(t0.AUTO_SENSOR,ctx['objects'])
+        captured_context=[]
+        captured_idle=[]
+        original_context=multi._safe_context
+        original_idle=multi._wait_for_idle_after_move
+        def context(saved,**kwargs):
+            captured_context.append(kwargs)
+            return original_context(saved,**kwargs)
+        def idle(saved,**kwargs):
+            captured_idle.append(kwargs)
+            return original_idle(saved,**kwargs)
+        with (patch.object(multi,'_safe_context',side_effect=context),
+              patch.object(multi,'_wait_for_idle_after_move',side_effect=idle)):
+            result=multi._step(self.store,0,'pickup',self.store.revision,self.pid,
+                               {0:plan(self.store.read(),tool=0)},
+                               verified_before='RELEASED',
+                               validated_objects=tuple(ctx['objects']))
+        self.assertEqual(result['signal'],'PRESSED')
+        self.assertEqual(len(self.sent),1)
+        self.assertEqual(len(captured_context),1)
+        self.assertEqual(captured_context[0]['expected_pid'],self.pid)
+        self.assertEqual(captured_context[0]['validated_objects'],tuple(ctx['objects']))
+        self.assertEqual(len(captured_idle),1)
+        self.assertEqual(captured_idle[0]['expected_pid'],self.pid)
+        self.assertEqual(captured_idle[0]['validated_objects'],tuple(ctx['objects']))
+
+    def test_continuous_multi_run_only_refreshes_object_registry_at_start(self):
+        captured=[]
+        original_context=multi._safe_context
+        def context(saved,**kwargs):
+            captured.append(kwargs)
+            return original_context(saved,**kwargs)
+        with patch.object(multi,'_safe_context',side_effect=context):
+            self.start(cycles=2)
+            result=self.wait()
+        self.assertEqual(result['state'],'complete')
+        self.assertEqual(result['completed_steps'],12)
+        self.assertEqual(len(self.sent),12)
+        self.assertTrue(captured)
+        startup=[c for c in captured if 'validated_objects' not in c]
+        cached=[c for c in captured if c.get('validated_objects') is not None]
+        self.assertEqual(len(startup),1)
+        self.assertEqual(len(cached),13,
+                         '12 per-movement preflights and 1 between-cycle check')
+        self.assertTrue(all(c['expected_pid']==self.pid for c in cached))
 
     def test_standard_travel_remains_original_baseline(self):
         self.start(profile='standard')
