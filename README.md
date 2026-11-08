@@ -583,3 +583,39 @@ Use the real printer emergency stop for immediate hazards. Every new
 requested run requires a new physical safety approval; changing the
 repeat count or travel profile revokes approval. This remains a
 supervised, mechanical-only test—not print readiness.
+
+
+## Diagnose pause time between tool movements (non-invasive)
+
+The multi-tool test now records four separate elapsed periods for every
+completed selected-tool pickup/dropoff. It **does not change the physical
+docking motion, programmed speeds, Klipper idle safety check, M400
+barriers, or the stable carriage-sensor verification**.
+
+The Tools page live event log shows:
+
+- **Preflight:** configuration reads, Klipper info/homing/motor-power/idle
+  queries, and four pre-movement sensor readings. This phase is the
+  likely delay *after the previous tool finishes and before the next
+  tool begins moving*.
+- **G-code:** Moonraker /printer/gcode/script execution including staging,
+  X transfer, native CxChanger pickup/dropoff and M400 completion. A
+  delay *at the staging position before entering the dock* belongs here.
+- **Idle:** confirmation that Klipper is fully idle and carriage is at
+  the correct end-of-operation safe XY position.
+- **Sensor:** four consistent PRESSED/RELEASED samples after the move.
+
+The event also includes **total elapsed seconds** (including preflight),
+while the existing duration field retains the legacy G-code-and-check
+semantics for compatibility. The web log now shows the most recent 48
+events instead of 9, so T0/T1/T2 phase comparisons are visible after a
+single test.
+
+Compare one supervised standard/faster pass with an empty carriage and
+known safe dock geometry. If **Preflight** dominates, focus on redundant
+RPC calls or duplicate pre-sensor checks without weakening physical
+verification. If **Idle** dominates, investigate Klipper idle_timeout
+transition after M400 without blindly removing the barrier. If
+**G-code** dominates, examine staging feed and the safe Y/X motion
+segments separately from the coupling path. Changes to motion timing
+must follow **measured** behaviour and be tested independently.
