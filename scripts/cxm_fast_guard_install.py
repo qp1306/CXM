@@ -34,20 +34,20 @@ def plan(repo,printer):
         raise RuntimeError('CXM rapid guard source malformed')
     if len(source)>20000:
         raise RuntimeError('Unexpectedly large guard source')
-    if len(re.findall(r'(?m)^\\s*\\[include cxm_fast_guard\\.cfg\\]\\s*$',raw))>1:
+    if len(re.findall(r'(?m)^\s*\[include cxm_fast_guard\.cfg\]\s*$',raw))>1:
         raise RuntimeError('Duplicate CXM rapid include')
     if MACRO in raw:
         raise RuntimeError('CXM_FAST_VERIFY already defined in printer.cfg')
     if dest.exists() and dest.read_bytes()!=source:
         raise RuntimeError('Existing rapid guard differs: manual review required')
-    included=bool(re.search(r'(?m)^\\s*\\[include cxm_fast_guard\\.cfg\\]\\s*$',raw))
+    included=bool(re.search(r'(?m)^\s*\[include cxm_fast_guard\.cfg\]\s*$',raw))
     if not included:
         # Never write inside auto-generated SAVE_CONFIG footer.
         marker='#*# <---------------------- SAVE_CONFIG'
         if marker in raw:
-            updated=raw.replace(marker,INCLUDE+'\\n\\n'+marker,1)
+            updated=raw.replace(marker,INCLUDE+'\n\n'+marker,1)
         else:
-            updated=raw.rstrip()+'\\n\\n'+INCLUDE+'\\n'
+            updated=raw.rstrip()+'\n\n'+INCLUDE+'\n'
     else:updated=raw
     return src,dest,source,updated,included
 
