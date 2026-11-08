@@ -19,7 +19,7 @@ function harness({lockedTwo=false}={}){
    replaceChildren(){this.children=[];},
    append(...items){this.children.push(...items);}
  });
- function get(id){return nodes[id]||(nodes[id]=mk());}
+ function get(id){return nodes[id]||(nodes[id]=Object.assign(mk(),id==='cxmMultiRepeats'?{value:'1'}:{}));}
  function candidates(){
    return [
     {tool:0,eligible:true,xy:{x:306.79,y:65.99},dock_accepted:true,reason:null},
