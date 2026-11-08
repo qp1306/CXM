@@ -461,8 +461,8 @@ those are different, still-unfinished printing requirements.
 
 For first commissioning, prove each tool **individually** with a slow,
 supervised pickup and dropoff before attempting the combined pass.
-For the user's aligned front row, select T0/T1/T2 in order. The initial
-mode supports **one pass** at a time, with exactly two movements per tool:
+For the aligned front row, select T0/T1/T2 in order. Each **complete cycle**
+performs exactly two movements per selected tool:
 
     T0 Pickup → verify PRESENT → T0 Dropoff → verify ABSENT
     T1 Pickup → verify PRESENT → T1 Dropoff → verify ABSENT
@@ -500,9 +500,10 @@ entire run with a latched T0 or T1+ fault; **no automatic retry or forced
 dropoff** follows an uncertain pickup. Inspect actual coupling and dock,
 then use the appropriate individual tool fault-recovery route.
 
-Only **one supervised pass** is enabled in this initial version. Unlimited
-automatic repeat cycles, tool heating, extruder assignment, nozzle Z
-compensation and production toolchanging remain out of scope. A pass
+Each supervised run may repeat the complete tool sequence **1–20 times**
+(subject to the 240-movement limit). Unlimited repeats, tool heating,
+extruder assignment, nozzle Z compensation and production toolchanging
+remain out of scope. A pass
 confirms mechanical motion and presence-sensor transitions only; it
 does **not** mark tools commissioned or clear NOT READY labels. The
 source update may restart only the CXM backend. During an active run,
