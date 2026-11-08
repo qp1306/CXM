@@ -731,3 +731,29 @@ is empty, rehome the printer (last Klipper status reported
 selected XY path, then run **one** supervised pass at proven speed.
 Stop on any unexpected sensor state or movement. The read-only
 diagnostics script can be used to compare the new per-step timings.
+
+
+## Rapid Klipper-local mechanical cycle (new, opt-in)
+
+**The original individually proven CxChanger motion and slow multi-tool
+commissioning test remain the default.** The Tools page now provides a
+separate `Rapid continuous Klipper mode` checkbox that uses a
+**single synchronous Klipper script per complete pickup/dropoff tool
+pair**, with position/stepper/homing checks and **four independently
+timed, in-process PRESSED and RELEASED sensor reads** after each
+mechanical operation. It avoids the previous repeated 250ms HTTP sensor
+polls and preserves Stop-after-current-tool-pair. The optional
+30mm/s **clearance-only** travel rate remains an independent checkbox;
+dock contact and latch feeds are unchanged.
+
+This feature requires a **one-time backed-up Klipper macro install**;
+the backend refuses to move if the loaded macro's protocol cannot be
+verified. No firmware or printer.cfg update is performed merely by
+installing the new CXM web source. The operator must run the dry-run
+installer, explicitly `--apply`, and issue **one** safe Klipper RESTART
+followed by full XYZ rehoming. The fast execution method is **not yet
+validated on physical hardware** and does **not** commission the
+printer for multi-hotend printing.
+
+**Read the full safe installation and supervised T0/T1 first-test
+procedure:** [Rapid mechanical cycle](docs/rapid-mechanical-cycle.md).
