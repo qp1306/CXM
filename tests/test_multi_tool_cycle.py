@@ -218,7 +218,7 @@ class MultiPassTests(unittest.TestCase):
 
 
     def test_multitool_step_reuses_verified_objects_for_both_live_state_checks(self):
-        ctx=t0._safe_context(self.store.read(),tool=0)
+        ctx=multi._safe_context(self.store.read(),tool=0)
         self.assertIn(t0.AUTO_SENSOR,ctx['objects'])
         captured_context=[]
         captured_idle=[]
