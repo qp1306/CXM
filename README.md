@@ -689,3 +689,45 @@ carriage and selected docks; run one supervised three-tool cycle at a
 previously proven travel speed; compare the six per-phase diagnostics
 with the earlier 21.74 s baseline. The change is software tested, **not**
 yet measured on this printer.
+
+
+## Multi-tool sensor/status query consolidation
+
+Actual CXM measurements (November 2026) show all Klipper
+`/printer/objects/query` calls take roughly **250 ms**, regardless of
+whether one sensor or many status objects are requested. Moonraker's
+`/printer/info` and `/printer/objects/list` each take only ~3.4 ms.
+This explains why process-scoped object-list caching produced
+negligible real-world savings.
+
+The supervised multi-tool XY test now includes
+`gcode_button cxm_tool_detect=state` in the *same live Moonraker status
+response* used to check toolhead homing/position, stepper power,
+idle_timeout, print_stats, virtual_sdcard and pause_resume. It makes
+the carriage-switch signal available in the returned verified
+preflight context. This replaces one separate 250 ms live sensor
+query before each pickup and dropoff, at startup, and between passes.
+
+No change to CxChanger motion paths, G-code, locking feed, the
+post-G-code Klipper idle/XY/stepper check, **four consecutive sensor
+readings after every movement**, repeat limits or stop/fault logic.
+The initial and between-cycle **four consecutive empty samples** also
+remain unchanged. The fused live status must explicitly report
+PRESSED or RELEASED; missing/invalid sensor state fails closed before
+movement. A prior stable sensor confirmation must match the expected
+state; the new live combined status must independently agree. The
+individual T0 and T1–T11 endpoints retain their old independent
+sensor sampling.
+
+The observed pre-optimization six-movement mechanical cycle takes
+**21.73 seconds**. A ~250 ms reduction per fused preflight could
+save approximately **1.5 seconds per T0/T1/T2 pass**; actual gains
+must be measured on the printer. This release does not attempt to
+reduce the validated post-movement debounce or Klipper idle checks.
+
+**Before physical testing:** inspect the real carriage, confirm it
+is empty, rehome the printer (last Klipper status reported
+`homed_axes: ""`), verify Z>=20 mm clearance and inspect the full
+selected XY path, then run **one** supervised pass at proven speed.
+Stop on any unexpected sensor state or movement. The read-only
+diagnostics script can be used to compare the new per-step timings.
