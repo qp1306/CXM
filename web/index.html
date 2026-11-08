@@ -178,6 +178,21 @@
 @media(max-width:560px){.cxm-t0-auto-buttons{flex-direction:column}.cxm-t0-auto-buttons .btn{width:100%}}
 
 /* Unified CXM Control Centre UI — large one-step approval cards */
+.cxm-multi-cycle{margin-top:25px;max-width:1050px;border-color:#456a8b}
+.cxm-multi-cycle>.panel-heading h3{font-size:19px}
+.cxm-multi-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0}
+.cxm-multi-choice{display:flex;align-items:center;gap:12px;background:#1d3045;border:1px solid #476078;padding:14px 12px;border-radius:9px;cursor:pointer}
+.cxm-multi-choice:has(input:checked){border-color:#70d8a1;background:#214236}
+.cxm-multi-choice:has(input:disabled){opacity:.48;cursor:not-allowed}
+.cxm-multi-choice input{width:23px;height:23px;accent-color:#55ce99;flex:0 0 23px}
+.cxm-multi-choice strong{font-size:16px}
+.cxm-multi-choice small{font-size:12px;color:#b7c9df;display:block;margin-top:4px}
+.cxm-multi-progress{height:10px;overflow:hidden;background:#0f1e2e;border:1px solid #43566b;border-radius:9px;margin-top:13px}
+#cxmMultiProgressFill{height:100%;width:0;background:#66ca9a;transition:width .25s}
+.cxm-multi-log{font-size:12px;color:#bfd1e6;display:flex;flex-direction:column-reverse;gap:6px;max-height:165px;overflow:auto;margin:14px 0}
+#cxmMultiFault[hidden]{display:none!important}
+@media(max-width:670px){.cxm-multi-choices{grid-template-columns:1fr}.cxm-multi-cycle .buttons .btn{width:100%}}
+
 .cxm-step.cxm-step-complete{border-color:#5fb98f;background:#1c352f}
 .cxm-step-complete #cxmLineuxReleaseBadge{color:#88ecc0;font-weight:800}
 .cxm-step-complete .cxm-approval-copy strong{color:#b1e7ce}
@@ -223,7 +238,27 @@
 <nav class="tabs" aria-label="CXM pages"><button class="tab active" data-tab="tools">Tools</button><button class="tab" data-tab="calibration">Dock XY</button><button class="tab" data-tab="offsets">Tool XY</button><button class="tab" data-tab="z-calibration">Tool Z</button><button class="tab" data-tab="tests" hidden>Diagnostics</button><button class="tab" data-tab="updates">Updates <span id="updateDot" class="new-dot" hidden></span></button><button class="tab" data-tab="settings">Settings</button></nav>
 <section class="printer-strip" aria-label="Printer status"><div class="stat"><span class="stat-label">KLIPPER</span><strong id="klipperStatus">Unknown</strong></div><div class="stat"><span class="stat-label">HOMING</span><strong id="homing">—</strong></div><div class="stat"><span class="stat-label">PRINT STATE</span><strong id="printStatus">—</strong></div><span id="activeTool" hidden>Not integrated</span><span id="cxmActiveTools" hidden>Awaiting config</span></section>
 <div id="message" class="notice" role="status" aria-live="polite"></div>
-<section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected hotends only</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Use <strong>Dock XY</strong> to calibrate a hotend or <strong>Settings</strong> to edit its profile. The <strong>NOT READY</strong> banner remains until all required verification is complete.</div></section>
+<section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected hotends only</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Use <strong>Dock XY</strong> to calibrate a hotend or <strong>Settings</strong> to edit its profile. The <strong>NOT READY</strong> banner remains until all required verification is complete.</div>
+<div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
+ <div class="panel-heading"><h3>Multi-tool XY cycle test</h3><span class="panel-label">Supervised · 1 pass · mechanical testing only</span></div>
+ <p class="helper">Pick up and drop off each selected dock-calibrated hotend once, in order. Always begin with an EMPTY carriage. No heating, extruding or Z-offset changes. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
+ <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
+ <label class="cxm-capture-ack" id="cxmMultiApproval">
+  <input id="cxmMultiAck" type="checkbox" disabled>
+  <span class="cxm-approval-copy"><strong>Approve one supervised pass</strong><small>I verified the carriage is physically EMPTY, every selected hotend is in its own dock, the couplers and full XY travel path are clear, XYZ are genuinely homed and X/Y have not been moved by hand.</small></span>
+ </label>
+ <div class="buttons">
+  <button class="btn primary" id="cxmMultiStart" disabled>Start one XY pass</button>
+  <button class="btn" id="cxmMultiStop" disabled>Stop after current tool</button>
+  <button class="btn" id="cxmMultiRefresh">Refresh test readiness</button>
+ </div>
+ <p class="helper" id="cxmMultiStatus" role="status" aria-live="polite">Checking dock candidates…</p>
+ <div class="cxm-multi-progress" aria-label="Completed tool movements"><div id="cxmMultiProgressFill"></div></div>
+ <div class="helper" id="cxmMultiProgressText">0 of 0 movements verified</div>
+ <div id="cxmMultiFault" class="dock-warning" hidden>Test stopped. Inspect the actual carriage and selected dock before any further motion.</div>
+ <div class="cxm-multi-log" id="cxmMultiLog" aria-label="Multi-tool test events"></div>
+ <p class="helper">The Stop button waits until the current hotend has been dropped off. Use the printer's <strong>physical emergency stop</strong> for immediate danger. A failed sensor or position check prevents all further automatic movements.</p>
+</div></section>
 <section data-panel="calibration" hidden>
 <div class="section-title"><div><h2>Dock XY</h2><p>Home → Release → Align → Measure → Save</p></div><span class="count-pill">Provisional only</span></div>
 <div class="panel dock-top"><div class="dock-toolbar"><label for="cxmDockTool">Hotend</label><select id="cxmDockTool" disabled></select><span class="dock-status" id="cxmDockStatus">Loading configuration</span><button class="btn" id="cxmDockRefresh">Refresh</button></div><p class="muted" id="cxmDockSummary">Reading saved dock position…</p><div class="dock-safety">Shared extruder · saved dock XY is provisional until pickup is checked</div>
@@ -781,6 +816,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-lineux.js?v=0.9.14" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
 <script src="cxm-t0-auto.js?v=1.2.3" defer></script>
 <script src="cxm-tools.js?v=0.1.3" defer></script>
+<script src="cxm-multi.js?v=0.1.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
