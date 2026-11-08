@@ -1,10 +1,12 @@
-"""Supervised one-pass CXM CxChanger multi-hotend mechanical XY test.
+"""Supervised repeated CXM CxChanger multi-hotend mechanical XY test.
 
 This is NOT production toolchanging. Dock XY may be accepted while XY/Z
 offsets, heater wiring and overall commissioning remain unverified.
 
 Every pass starts with a genuinely EMPTY carriage, then performs one
 pickup+dropoff per explicitly selected, individually accepted dock.
+Between passes Klipper, homing, position, and empty-sensor readiness are
+checked again. All selected tools must be known safe before the first move.
 The running worker holds the same movement lock used by existing Lineux,
 T0 and T1+ routes. Stop is honoured AFTER the current tool is dropped.
 Any uncertain state stops with a fault and requires physical inspection.
@@ -31,7 +33,8 @@ class MultiToolError(RuntimeError):
 
 RUN_LOCK=threading.Lock()
 RUN={'running':False,'run_id':None,'state':'idle','tools':[],
-     'travel_profile':'standard',
+     'travel_profile':'standard','requested_cycles':1,
+     'completed_cycles':0,'current_cycle':None,
      'total_steps':0,'completed_steps':0,'current_tool':None,
      'current_action':None,'last_event':'No multi-tool test started',
      'stop_requested':False,'results':[],'error':None}
@@ -39,6 +42,8 @@ RUN={'running':False,'run_id':None,'state':'idle','tools':[],
 START_ACK='I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH'
 STOP_ACK='STOP_AFTER_CURRENT_TOOL_PAIR'
 TRAVEL_PROFILES=('standard','faster')
+MAX_REPEAT_CYCLES=20
+MAX_TOTAL_MOVEMENTS=240  # bound unattended batch size across tool counts
 # This initial commissioning mode assumes an aligned front dock row. The
 # stock per-tool CxChanger staging script is not a general safe transfer
 # route between docks at very different Y depths.
@@ -91,7 +96,9 @@ def candidates(store):
 def status(store):
     with RUN_LOCK:
         state=copy.deepcopy(RUN)
-    return {**state,**candidates(store)}
+    return {**state,**candidates(store),
+            'max_repeat_cycles':MAX_REPEAT_CYCLES,
+            'max_total_movements':MAX_TOTAL_MOVEMENTS}
 
 def _validate_selection(selected,saved):
     if type(selected) is not list or not 2<=len(selected)<=12:
@@ -158,6 +165,26 @@ def _prepare(store,selected,revision):
     if store.read()['revision']!=revision:
         raise MultiToolError('Configuration changed during preflight')
     return {'revision':revision,'pid':ctx['pid'],'paths':paths}
+
+def _verify_between_cycles(store,prepared,selected):
+    """Do not assume the previous sensor-confirmed pass is still safe."""
+    saved=store.read()
+    if saved['revision']!=prepared['revision']:
+        raise MultiToolError('CXM dock settings changed between cycles')
+    ctx=_safe_context(saved,tool=selected[0])
+    if ctx['pid']!=prepared['pid']:
+        raise MultiToolError('Klipper process changed between cycles')
+    _check_no_pending_fault(ctx)
+    if AUTO_SENSOR not in ctx['objects']:
+        raise MultiToolError('Carriage presence switch unavailable between cycles')
+    minimum=min(p['safe_y'] for p in prepared['paths'].values())
+    if ctx['position'][1]<minimum-POSITION_TOL:
+        raise MultiToolError('Carriage is not clear of all dock approaches between cycles')
+    if _sensor_value(AUTO_SENSOR,ctx['objects'])!=AUTO_EMPTY:
+        raise MultiToolError('Carriage FILAMENT PRESENT between cycles; stop and inspect')
+    _stable_sensor(AUTO_SENSOR,ctx['objects'],AUTO_EMPTY,timeout_s=1.25)
+    if store.read()['revision']!=prepared['revision']:
+        raise MultiToolError('CXM dock settings changed during between-cycle check')
 
 def _mark_tool(tool,kind,ctx,revision):
     if tool==0:
@@ -230,34 +257,54 @@ def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='s
             'duration_sec':round(time.monotonic()-movement_started,2),
             'x':p['dock_reference_xy']['x'],'y':p['dock_reference_xy']['y']}
 
-def _worker(store,selected,prepared,travel_profile):
+def _worker(store,selected,prepared,travel_profile,cycles):
     tool=None
     kind=None
     try:
-        for tool in selected:
-            # "Stop after current tool" is checked before pickup of the
-            # next hotend, never between pickup and its required dropoff.
-            if _stop_requested():
-                _update(state='stopped',last_event='Stopped with empty carriage after previous tool')
-                return
-            for kind in ('pickup','dropoff'):
-                if store.read()['revision']!=prepared['revision']:
-                    raise MultiToolError('Configuration revision changed before T'+str(tool)+' '+kind)
-                _event('T'+str(tool)+' '+kind+' started · supervise movement',
-                       tool=tool,action=kind)
-                result=_step(store,tool,kind,prepared['revision'],
-                             prepared['pid'],prepared['paths'],travel_profile)
-                _event('T'+str(tool)+' '+kind+' confirmed · sensor '+result['signal']+
-                       ' · '+str(result['duration_sec'])+' s',
-                       tool=tool,action=kind,step_done=True)
+        for cycle in range(1,cycles+1):
             if _stop_requested():
                 _update(state='stopped',
-                        last_event='Stopped safely after T'+str(tool)+' dropoff · carriage EMPTY')
+                        last_event='Stopped between completed cycles · carriage EMPTY')
                 return
-        _update(state='complete',last_event='All selected tool pairs completed · carriage EMPTY')
+            if cycle>1:
+                _event('Cycle '+str(cycle)+'/'+str(cycles)+
+                       ': rechecking Klipper and EMPTY carriage before continuing')
+                _verify_between_cycles(store,prepared,selected)
+            _update(current_cycle=cycle)
+            for tool in selected:
+                # Stop is handled before a new pickup, never between pickup
+                # and the corresponding dock dropoff.
+                if _stop_requested():
+                    _update(state='stopped',
+                            last_event='Stopped after '+str(RUN['completed_steps'])+
+                            ' verified moves; carriage EMPTY')
+                    return
+                for kind in ('pickup','dropoff'):
+                    if store.read()['revision']!=prepared['revision']:
+                        raise MultiToolError('Configuration changed before T'+str(tool)+' '+kind)
+                    _event('Cycle '+str(cycle)+'/'+str(cycles)+
+                           ' · T'+str(tool)+' '+kind+' started · supervise movement',
+                           tool=tool,action=kind)
+                    result=_step(store,tool,kind,prepared['revision'],
+                                 prepared['pid'],prepared['paths'],travel_profile)
+                    _event('Cycle '+str(cycle)+'/'+str(cycles)+
+                           ' · T'+str(tool)+' '+kind+' confirmed · sensor '+
+                           result['signal']+' · '+str(result['duration_sec'])+' s',
+                           tool=tool,action=kind,step_done=True)
+                # After every complete pair, carriage is confirmed EMPTY.
+                if _stop_requested():
+                    _update(state='stopped',
+                            last_event='Stopped after cycle '+str(cycle)+
+                            ', T'+str(tool)+' dropoff · carriage EMPTY')
+                    return
+            _update(completed_cycles=cycle,
+                    last_event='Cycle '+str(cycle)+'/'+str(cycles)+
+                    ' completed · carriage EMPTY')
+        _update(state='complete',last_event='All '+str(cycles)+
+                ' cycles completed · carriage EMPTY')
     except Exception as exc:
-        # Fail closed; no automatic retry or forced dropoff after an uncertain
-        # pickup. The physical state may differ from the last sampled signal.
+        # No forced retry/dropoff after uncertain pickup. The sensor's last
+        # state may not reflect a securely mounted tool.
         message=_latch_tool_fault(tool,kind,prepared['pid'],prepared['revision'],exc)
         _update(state='failed',error=message,last_event=message)
         _event(message,tool=tool,action=kind)
@@ -265,11 +312,17 @@ def _worker(store,selected,prepared,travel_profile):
         _update(running=False,stop_requested=False,current_action=None)
         MOVE_LOCK.release()
 
-def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standard'):
+def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standard',cycles=1):
     if acknowledgement!=START_ACK:
         raise MultiToolError('Confirm the real carriage is EMPTY, all selected docks are safe and the XY path is clear')
     if type(travel_profile) is not str or travel_profile not in TRAVEL_PROFILES:
         raise MultiToolError('Invalid travel profile: choose standard or faster clear-corridor travel')
+    if type(cycles) is not int or not 1<=cycles<=MAX_REPEAT_CYCLES:
+        raise MultiToolError('Choose a whole number of complete cycles from 1 to '+
+                             str(MAX_REPEAT_CYCLES))
+    if type(tools) is list and cycles*len(tools)*2>MAX_TOTAL_MOVEMENTS:
+        raise MultiToolError('Batch exceeds the '+str(MAX_TOTAL_MOVEMENTS)+
+                             '-movement safety limit; select fewer cycles or tools')
     with RUN_LOCK:
         if RUN['running']:
             raise MultiToolError('A multi-tool pass is already running')
@@ -281,12 +334,13 @@ def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standa
         with RUN_LOCK:
             RUN.update(running=True,run_id=run_id,state='running',
                        tools=tools[:],travel_profile=travel_profile,
-                       total_steps=len(tools)*2,
+                       requested_cycles=cycles,completed_cycles=0,current_cycle=None,
+                       total_steps=len(tools)*2*cycles,
                        completed_steps=0,current_tool=None,current_action=None,
                        last_event='Preflight passed; multi-tool pass starting',
                        stop_requested=False,results=[],error=None)
         worker=threading.Thread(target=_worker,
-                                args=(store,tools[:],prepared,travel_profile),
+                                args=(store,tools[:],prepared,travel_profile,cycles),
                                 daemon=True,name='cxm-multi-tool-pass')
         try:
             worker.start()
@@ -295,9 +349,9 @@ def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standa
                     error='Multi-tool worker could not start',
                     last_event='No movement started: worker thread failed')
             raise
-        return {'started':True,'run_id':run_id,'tools':tools,
-                'travel_profile':travel_profile,'total_steps':len(tools)*2,
-                'note':'Supervised XY only; printer remains uncommissioned.'}
+        return {'started':True,'run_id':run_id,'tools':tools,'cycles':cycles,
+                'travel_profile':travel_profile,'total_steps':len(tools)*2*cycles,
+                'note':'Supervised repeated XY only; printer remains uncommissioned.'}
     except Exception:
         MOVE_LOCK.release()
         raise
