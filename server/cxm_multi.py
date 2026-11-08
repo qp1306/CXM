@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import copy
 import threading
+import time
 import uuid
 
 from cxm_lineux import MOVE_LOCK, _rpc
-from cxm_cxchanger import plan as cxchanger_plan, automatic_script
+from cxm_cxchanger import (plan as cxchanger_plan, automatic_script,
+                           faster_cycle_script)
 from cxm_t0 import (_safe_context, _wait_for_idle_after_move, _sensor_value,
                     AUTO_SENSOR, AUTO_MOUNTED, AUTO_EMPTY, AUTO_STATE,
                     SESSION_LOCK, SAFE_FEED, TEST_FEED, LATCH_FEED,
@@ -29,12 +31,14 @@ class MultiToolError(RuntimeError):
 
 RUN_LOCK=threading.Lock()
 RUN={'running':False,'run_id':None,'state':'idle','tools':[],
+     'travel_profile':'standard',
      'total_steps':0,'completed_steps':0,'current_tool':None,
      'current_action':None,'last_event':'No multi-tool test started',
      'stop_requested':False,'results':[],'error':None}
 
 START_ACK='I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH'
 STOP_ACK='STOP_AFTER_CURRENT_TOOL_PAIR'
+TRAVEL_PROFILES=('standard','faster')
 # This initial commissioning mode assumes an aligned front dock row. The
 # stock per-tool CxChanger staging script is not a general safe transfer
 # route between docks at very different Y depths.
@@ -179,7 +183,7 @@ def _latch_tool_fault(tool,kind,pid,revision,error):
                               fault=message)
     return message
 
-def _step(store,tool,kind,expected_revision,expected_pid,paths):
+def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='standard'):
     wanted_before=AUTO_EMPTY if kind=='pickup' else AUTO_MOUNTED
     wanted_after=AUTO_MOUNTED if kind=='pickup' else AUTO_EMPTY
     saved=store.read()
@@ -200,11 +204,19 @@ def _step(store,tool,kind,expected_revision,expected_pid,paths):
     p=paths[tool]
     at_stage=(abs(ctx['position'][0]-p['dock_reference_xy']['x'])<=POSITION_TOL and
               abs(ctx['position'][1]-p['safe_y'])<=POSITION_TOL)
-    script=automatic_script(p,kind,at_stage=at_stage,
-                            safe_feed=SAFE_FEED,test_feed=TEST_FEED,
-                            latch_feed=LATCH_FEED)
+    if travel_profile=='faster':
+        script=faster_cycle_script(p,kind,at_stage=at_stage,
+                                  test_feed=TEST_FEED,latch_feed=LATCH_FEED)
+    elif travel_profile=='standard':
+        # Exact existing physical-test baseline, no code or speed changes.
+        script=automatic_script(p,kind,at_stage=at_stage,
+                                safe_feed=SAFE_FEED,test_feed=TEST_FEED,
+                                latch_feed=LATCH_FEED)
+    else:
+        raise MultiToolError('Unrecognised travel profile')
     if store.read()['revision']!=expected_revision:
         raise MultiToolError('CXM dock revision changed before movement')
+    movement_started=time.monotonic()
     _rpc('/printer/gcode/script',{'script':script})
     finished=store.read()
     if finished['revision']!=expected_revision:
@@ -215,9 +227,10 @@ def _step(store,tool,kind,expected_revision,expected_pid,paths):
     _mark_tool(tool,kind,end,expected_revision)
     return {'tool':tool,'kind':kind,'signal':confirmation['signal'],
             'samples':confirmation['samples'],
+            'duration_sec':round(time.monotonic()-movement_started,2),
             'x':p['dock_reference_xy']['x'],'y':p['dock_reference_xy']['y']}
 
-def _worker(store,selected,prepared):
+def _worker(store,selected,prepared,travel_profile):
     tool=None
     kind=None
     try:
@@ -233,8 +246,9 @@ def _worker(store,selected,prepared):
                 _event('T'+str(tool)+' '+kind+' started · supervise movement',
                        tool=tool,action=kind)
                 result=_step(store,tool,kind,prepared['revision'],
-                             prepared['pid'],prepared['paths'])
-                _event('T'+str(tool)+' '+kind+' confirmed · sensor '+result['signal'],
+                             prepared['pid'],prepared['paths'],travel_profile)
+                _event('T'+str(tool)+' '+kind+' confirmed · sensor '+result['signal']+
+                       ' · '+str(result['duration_sec'])+' s',
                        tool=tool,action=kind,step_done=True)
             if _stop_requested():
                 _update(state='stopped',
@@ -251,9 +265,11 @@ def _worker(store,selected,prepared):
         _update(running=False,stop_requested=False,current_action=None)
         MOVE_LOCK.release()
 
-def start(*,store,tools,expected_revision,acknowledgement):
+def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standard'):
     if acknowledgement!=START_ACK:
         raise MultiToolError('Confirm the real carriage is EMPTY, all selected docks are safe and the XY path is clear')
+    if type(travel_profile) is not str or travel_profile not in TRAVEL_PROFILES:
+        raise MultiToolError('Invalid travel profile: choose standard or faster clear-corridor travel')
     with RUN_LOCK:
         if RUN['running']:
             raise MultiToolError('A multi-tool pass is already running')
@@ -264,12 +280,13 @@ def start(*,store,tools,expected_revision,acknowledgement):
         run_id=str(uuid.uuid4())
         with RUN_LOCK:
             RUN.update(running=True,run_id=run_id,state='running',
-                       tools=tools[:],total_steps=len(tools)*2,
+                       tools=tools[:],travel_profile=travel_profile,
+                       total_steps=len(tools)*2,
                        completed_steps=0,current_tool=None,current_action=None,
                        last_event='Preflight passed; multi-tool pass starting',
                        stop_requested=False,results=[],error=None)
         worker=threading.Thread(target=_worker,
-                                args=(store,tools[:],prepared),
+                                args=(store,tools[:],prepared,travel_profile),
                                 daemon=True,name='cxm-multi-tool-pass')
         try:
             worker.start()
@@ -278,7 +295,8 @@ def start(*,store,tools,expected_revision,acknowledgement):
                     error='Multi-tool worker could not start',
                     last_event='No movement started: worker thread failed')
             raise
-        return {'started':True,'run_id':run_id,'tools':tools,'total_steps':len(tools)*2,
+        return {'started':True,'run_id':run_id,'tools':tools,
+                'travel_profile':travel_profile,'total_steps':len(tools)*2,
                 'note':'Supervised XY only; printer remains uncommissioned.'}
     except Exception:
         MOVE_LOCK.release()
