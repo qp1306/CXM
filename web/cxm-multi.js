@@ -23,6 +23,7 @@ function chooseControls(){
  $('cxmMultiStart').disabled=!ready||!$('cxmMultiAck').checked;
  $('cxmMultiStop').disabled=!running||current?.stop_requested===true||requestBusy;
  $('cxmMultiRefresh').disabled=requestBusy;
+ $('cxmMultiFastTransfer').disabled=requestBusy||running;
  $('cxmMultiPanel').setAttribute('aria-busy',requestBusy?'true':'false');
  for(const input of document.querySelectorAll('#cxmMultiChoices input')){
    input.disabled=requestBusy||running||input.dataset.eligible!=='yes';
@@ -81,9 +82,11 @@ function showStatus(){
  if(lastError){
    text('cxmMultiStatus',lastError);
  }else if(run.running){
+   const speed=run.travel_profile==='faster'
+     ?'FASTER CLEAR TRAVEL (30 mm/s)':'STANDARD TRAVEL (10 mm/s)';
    text('cxmMultiStatus',run.stop_requested
       ?'STOP REQUESTED · current tool pair must complete, or use physical E-stop for immediate danger.'
-      :'RUNNING · '+run.last_event+' · supervise all movement');
+      :'RUNNING · '+speed+' · '+run.last_event+' · supervise all movement');
  }else if(run.state==='complete'){
    text('cxmMultiStatus','PASS COMPLETE · '+run.last_event);
  }else if(run.state==='failed'){
@@ -144,10 +147,12 @@ async function start(){
  if(requestBusy||!current||current.running||!$('cxmMultiAck').checked)return;
  const list=selection();
  if(list.length<2||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
+ const travelProfile=$('cxmMultiFastTransfer').checked?'faster':'standard';
  requestBusy=true;$('cxmMultiAck').checked=false;chooseControls();
  text('cxmMultiStatus','Checking live Klipper readiness, real EMPTY carriage, and all '+list.length+' docks…');
  try{
-   const reply=await request('/start',{tools:list,expected_revision:current.revision,acknowledgement:ack});
+   const reply=await request('/start',{tools:list,expected_revision:current.revision,
+     acknowledgement:ack,travel_profile:travelProfile});
    if(!reply.started)throw Error('Backend did not confirm a started run');
    lastError='';
  }catch(e){
@@ -171,6 +176,13 @@ async function stop(){
  }finally{requestBusy=false;await refresh();}
 }
 $('cxmMultiAck').addEventListener('change',chooseControls);
+$('cxmMultiFastTransfer').addEventListener('change',()=>{
+ $('cxmMultiAck').checked=false;
+ chooseControls();
+ if(!current?.running)text('cxmMultiStatus',$('cxmMultiFastTransfer').checked
+   ?'FASTER MODE selected · 30 mm/s clear corridor only. Inspect the path, approve, then start.'
+   :'STANDARD MODE selected · original 10 mm/s staging and existing dock approach.');
+});
 $('cxmMultiStart').addEventListener('click',start);
 $('cxmMultiStop').addEventListener('click',stop);
 $('cxmMultiRefresh').addEventListener('click',refresh);
