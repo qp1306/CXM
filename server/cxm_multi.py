@@ -171,6 +171,7 @@ def _prepare(store,selected,revision):
     # Evidence of sustained empty carriage for the *first* move. Each
     # subsequent move is backed by four post-motion stable samples.
     return {'revision':revision,'pid':ctx['pid'],'paths':paths,
+            'validated_objects':tuple(ctx['objects']),
             'verified_signal':verified['signal']}
 
 def _verify_between_cycles(store,prepared,selected):
@@ -178,7 +179,9 @@ def _verify_between_cycles(store,prepared,selected):
     saved=store.read()
     if saved['revision']!=prepared['revision']:
         raise MultiToolError('CXM dock settings changed between cycles')
-    ctx=_safe_context(saved,tool=selected[0])
+    ctx=_safe_context(saved,tool=selected[0],
+                      validated_objects=prepared['validated_objects'],
+                      expected_pid=prepared['pid'])
     if ctx['pid']!=prepared['pid']:
         raise MultiToolError('Klipper process changed between cycles')
     _check_no_pending_fault(ctx)
@@ -219,7 +222,7 @@ def _latch_tool_fault(tool,kind,pid,revision,error):
     return message
 
 def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='standard',
-          verified_before=None):
+          verified_before=None,validated_objects=None):
     # Read-only wall-clock profiling: no additional G-code, RPCs or waits.
     # This measures exactly where the existing sequence spends its time.
     step_started=time.monotonic()
@@ -228,7 +231,10 @@ def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='s
     saved=store.read()
     if saved['revision']!=expected_revision:
         raise MultiToolError('Saved tool positions changed during cycle')
-    ctx=_safe_context(saved,tool=tool)
+    ctx=_safe_context(saved,tool=tool,
+                      validated_objects=validated_objects,
+                      expected_pid=(expected_pid if validated_objects is not None
+                                    else None))
     if ctx['pid']!=expected_pid:
         raise MultiToolError('Klipper restarted while multi-tool test was running')
     # At each tool's staging line or further out in the shared transfer
@@ -272,7 +278,8 @@ def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='s
     if finished['revision']!=expected_revision:
         raise MultiToolError('Configuration changed while tool was moving')
     end=_wait_for_idle_after_move(finished,parked=True,
-                                  expected_pid=expected_pid,tool=tool)
+                                  expected_pid=expected_pid,tool=tool,
+                                  validated_objects=validated_objects)
     idle_verified=time.monotonic()
     confirmation=_stable_sensor(AUTO_SENSOR,end['objects'],wanted_after)
     sensor_verified=time.monotonic()
@@ -323,7 +330,8 @@ def _worker(store,selected,prepared,travel_profile,cycles):
                            tool=tool,action=kind)
                     result=_step(store,tool,kind,prepared['revision'],
                                  prepared['pid'],prepared['paths'],travel_profile,
-                                 verified_before=confirmed_signal)
+                                 verified_before=confirmed_signal,
+                                 validated_objects=prepared['validated_objects'])
                     confirmed_signal=result['signal']
                     perf=result['timing']
                     _event('Cycle '+str(cycle)+'/'+str(cycles)+
