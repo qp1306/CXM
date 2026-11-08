@@ -99,7 +99,7 @@ function showStatus(){
         ' · Inspect physical carriage and dock; do not start another pass blindly.');
  const events=run.results||[];
  const root=$('cxmMultiLog');root.replaceChildren();
- for(const event of events.slice(-9).reverse()){
+ for(const event of events.slice(-48).reverse()){
    const el=document.createElement('div');
    el.textContent=event.message;
    root.append(el);

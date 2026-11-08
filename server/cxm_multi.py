@@ -215,6 +215,9 @@ def _latch_tool_fault(tool,kind,pid,revision,error):
     return message
 
 def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='standard'):
+    # Read-only wall-clock profiling: no additional G-code, RPCs or waits.
+    # This measures exactly where the existing sequence spends its time.
+    step_started=time.monotonic()
     wanted_before=AUTO_EMPTY if kind=='pickup' else AUTO_MOUNTED
     wanted_after=AUTO_MOUNTED if kind=='pickup' else AUTO_EMPTY
     saved=store.read()
@@ -249,16 +252,27 @@ def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='s
         raise MultiToolError('CXM dock revision changed before movement')
     movement_started=time.monotonic()
     _rpc('/printer/gcode/script',{'script':script})
+    motion_completed=time.monotonic()
     finished=store.read()
     if finished['revision']!=expected_revision:
         raise MultiToolError('Configuration changed while tool was moving')
     end=_wait_for_idle_after_move(finished,parked=True,
                                   expected_pid=expected_pid,tool=tool)
+    idle_verified=time.monotonic()
     confirmation=_stable_sensor(AUTO_SENSOR,end['objects'],wanted_after)
+    sensor_verified=time.monotonic()
     _mark_tool(tool,kind,end,expected_revision)
+    completed=time.monotonic()
+    breakdown={'preflight_sec':round(movement_started-step_started,2),
+               'gcode_sec':round(motion_completed-movement_started,2),
+               'idle_check_sec':round(idle_verified-motion_completed,2),
+               'sensor_sec':round(sensor_verified-idle_verified,2),
+               'record_sec':round(completed-sensor_verified,2)}
     return {'tool':tool,'kind':kind,'signal':confirmation['signal'],
             'samples':confirmation['samples'],
-            'duration_sec':round(time.monotonic()-movement_started,2),
+            'duration_sec':round(completed-movement_started,2),
+            'total_sec':round(completed-step_started,2),
+            'timing':breakdown,
             'x':p['dock_reference_xy']['x'],'y':p['dock_reference_xy']['y']}
 
 def _worker(store,selected,prepared,travel_profile,cycles):
@@ -291,9 +305,14 @@ def _worker(store,selected,prepared,travel_profile,cycles):
                            tool=tool,action=kind)
                     result=_step(store,tool,kind,prepared['revision'],
                                  prepared['pid'],prepared['paths'],travel_profile)
+                    perf=result['timing']
                     _event('Cycle '+str(cycle)+'/'+str(cycles)+
-                           ' · T'+str(tool)+' '+kind+' confirmed · sensor '+
-                           result['signal']+' · '+str(result['duration_sec'])+' s',
+                           ' · T'+str(tool)+' '+kind+' confirmed ('+result['signal']+
+                           ') · total '+str(result['total_sec'])+'s'+
+                           ' [preflight '+str(perf['preflight_sec'])+'s'+
+                           ', G-code '+str(perf['gcode_sec'])+'s'+
+                           ', idle '+str(perf['idle_check_sec'])+'s'+
+                           ', sensor '+str(perf['sensor_sec'])+'s]',
                            tool=tool,action=kind,step_done=True)
                 # After every complete pair, carriage is confirmed EMPTY.
                 if _stop_requested():
