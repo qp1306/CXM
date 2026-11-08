@@ -125,6 +125,12 @@ class MultiPassTests(unittest.TestCase):
         with self.assertRaisesRegex(multi.MultiToolError,'T2 requires accepted'):
             self.start()
         self.assertEqual(self.sent,[])
+    def test_dock_y_spread_over_one_mm_blocks_cross_dock_transfer(self):
+        self.store.data['tools'][2]['dock_y']=70.0
+        with self.assertRaisesRegex(multi.MultiToolError,'safe-Y staging lines'):
+            self.start()
+        self.assertEqual(self.sent,[])
+
     def test_missing_z_or_xy_offset_acceptance_does_not_mislabel_print_ready(self):
         out=multi.status(self.store)
         self.assertIn('not full tool commissioning',out['note'])
