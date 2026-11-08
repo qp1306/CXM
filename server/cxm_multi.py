@@ -158,7 +158,7 @@ def _mark_tool(tool,kind,ctx,revision):
                               fault=None)
 
 def _latch_tool_fault(tool,kind,pid,revision,error):
-    message=('T'+str(tool)+' '+kind+' multi-tool result uncertain: '+
+    message=('T'+str(tool)+' '+kind+' result uncertain: multi-tool pass '+ 
              str(error)[:175]+'. Inspect physical carriage and selected dock.')
     if tool==0:
         with SESSION_LOCK:
