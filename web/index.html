@@ -181,6 +181,11 @@
 .cxm-multi-cycle{margin-top:25px;max-width:1050px;border-color:#456a8b}
 .cxm-multi-cycle>.panel-heading h3{font-size:19px}
 .cxm-multi-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:18px 0}
+.cxm-multi-repeat{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px;margin:10px 0;border:1px solid #54718e;border-radius:10px;background:#1c2a3b}
+.cxm-multi-repeat strong{font-size:15px;color:#e7f1ff}
+.cxm-multi-repeat small{display:block;font-size:12px;color:#bcd0e7;line-height:1.5;margin-top:5px}
+#cxmMultiRepeats{font-size:21px;font-weight:700;text-align:center;min-width:95px;width:100px;padding:12px 8px;border:1px solid #7394bd;background:#102439;color:#eff7ff;border-radius:9px}
+#cxmMultiRepeats:disabled{opacity:.55}
 .cxm-multi-speed{display:flex;align-items:flex-start;gap:13px;margin:7px 0 18px;padding:14px;border:1px solid #54718e;background:#1c2a3b;border-radius:10px;cursor:pointer}
 .cxm-multi-speed:has(input:checked){border-color:#9ec7ff;background:#263c56}
 .cxm-multi-speed input{width:25px;height:25px;min-width:25px;accent-color:#80baff;cursor:pointer}
@@ -246,9 +251,13 @@
 <div id="message" class="notice" role="status" aria-live="polite"></div>
 <section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected hotends only</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Use <strong>Dock XY</strong> to calibrate a hotend or <strong>Settings</strong> to edit its profile. The <strong>NOT READY</strong> banner remains until all required verification is complete.</div>
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
- <div class="panel-heading"><h3>Multi-tool XY cycle test</h3><span class="panel-label">Supervised · 1 pass · mechanical testing only</span></div>
- <p class="helper">Pick up and drop off each selected dock-calibrated hotend once, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating, extrusion or Z moves. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
+ <div class="panel-heading"><h3>Multi-tool XY cycle test</h3><span class="panel-label">Supervised · 1–20 complete cycles · mechanical testing only</span></div>
+ <p class="helper">Pick up and drop off each selected dock-calibrated hotend once per complete cycle, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating, extrusion or Z moves. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
  <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
+ <label class="cxm-multi-repeat" for="cxmMultiRepeats">
+  <span><strong>Repeat complete tool cycles</strong><small id="cxmMultiRepeatHelp">One cycle = each selected hotend picked up and dropped off once. Set 1–20 for T0/T1/T2. Maximum 240 movements per run.</small></span>
+  <input type="number" id="cxmMultiRepeats" min="1" max="20" step="1" value="1" inputmode="numeric" aria-label="Number of complete tool cycles">
+ </label>
  <label class="cxm-multi-speed" for="cxmMultiFastTransfer">
   <input id="cxmMultiFastTransfer" type="checkbox">
   <span><strong>Faster clear-travel mode · 30 mm/s</strong>
@@ -256,16 +265,17 @@
  </label>
  <label class="cxm-capture-ack" id="cxmMultiApproval">
   <input id="cxmMultiAck" type="checkbox" disabled>
-  <span class="cxm-approval-copy"><strong>Approve one supervised pass</strong><small>I have inspected and individually test-swapped each selected hotend. The carriage is EMPTY, tools are in their own docks, XYZ are genuinely homed, the full corridor is clear, and I have checked the selected travel-speed mode. No Mainsail jogs or G-code during the test.</small></span>
+  <span class="cxm-approval-copy"><strong>Approve one supervised pass</strong><small>I have inspected and individually test-swapped each selected hotend. The carriage is EMPTY, tools are in their own docks, XYZ are genuinely homed, the full corridor is clear, and I have checked both travel speed and repeat count. I will supervise EVERY cycle. No Mainsail jogs or G-code during the run.</small></span>
  </label>
  <div class="buttons">
-  <button class="btn primary" id="cxmMultiStart" disabled>Start one XY pass</button>
+  <button class="btn primary" id="cxmMultiStart" disabled>Start 1 cycle</button>
   <button class="btn" id="cxmMultiStop" disabled>Stop after current tool</button>
   <button class="btn" id="cxmMultiRefresh">Refresh test readiness</button>
  </div>
  <p class="helper" id="cxmMultiStatus" role="status" aria-live="polite">Checking dock candidates…</p>
  <div class="cxm-multi-progress" aria-label="Completed tool movements"><div id="cxmMultiProgressFill"></div></div>
  <div class="helper" id="cxmMultiProgressText">0 of 0 movements verified</div>
+ <div class="helper" id="cxmMultiCycleText">Complete cycles: 0 of 0</div>
  <div id="cxmMultiFault" class="dock-warning" hidden>Test stopped. Inspect the actual carriage and selected dock before any further motion.</div>
  <div class="cxm-multi-log" id="cxmMultiLog" aria-label="Multi-tool test events"></div>
  <p class="helper">The Stop button waits until the current hotend has been dropped off. Use the printer's <strong>physical emergency stop</strong> for immediate danger. A failed sensor or position check prevents all further automatic movements.</p>
@@ -827,7 +837,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-lineux.js?v=0.9.14" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
 <script src="cxm-t0-auto.js?v=1.2.3" defer></script>
 <script src="cxm-tools.js?v=0.1.3" defer></script>
-<script src="cxm-multi.js?v=0.1.1" defer></script>
+<script src="cxm-multi.js?v=0.1.2" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>

@@ -175,7 +175,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/v1/tools/multi/start':
                 if set(body) not in (
                         {'tools','expected_revision','acknowledgement'},
-                        {'tools','expected_revision','acknowledgement','travel_profile'}):
+                        {'tools','expected_revision','acknowledgement','travel_profile'},
+                        {'tools','expected_revision','acknowledgement','cycles'},
+                        {'tools','expected_revision','acknowledgement','travel_profile','cycles'}):
                     raise ValueError('Unexpected multi-tool pass request')
                 self.output(200,multi_start(store=self.server.store,**body))
                 return

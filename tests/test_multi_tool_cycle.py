@@ -40,6 +40,7 @@ class MultiPassTests(unittest.TestCase):
         t0.AUTO_STATE.update(pid=None,revision=None,fault=None,last_success=None)
         with multi.RUN_LOCK:
             multi.RUN.update(running=False,run_id=None,state='idle',tools=[],total_steps=0,
+                requested_cycles=1,completed_cycles=0,current_cycle=None,
                 completed_steps=0,current_tool=None,current_action=None,
                 last_event='',stop_requested=False,results=[],error=None)
         def context(saved,*,tool=0,**kwargs):
@@ -75,9 +76,9 @@ class MultiPassTests(unittest.TestCase):
         ]
         for p in self.patchers:p.start()
         self.addCleanup(lambda:[p.stop() for p in reversed(self.patchers)])
-    def start(self,tools=[0,1,2],ack=ACK,profile='standard'):
+    def start(self,tools=[0,1,2],ack=ACK,profile='standard',cycles=1):
         return multi.start(store=self.store,tools=tools,expected_revision=self.store.revision,
-                           acknowledgement=ack,travel_profile=profile)
+                           acknowledgement=ack,travel_profile=profile,cycles=cycles)
     def wait(self):
         for _ in range(500):
             if not multi.status(self.store)['running']:
@@ -154,6 +155,116 @@ class MultiPassTests(unittest.TestCase):
                 with self.assertRaisesRegex(multi.MultiToolError,'Invalid travel profile'):
                     self.start(profile=profile)
         self.assertEqual(self.sent,[])
+
+
+    def test_three_complete_cycles_repeat_every_tool_and_finish_empty(self):
+        reply=self.start(cycles=3)
+        self.assertEqual(reply['cycles'],3)
+        self.assertEqual(reply['total_steps'],18)
+        result=self.wait()
+        self.assertEqual(result['state'],'complete')
+        self.assertEqual(result['requested_cycles'],3)
+        self.assertEqual(result['completed_cycles'],3)
+        self.assertEqual(result['current_cycle'],3)
+        self.assertEqual(result['completed_steps'],18)
+        self.assertEqual(result['total_steps'],18)
+        self.assertEqual(len(self.sent),18)
+        self.assertEqual(self.signal,'RELEASED')
+        for cycle in range(3):
+            for n,x in enumerate(('306.79000','267.19000','226.01000')):
+                pickup=self.sent[6*cycle+2*n]
+                dropoff=self.sent[6*cycle+2*n+1]
+                self.assertIn('X'+x,pickup)
+                self.assertIn('X'+x,dropoff)
+        self.assertTrue(any('Cycle 2/3' in e['message'] for e in result['results']))
+        self.assertTrue(any('Cycle 3/3' in e['message'] for e in result['results']))
+
+    def test_repetition_rechecks_empty_klipper_state_before_second_cycle(self):
+        original=multi._verify_between_cycles
+        checkpoints=[]
+        def checked(store,prepared,selected):
+            checkpoints.append((self.signal,tuple(self.position),prepared['revision']))
+            return original(store,prepared,selected)
+        with patch.object(multi,'_verify_between_cycles',side_effect=checked):
+            self.start(cycles=3)
+            result=self.wait()
+        self.assertEqual(result['state'],'complete')
+        self.assertEqual(len(checkpoints),2)
+        self.assertTrue(all(x[0]=='RELEASED' for x in checkpoints))
+        self.assertEqual(result['completed_cycles'],3)
+
+    def test_stop_requested_in_second_cycle_finishes_current_pair_only(self):
+        def rpc(url,payload):
+            self.sent.append(payload['script'])
+            self.signal='PRESSED' if self.signal=='RELEASED' else 'RELEASED'
+            if len(self.sent)==9:  # Cycle 2 T1 pickup; complete T1 dropoff
+                self.assertTrue(multi.stop(acknowledgement=multi.STOP_ACK)['stop_requested'])
+        with patch.object(multi,'_rpc',side_effect=rpc):
+            self.start(cycles=5)
+            result=self.wait()
+        self.assertEqual(result['state'],'stopped')
+        self.assertEqual(result['requested_cycles'],5)
+        self.assertEqual(result['completed_cycles'],1)
+        self.assertEqual(result['current_cycle'],2)
+        self.assertEqual(result['completed_steps'],10)
+        self.assertEqual(len(self.sent),10)
+        self.assertEqual(self.signal,'RELEASED')
+        self.assertEqual(result['total_steps'],30)
+
+    def test_stop_after_last_tool_counts_the_finished_cycle(self):
+        def rpc(url,payload):
+            self.sent.append(payload['script'])
+            self.signal='PRESSED' if self.signal=='RELEASED' else 'RELEASED'
+            if len(self.sent)==6:
+                multi.stop(acknowledgement=multi.STOP_ACK)
+        with patch.object(multi,'_rpc',side_effect=rpc):
+            self.start(cycles=4)
+            result=self.wait()
+        self.assertEqual(result['state'],'stopped')
+        self.assertEqual(result['completed_cycles'],1)
+        self.assertEqual(result['completed_steps'],6)
+        self.assertEqual(len(self.sent),6)
+        self.assertEqual(self.signal,'RELEASED')
+
+    def test_sensor_failure_in_later_cycle_prevents_all_remaining_motion(self):
+        def rpc(url,payload):
+            self.sent.append(payload['script'])
+            if len(self.sent)!=7:  # T0 pickup, second cycle fails to become PRESSED
+                self.signal='PRESSED' if self.signal=='RELEASED' else 'RELEASED'
+        with patch.object(multi,'_rpc',side_effect=rpc):
+            self.start(cycles=5)
+            result=self.wait()
+        self.assertEqual(result['state'],'failed')
+        self.assertEqual(result['completed_cycles'],1)
+        self.assertEqual(result['completed_steps'],6)
+        self.assertEqual(len(self.sent),7)
+        self.assertIn('T0 pickup result uncertain',t0.AUTO_STATE['fault'])
+        self.assertEqual(self.signal,'RELEASED')
+
+    def test_invalid_repeat_counts_and_maximum_total_movement_cap_fail_before_motion(self):
+        for count in (0,-1,21,True,False,2.5,'4',None):
+            with self.subTest(count=count):
+                with self.assertRaisesRegex(multi.MultiToolError,'whole number'):
+                    self.start(cycles=count)
+        self.store.data['globals']['tool_count']=12
+        with self.assertRaisesRegex(multi.MultiToolError,'240-movement'):
+            self.start(tools=list(range(12)),cycles=11)
+        self.assertEqual(self.sent,[])
+
+    def test_default_one_pass_and_new_manual_run_require_separate_start(self):
+        self.start()
+        first=self.wait()
+        self.assertEqual(first['completed_steps'],6)
+        self.assertEqual(first['requested_cycles'],1)
+        self.assertEqual(len(self.sent),6)
+        # Another pass is not automatic: a new explicit start is required.
+        self.assertFalse(first['running'])
+        self.start(cycles=2)
+        second=self.wait()
+        self.assertEqual(second['completed_steps'],12)
+        self.assertEqual(second['completed_cycles'],2)
+        self.assertEqual(len(self.sent),18)
+        self.assertEqual(self.signal,'RELEASED')
 
     def test_initial_mounted_carriage_is_blocked_before_any_motion(self):
         self.signal='PRESSED'

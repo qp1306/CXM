@@ -461,8 +461,8 @@ those are different, still-unfinished printing requirements.
 
 For first commissioning, prove each tool **individually** with a slow,
 supervised pickup and dropoff before attempting the combined pass.
-For the user's aligned front row, select T0/T1/T2 in order. The initial
-mode supports **one pass** at a time, with exactly two movements per tool:
+For the aligned front row, select T0/T1/T2 in order. Each **complete cycle**
+performs exactly two movements per selected tool:
 
     T0 Pickup → verify PRESENT → T0 Dropoff → verify ABSENT
     T1 Pickup → verify PRESENT → T1 Dropoff → verify ABSENT
@@ -500,9 +500,10 @@ entire run with a latched T0 or T1+ fault; **no automatic retry or forced
 dropoff** follows an uncertain pickup. Inspect actual coupling and dock,
 then use the appropriate individual tool fault-recovery route.
 
-Only **one supervised pass** is enabled in this initial version. Unlimited
-automatic repeat cycles, tool heating, extruder assignment, nozzle Z
-compensation and production toolchanging remain out of scope. A pass
+Each supervised run may repeat the complete tool sequence **1–20 times**
+(subject to the 240-movement limit). Unlimited repeats, tool heating,
+extruder assignment, nozzle Z compensation and production toolchanging
+remain out of scope. A pass
 confirms mechanical motion and presence-sensor transitions only; it
 does **not** mark tools commissioned or clear NOT READY labels. The
 source update may restart only the CXM backend. During an active run,
@@ -541,3 +542,44 @@ and supervise one two-tool pass with access to the actual emergency stop.
 Only add T2 if that passes. If rubbing, skipped steps or unusual sounds
 occur, stop the machine, inspect, and revert to Standard. CI simulations
 cannot prove clearance or mechanical suitability at higher feed rates.
+
+
+## Multi-tool mechanical XY testing: selectable repeat count
+
+The **Tools → Multi-tool XY cycle test** panel now includes a prominent
+**Repeat complete tool cycles** numeric field. One cycle means one full
+pickup and dropoff for **each selected, dock-accepted hotend** in ascending
+order (for example T0 pickup/dropoff, T1 pickup/dropoff, T2 pickup/dropoff).
+The default remains **one** cycle; select **1–20** for three tools. The
+backend additionally limits the total to **240 individual movements**
+regardless of the configured number of hotends. For more than six tools,
+the UI lowers the allowed maximum to stay within this cap. The backend
+independently rejects noninteger, negative, zero, excessive, or otherwise
+invalid cycle counts **before any movement**. Old API clients without the
+new field remain single-cycle.
+
+A five-cycle T0/T1/T2 test therefore contains **30 sensor-verified
+pickup/dropoff movements**, not five individual swaps. The event log
+labels the current cycle, the page reports **completed cycles** separately
+from **confirmed movements**, and a progress bar uses the requested number
+of movements. The standard and optional faster clear-travel profiles both
+support repeats without altering their proven docking/latch speeds.
+
+Between *every complete cycle* the controller performs a fresh read-only
+readiness check: same saved configuration revision and Klipper process,
+homing/motor state, no latched motion fault, genuinely empty carriage
+with stable sensor, and carriage still in the aligned safe-Y transfer
+corridor. The next tool stage moves Y to its guarded safe coordinate
+**before** moving X. Because all selected dock safe-Y lines must be
+within 1 mm, a fully completed pass can restart at the last dock's safe
+staging Y without requiring unnecessary manual repositioning.
+
+**Stop after current tool** still completes the presently active
+pickup/dropoff pair and does not start another tool. Progress counters
+show how many complete cycles actually finished when stopped. A failed
+pickup/dropoff **immediately halts all later tools and cycles**, retains
+a tool fault for physical inspection, and never retries automatically.
+Use the real printer emergency stop for immediate hazards. Every new
+requested run requires a new physical safety approval; changing the
+repeat count or travel profile revokes approval. This remains a
+supervised, mechanical-only test—not print readiness.

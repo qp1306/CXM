@@ -1,4 +1,4 @@
-/* CXM mechanically supervised one-pass T0..T11 dock test; not printing readiness. */
+/* CXM mechanically supervised bounded multi-pass T0..T11 dock test; not printing readiness. */
 (()=>{
 'use strict';
 const $=id=>document.getElementById(id);
@@ -13,17 +13,37 @@ function selection(){
 function eligible(){
  return (current?.candidates||[]).filter(t=>t.eligible);
 }
+function repeatMaximum(){
+ const tools=selection().length;
+ const maxCycles=Number(current?.max_repeat_cycles)||20;
+ const maxMoves=Number(current?.max_total_movements)||240;
+ return tools>0?Math.min(maxCycles,Math.floor(maxMoves/(tools*2))):maxCycles;
+}
+function repeatCount(){
+ const value=String($('cxmMultiRepeats').value).trim();
+ if(!/^[1-9][0-9]*$/.test(value))return null;
+ const count=Number(value);
+ return Number.isSafeInteger(count)&&count<=repeatMaximum()?count:null;
+}
 function chooseControls(){
  const running=current?.running===true;
  const valid=selection().length>=2&&
    selection().every(n=>current.candidates.some(t=>t.tool===n&&t.eligible));
- const ready=!requestBusy&&!running&&valid&&!!current?.revision;
+ const maxRepeat=repeatMaximum();
+ $('cxmMultiRepeats').max=String(maxRepeat);
+ text('cxmMultiRepeatHelp','Allowed 1–'+maxRepeat+' complete cycles for '+
+   selection().length+' selected hotends (maximum 240 movements).');
+ const cycles=repeatCount();
+ const ready=!requestBusy&&!running&&valid&&cycles!==null&&!!current?.revision;
  $('cxmMultiAck').disabled=!ready;
  if(!ready)$('cxmMultiAck').checked=false;
  $('cxmMultiStart').disabled=!ready||!$('cxmMultiAck').checked;
  $('cxmMultiStop').disabled=!running||current?.stop_requested===true||requestBusy;
  $('cxmMultiRefresh').disabled=requestBusy;
  $('cxmMultiFastTransfer').disabled=requestBusy||running;
+ $('cxmMultiRepeats').disabled=requestBusy||running;
+ text('cxmMultiStart',running?'Cycle test running…':
+   'Start '+(cycles===null?'—':cycles)+' '+(cycles===1?'cycle':'cycles'));
  $('cxmMultiPanel').setAttribute('aria-busy',requestBusy?'true':'false');
  for(const input of document.querySelectorAll('#cxmMultiChoices input')){
    input.disabled=requestBusy||running||input.dataset.eligible!=='yes';
@@ -68,6 +88,11 @@ function showStatus(){
  const done=run.completed_steps||0;
  $('cxmMultiProgressFill').style.width=(total?Math.round(100*done/total):0)+'%';
  text('cxmMultiProgressText',done+' of '+total+' pickup/dropoff movements sensor-confirmed');
+ const requested=Number(run.requested_cycles)||1;
+ const completed=Number(run.completed_cycles)||0;
+ text('cxmMultiCycleText',run.running
+   ?'Cycle '+(run.current_cycle||1)+' of '+requested+' · '+completed+' completed'
+   :completed+' of '+requested+' complete cycles verified');
  $('cxmMultiFault').hidden=run.state!=='failed';
  if(run.state==='failed')
    text('cxmMultiFault','TEST HALTED · '+(run.error||'Unknown motion state')+
@@ -88,7 +113,7 @@ function showStatus(){
       ?'STOP REQUESTED · current tool pair must complete, or use physical E-stop for immediate danger.'
       :'RUNNING · '+speed+' · '+run.last_event+' · supervise all movement');
  }else if(run.state==='complete'){
-   text('cxmMultiStatus','PASS COMPLETE · '+run.last_event);
+   text('cxmMultiStatus','CYCLE TEST COMPLETE · '+run.last_event);
  }else if(run.state==='failed'){
    text('cxmMultiStatus','FAILED · '+run.last_event);
  }else if(run.state==='stopped'){
@@ -147,12 +172,14 @@ async function start(){
  if(requestBusy||!current||current.running||!$('cxmMultiAck').checked)return;
  const list=selection();
  if(list.length<2||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
+ const cycles=repeatCount();
+ if(cycles===null)return;
  const travelProfile=$('cxmMultiFastTransfer').checked?'faster':'standard';
  requestBusy=true;$('cxmMultiAck').checked=false;chooseControls();
  text('cxmMultiStatus','Checking live Klipper readiness, real EMPTY carriage, and all '+list.length+' docks…');
  try{
    const reply=await request('/start',{tools:list,expected_revision:current.revision,
-     acknowledgement:ack,travel_profile:travelProfile});
+     acknowledgement:ack,travel_profile:travelProfile,cycles});
    if(!reply.started)throw Error('Backend did not confirm a started run');
    lastError='';
  }catch(e){
@@ -176,6 +203,17 @@ async function stop(){
  }finally{requestBusy=false;await refresh();}
 }
 $('cxmMultiAck').addEventListener('change',chooseControls);
+$('cxmMultiRepeats').addEventListener('input',()=>{
+ $('cxmMultiAck').checked=false;
+ chooseControls();
+ if(!current?.running){
+   const cycles=repeatCount();
+   text('cxmMultiStatus',cycles===null
+     ?'Select a whole number of cycles within the displayed safety limit.'
+     :'Selected '+cycles+' complete '+(cycles===1?'cycle':'cycles')+
+      '. Verify the machine, approve, then start.');
+ }
+});
 $('cxmMultiFastTransfer').addEventListener('change',()=>{
  $('cxmMultiAck').checked=false;
  chooseControls();
