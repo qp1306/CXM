@@ -41,6 +41,7 @@ function chooseControls(){
  $('cxmMultiStop').disabled=!running||current?.stop_requested===true||requestBusy;
  $('cxmMultiRefresh').disabled=requestBusy;
  $('cxmMultiFastTransfer').disabled=requestBusy||running;
+ $('cxmMultiRapid').disabled=requestBusy||running;
  $('cxmMultiRepeats').disabled=requestBusy||running;
  text('cxmMultiStart',running?'Cycle test running…':
    'Start '+(cycles===null?'—':cycles)+' '+(cycles===1?'cycle':'cycles'));
@@ -107,8 +108,8 @@ function showStatus(){
  if(lastError){
    text('cxmMultiStatus',lastError);
  }else if(run.running){
-   const speed=run.travel_profile==='faster'
-     ?'FASTER CLEAR TRAVEL (30 mm/s)':'STANDARD TRAVEL (10 mm/s)';
+   const speed=(run.execution_mode==='rapid'?'RAPID KLIPPER · ':'')+
+     (run.travel_profile==='faster'?'FASTER CLEAR TRAVEL (30 mm/s)':'STANDARD TRAVEL (10 mm/s)');
    text('cxmMultiStatus',run.stop_requested
       ?'STOP REQUESTED · current tool pair must complete, or use physical E-stop for immediate danger.'
       :'RUNNING · '+speed+' · '+run.last_event+' · supervise all movement');
@@ -175,11 +176,14 @@ async function start(){
  const cycles=repeatCount();
  if(cycles===null)return;
  const travelProfile=$('cxmMultiFastTransfer').checked?'faster':'standard';
+ const rapid=$('cxmMultiRapid').checked;
  requestBusy=true;$('cxmMultiAck').checked=false;chooseControls();
  text('cxmMultiStatus','Checking live Klipper readiness, real EMPTY carriage, and all '+list.length+' docks…');
  try{
-   const reply=await request('/start',{tools:list,expected_revision:current.revision,
-     acknowledgement:ack,travel_profile:travelProfile,cycles});
+   const requestBody={tools:list,expected_revision:current.revision,
+     acknowledgement:ack,travel_profile:travelProfile,cycles};
+   if(rapid)requestBody.execution_mode='rapid';
+   const reply=await request('/start',requestBody);
    if(!reply.started)throw Error('Backend did not confirm a started run');
    lastError='';
  }catch(e){
@@ -220,6 +224,13 @@ $('cxmMultiFastTransfer').addEventListener('change',()=>{
  if(!current?.running)text('cxmMultiStatus',$('cxmMultiFastTransfer').checked
    ?'FASTER MODE selected · 30 mm/s clear corridor only. Inspect the path, approve, then start.'
    :'STANDARD MODE selected · original 10 mm/s staging and existing dock approach.');
+});
+$('cxmMultiRapid').addEventListener('change',()=>{
+ $('cxmMultiAck').checked=false;
+ chooseControls();
+ if(!current?.running)text('cxmMultiStatus',$('cxmMultiRapid').checked
+   ?'RAPID KLIPPER selected · requires installed CXM_FAST_VERIFY macro and Klipper restart; approve only after inspection.'
+   :'ORIGINAL MECHANICAL TEST selected · proven commissioning sequence.');
 });
 $('cxmMultiStart').addEventListener('click',start);
 $('cxmMultiStop').addEventListener('click',stop);
