@@ -50,6 +50,7 @@ function drawChoices(){
    input.addEventListener('change',()=>{
      if(input.checked)chosen.add(tool.tool);else chosen.delete(tool.tool);
      $('cxmMultiAck').checked=false;
+     lastError='';
      chooseControls();
      if(!current.running){
        text('cxmMultiStatus','Selected '+selection().map(n=>'T'+n).join(' → ')+
@@ -129,7 +130,7 @@ async function refresh(){
    if(revisionChanged||!existing||wasRunning!==next.running)
      drawChoices();
    else if(current.running)chooseControls();
-   lastError='';
+   if(next.running || next.state==='complete' || next.state==='stopped')lastError='';
    chooseControls();showStatus();
  }catch(e){
    current=null;lastError='Multi-tool controller unavailable: '+e.message;
