@@ -75,9 +75,9 @@ class MultiPassTests(unittest.TestCase):
         ]
         for p in self.patchers:p.start()
         self.addCleanup(lambda:[p.stop() for p in reversed(self.patchers)])
-    def start(self,tools=[0,1,2],ack=ACK):
+    def start(self,tools=[0,1,2],ack=ACK,profile='standard'):
         return multi.start(store=self.store,tools=tools,expected_revision=self.store.revision,
-                           acknowledgement=ack)
+                           acknowledgement=ack,travel_profile=profile)
     def wait(self):
         for _ in range(500):
             if not multi.status(self.store)['running']:
@@ -114,6 +114,47 @@ class MultiPassTests(unittest.TestCase):
         self.assertEqual(t0.AUTO_STATE['last_success'],'T0 dropoff')
         self.assertEqual(tools._STATE['last_success'],'T2 dropoff')
         self.assertIsNone(tools._STATE['mounted_tool'])
+    def test_standard_travel_remains_original_baseline(self):
+        self.start(profile='standard')
+        result=self.wait()
+        self.assertEqual(result['state'],'complete')
+        self.assertEqual(result['travel_profile'],'standard')
+        self.assertEqual(len(self.sent),6)
+        self.assertIn('G1 Y109.99000 F600',self.sent[0])
+        self.assertNotIn('F1800',self.sent[0])
+        self.assertIn('G1 X306.79000 Y65.99000 F180',self.sent[0])
+
+    def test_opt_in_faster_transfer_uses_correct_t0_t1_t2_and_slow_latch(self):
+        self.start(profile='faster')
+        result=self.wait()
+        self.assertEqual(result['state'],'complete')
+        self.assertEqual(result['travel_profile'],'faster')
+        self.assertEqual(result['completed_steps'],6)
+        self.assertEqual(self.signal,'RELEASED')
+        self.assertEqual(len(self.sent),6)
+        for n,x in enumerate(['306.79000','267.19000','226.01000']):
+            pickup,dropoff=self.sent[n*2:n*2+2]
+            self.assertIn('F1800',pickup)
+            self.assertIn('F1800',dropoff)
+            self.assertIn('X'+x,pickup)
+            self.assertIn('X'+x,dropoff)
+            self.assertIn('F180',pickup)
+            self.assertIn('F180',dropoff)
+            self.assertIn('F240',pickup)
+            self.assertIn('F240',dropoff)
+            self.assertNotIn('G1 Z',pickup+dropoff)
+        complete=[x['message'] for x in result['results'] if 'confirmed' in x['message']]
+        self.assertEqual(len(complete),6)
+        self.assertTrue(all(' s' in event for event in complete),
+                        'Report measured step duration for later speed comparison')
+
+    def test_unknown_speed_is_rejected_without_motion(self):
+        for profile in ('turbo','extreme','',None,45):
+            with self.subTest(profile=profile):
+                with self.assertRaisesRegex(multi.MultiToolError,'Invalid travel profile'):
+                    self.start(profile=profile)
+        self.assertEqual(self.sent,[])
+
     def test_initial_mounted_carriage_is_blocked_before_any_motion(self):
         self.signal='PRESSED'
         with self.assertRaisesRegex(multi.MultiToolError,'FILAMENT PRESENT'):
