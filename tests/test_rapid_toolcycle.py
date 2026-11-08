@@ -135,6 +135,55 @@ class RapidPairTests(unittest.TestCase):
         self.assertEqual(len(sent),1)
         marker.assert_not_called()
 
+    def test_stop_during_native_pair_does_not_start_next_tool(self):
+        calls=[]
+        prepared={'pid':123,'revision':self.store.revision,
+                  'paths':self.paths,'verified_signal':'RELEASED',
+                  'validated_objects':('gcode_button cxm_tool_detect',)}
+        with multi.RUN_LOCK:
+            multi.RUN.update(running=True,state='running',stop_requested=False,
+                requested_cycles=3,completed_cycles=0,current_cycle=None,
+                completed_steps=0,results=[],tools=[0,1,2],error=None)
+        self.assertTrue(multi.MOVE_LOCK.acquire(blocking=False))
+        def pair(*args):
+            calls.append(args[1])
+            # Simulate pressing the UI Stop while first full tool pair is
+            # physically executing. The stop is not an emergency stop.
+            if len(calls)==1:
+                self.assertTrue(multi.stop(
+                    acknowledgement=multi.STOP_ACK)['stop_requested'])
+            return {'signal':'RELEASED','total_sec':2.5}
+        with patch.object(multi,'_rapid_pair',side_effect=pair):
+            multi._worker(self.store,[0,1,2],prepared,'standard',3,'rapid')
+        result=multi.status(self.store)
+        self.assertEqual(calls,[0])
+        self.assertEqual(result['completed_steps'],2)
+        self.assertEqual(result['state'],'stopped')
+        self.assertFalse(result['running'])
+        self.assertEqual(result['completed_cycles'],0)
+        self.assertFalse(multi.MOVE_LOCK.locked())
+
+    def test_native_pair_error_stops_all_later_tools_and_latches_fault(self):
+        prepared={'pid':123,'revision':self.store.revision,
+                  'paths':self.paths,'verified_signal':'RELEASED',
+                  'validated_objects':('gcode_button cxm_tool_detect',)}
+        with multi.RUN_LOCK:
+            multi.RUN.update(running=True,state='running',stop_requested=False,
+                requested_cycles=2,completed_cycles=0,current_cycle=None,
+                completed_steps=0,results=[],tools=[0,1,2],error=None)
+        self.assertTrue(multi.MOVE_LOCK.acquire(blocking=False))
+        with (patch.object(multi,'_rapid_pair',side_effect=RuntimeError(
+                'native PRESSED gate did not verify')) as pair,
+              patch.object(multi,'_latch_tool_fault',
+                           return_value='Inspect uncertain carriage')):
+            multi._worker(self.store,[0,1,2],prepared,'standard',2,'rapid')
+        result=multi.status(self.store)
+        self.assertEqual(pair.call_count,1)
+        self.assertEqual(result['state'],'failed')
+        self.assertEqual(result['completed_steps'],0)
+        self.assertIn('Inspect uncertain carriage',result['error'])
+        self.assertFalse(multi.MOVE_LOCK.locked())
+
     def test_not_active_klipper_process_rejected_before_script(self):
         with patch.object(multi,'_rpc',return_value={'state':'ready',
                                                     'process_id':999}) as rpc:
