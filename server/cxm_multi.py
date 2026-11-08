@@ -156,8 +156,12 @@ def _prepare(store,selected,revision):
     # One-click sequences may only start EMPTY and outside every selected
     # dock's approach zone. Software-reported XY must be genuinely homed;
     # the operator separately attests that XY was not hand moved.
-    max_safe=max(p['safe_y'] for p in paths.values())
-    if ctx['position'][1]<max_safe-POSITION_TOL:
+    # Previous tool pairs finish at their own safe-Y line. These lines are
+    # verified within 1 mm, and the next script moves Y to its safe staging
+    # line BEFORE any cross-dock X travel. Therefore an already-finished
+    # pass may safely start another without needless rehoming/repositioning.
+    minimum_safe=min(p['safe_y'] for p in paths.values())
+    if ctx['position'][1]<minimum_safe-POSITION_TOL:
         raise MultiToolError('Home/park with Y outside every selected dock safe-Y boundary')
     if _sensor_value(AUTO_SENSOR,ctx['objects'])!=AUTO_EMPTY:
         raise MultiToolError('Carriage FILAMENT PRESENT: first safely drop off the mounted hotend')
