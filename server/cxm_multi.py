@@ -17,8 +17,10 @@ import copy
 import threading
 import time
 import uuid
+import urllib.parse
 
 from cxm_lineux import MOVE_LOCK, _rpc
+from cxm_rapid import pair_script
 from cxm_cxchanger import (plan as cxchanger_plan, automatic_script,
                            faster_cycle_script)
 from cxm_t0 import (_safe_context, _wait_for_idle_after_move, _sensor_value,
@@ -33,7 +35,7 @@ class MultiToolError(RuntimeError):
 
 RUN_LOCK=threading.Lock()
 RUN={'running':False,'run_id':None,'state':'idle','tools':[],
-     'travel_profile':'standard','requested_cycles':1,
+     'travel_profile':'standard','execution_mode':'legacy','requested_cycles':1,
      'completed_cycles':0,'current_cycle':None,
      'total_steps':0,'completed_steps':0,'current_tool':None,
      'current_action':None,'last_event':'No multi-tool test started',
@@ -42,6 +44,8 @@ RUN={'running':False,'run_id':None,'state':'idle','tools':[],
 START_ACK='I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH'
 STOP_ACK='STOP_AFTER_CURRENT_TOOL_PAIR'
 TRAVEL_PROFILES=('standard','faster')
+EXECUTION_MODES=('legacy','rapid')
+RAPID_MACRO='gcode_macro CXM_FAST_VERIFY'
 MAX_REPEAT_CYCLES=20
 MAX_TOTAL_MOVEMENTS=240  # bound unattended batch size across tool counts
 # This initial commissioning mode assumes an aligned front dock row. The
@@ -144,7 +148,7 @@ def _check_no_pending_fault(ctx):
     if mounted is not None:
         raise MultiToolError('T'+str(mounted)+' is still recorded attached; empty carriage required')
 
-def _prepare(store,selected,revision):
+def _prepare(store,selected,revision,execution_mode='legacy'):
     saved=store.read()
     if type(revision) is not str or revision!=saved['revision']:
         raise MultiToolError('Configuration changed: refresh the list of eligible docks')
@@ -153,6 +157,13 @@ def _prepare(store,selected,revision):
     _check_no_pending_fault(ctx)
     if AUTO_SENSOR not in ctx['objects']:
         raise MultiToolError('Carriage presence switch is unavailable')
+    if execution_mode=='rapid':
+        if RAPID_MACRO not in ctx['objects']:
+            raise MultiToolError('Rapid mode unavailable: install the native CXM guard, perform one Klipper RESTART, then rehome XYZ')
+        result=_rpc('/printer/objects/query?'+urllib.parse.urlencode(
+                    {RAPID_MACRO:'cxm_rapid_protocol'})).get('status',{})
+        if result.get(RAPID_MACRO,{}).get('cxm_rapid_protocol')!=1:
+            raise MultiToolError('Rapid Klipper safety macro version mismatch; inspect installed macro and Klipper RESTART')
     # One-click sequences may only start EMPTY and outside every selected
     # dock's approach zone. Software-reported XY must be genuinely homed;
     # the operator separately attests that XY was not hand moved.
@@ -296,7 +307,32 @@ def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='s
             'timing':breakdown,
             'x':p['dock_reference_xy']['x'],'y':p['dock_reference_xy']['y']}
 
-def _worker(store,selected,prepared,travel_profile,cycles):
+def _rapid_pair(store,tool,expected_revision,expected_pid,paths,travel_profile):
+    """Dispatch one synchronous Klipper pickup+dropoff pair.
+
+    Klipper performs M400-separated live sensor gates on both actions.
+    If the request raises or times out, never assume which tool is attached.
+    """
+    saved=store.read()
+    if saved['revision']!=expected_revision:
+        raise MultiToolError('Dock calibration changed before rapid tool pair')
+    live=_rpc('/printer/info')
+    if live.get('state')!='ready' or live.get('process_id')!=expected_pid:
+        raise MultiToolError('Klipper not ready or restarted before rapid pair')
+    script=pair_script(paths,tool,travel_profile)
+    started=time.monotonic()
+    _rpc('/printer/gcode/script',{'script':script})
+    elapsed=round(time.monotonic()-started,2)
+    if store.read()['revision']!=expected_revision:
+        raise MultiToolError('Dock config changed during rapid pair; inspect tool')
+    # A successful Klipper script confirms both 4-sample gates, homed XYZ,
+    # stepper power, safe stage and empty carriage at final M400.
+    _mark_tool(tool,'dropoff',{'pid':expected_pid,'revision':expected_revision},
+               expected_revision)
+    return {'signal':AUTO_EMPTY,'total_sec':elapsed}
+
+
+def _worker(store,selected,prepared,travel_profile,cycles,execution_mode='legacy'):
     tool=None
     kind=None
     # This token comes ONLY from four stable carriage sensor samples at
@@ -321,26 +357,41 @@ def _worker(store,selected,prepared,travel_profile,cycles):
                             last_event='Stopped after '+str(RUN['completed_steps'])+
                             ' verified moves; carriage EMPTY')
                     return
-                for kind in ('pickup','dropoff'):
-                    if store.read()['revision']!=prepared['revision']:
-                        raise MultiToolError('Configuration changed before T'+str(tool)+' '+kind)
+                if execution_mode=='rapid':
+                    kind='rapid pair'
                     _event('Cycle '+str(cycle)+'/'+str(cycles)+
-                           ' · T'+str(tool)+' '+kind+' started · supervise movement',
+                           ' · T'+str(tool)+' rapid pickup and dropoff in Klipper',
                            tool=tool,action=kind)
-                    result=_step(store,tool,kind,prepared['revision'],
-                                 prepared['pid'],prepared['paths'],travel_profile,
-                                 verified_before=confirmed_signal,
-                                 validated_objects=prepared['validated_objects'])
-                    confirmed_signal=result['signal']
-                    perf=result['timing']
+                    result=_rapid_pair(store,tool,prepared['revision'],prepared['pid'],
+                                       prepared['paths'],travel_profile)
                     _event('Cycle '+str(cycle)+'/'+str(cycles)+
-                           ' · T'+str(tool)+' '+kind+' confirmed ('+result['signal']+
-                           ') · total '+str(result['total_sec'])+'s'+
-                           ' [preflight '+str(perf['preflight_sec'])+'s'+
-                           ', G-code '+str(perf['gcode_sec'])+'s'+
-                           ', idle '+str(perf['idle_check_sec'])+'s'+
-                           ', sensor '+str(perf['sensor_sec'])+'s]',
-                           tool=tool,action=kind,step_done=True)
+                           ' · T'+str(tool)+' native pickup confirmed (PRESSED)',
+                           tool=tool,action='pickup',step_done=True)
+                    _event('Cycle '+str(cycle)+'/'+str(cycles)+
+                           ' · T'+str(tool)+' native dropoff confirmed (RELEASED)'+
+                           ' · pair '+str(result['total_sec'])+'s · four samples/action',
+                           tool=tool,action='dropoff',step_done=True)
+                else:
+                    for kind in ('pickup','dropoff'):
+                        if store.read()['revision']!=prepared['revision']:
+                            raise MultiToolError('Configuration changed before T'+str(tool)+' '+kind)
+                        _event('Cycle '+str(cycle)+'/'+str(cycles)+
+                               ' · T'+str(tool)+' '+kind+' started · supervise movement',
+                               tool=tool,action=kind)
+                        result=_step(store,tool,kind,prepared['revision'],
+                                     prepared['pid'],prepared['paths'],travel_profile,
+                                     verified_before=confirmed_signal,
+                                     validated_objects=prepared['validated_objects'])
+                        confirmed_signal=result['signal']
+                        perf=result['timing']
+                        _event('Cycle '+str(cycle)+'/'+str(cycles)+
+                               ' · T'+str(tool)+' '+kind+' confirmed ('+result['signal']+
+                               ') · total '+str(result['total_sec'])+'s'+
+                               ' [preflight '+str(perf['preflight_sec'])+'s'+
+                               ', G-code '+str(perf['gcode_sec'])+'s'+
+                               ', idle '+str(perf['idle_check_sec'])+'s'+
+                               ', sensor '+str(perf['sensor_sec'])+'s]',
+                               tool=tool,action=kind,step_done=True)
                 # After every complete pair, carriage is confirmed EMPTY.
                 if _stop_requested():
                     # If the stop arrives at the last tool's dropoff, this
@@ -367,11 +418,14 @@ def _worker(store,selected,prepared,travel_profile,cycles):
         _update(running=False,stop_requested=False,current_action=None)
         MOVE_LOCK.release()
 
-def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standard',cycles=1):
+def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standard',
+          cycles=1,execution_mode='legacy'):
     if acknowledgement!=START_ACK:
         raise MultiToolError('Confirm the real carriage is EMPTY, all selected docks are safe and the XY path is clear')
     if type(travel_profile) is not str or travel_profile not in TRAVEL_PROFILES:
         raise MultiToolError('Invalid travel profile: choose standard or faster clear-corridor travel')
+    if type(execution_mode) is not str or execution_mode not in EXECUTION_MODES:
+        raise MultiToolError('Invalid execution mode: legacy or rapid')
     if type(cycles) is not int or not 1<=cycles<=MAX_REPEAT_CYCLES:
         raise MultiToolError('Choose a whole number of complete cycles from 1 to '+
                              str(MAX_REPEAT_CYCLES))
@@ -384,18 +438,19 @@ def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standa
     if not MOVE_LOCK.acquire(blocking=False):
         raise MultiToolError('Another CXM tool/dock motion operation is running')
     try:
-        prepared=_prepare(store,tools,expected_revision)
+        prepared=_prepare(store,tools,expected_revision,execution_mode)
         run_id=str(uuid.uuid4())
         with RUN_LOCK:
             RUN.update(running=True,run_id=run_id,state='running',
                        tools=tools[:],travel_profile=travel_profile,
+                       execution_mode=execution_mode,
                        requested_cycles=cycles,completed_cycles=0,current_cycle=None,
                        total_steps=len(tools)*2*cycles,
                        completed_steps=0,current_tool=None,current_action=None,
                        last_event='Preflight passed; multi-tool pass starting',
                        stop_requested=False,results=[],error=None)
         worker=threading.Thread(target=_worker,
-                                args=(store,tools[:],prepared,travel_profile,cycles),
+                                args=(store,tools[:],prepared,travel_profile,cycles,execution_mode),
                                 daemon=True,name='cxm-multi-tool-pass')
         try:
             worker.start()
@@ -405,7 +460,8 @@ def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standa
                     last_event='No movement started: worker thread failed')
             raise
         return {'started':True,'run_id':run_id,'tools':tools,'cycles':cycles,
-                'travel_profile':travel_profile,'total_steps':len(tools)*2*cycles,
+                'travel_profile':travel_profile,'execution_mode':execution_mode,
+                 'total_steps':len(tools)*2*cycles,
                 'note':'Supervised repeated XY only; printer remains uncommissioned.'}
     except Exception:
         MOVE_LOCK.release()
