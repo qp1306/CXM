@@ -56,9 +56,12 @@ def _four_native_samples(signal,*,x,y):
     # Early wrong sensor state fails immediately; four positive reads
     # separated by 80ms prove no transient drop during the check.
     # Klipper Jinja evaluates each separate macro at its turn.
-    lines=["G4 P%d"%SETTLE_MS]
+    # Klipper G4 queues dwell time rather than guaranteeing wall-time
+    # completion before the next macro expands. Force M400 after EACH
+    # dwell so every sample is genuinely separated in physical time.
+    lines=["G4 P%d"%SETTLE_MS,"M400"]
     for i in range(SAMPLE_COUNT):
-        if i:lines.append("G4 P%d"%SAMPLE_INTERVAL_MS)
+        if i:lines.extend(["G4 P%d"%SAMPLE_INTERVAL_MS,"M400"])
         lines.append(_verify(signal,x=x,y=y))
     return lines
 
