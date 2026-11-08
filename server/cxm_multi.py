@@ -35,6 +35,10 @@ RUN={'running':False,'run_id':None,'state':'idle','tools':[],
 
 START_ACK='I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH'
 STOP_ACK='STOP_AFTER_CURRENT_TOOL_PAIR'
+# This initial commissioning mode assumes an aligned front dock row. The
+# stock per-tool CxChanger staging script is not a general safe transfer
+# route between docks at very different Y depths.
+MAX_SAFE_Y_SPREAD_MM=1.0
 
 def _update(**changes):
     with RUN_LOCK:
@@ -106,6 +110,12 @@ def _validate_selection(selected,saved):
             paths[n]=cxchanger_plan(saved,tool=n)
         except (ValueError,TypeError,KeyError) as exc:
             raise MultiToolError('T'+str(n)+' unsafe CxChanger geometry: '+str(exc)) from exc
+    safe_y_values=[p['safe_y'] for p in paths.values()]
+    if max(safe_y_values)-min(safe_y_values)>MAX_SAFE_Y_SPREAD_MM:
+        raise MultiToolError(
+            'Selected docks have safe-Y staging lines more than 1 mm apart. '
+            'Multi-tool transfer across different dock depths is not commissioned; '
+            'test those docks individually.')
     return paths
 
 def _check_no_pending_fault(ctx):
