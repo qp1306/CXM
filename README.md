@@ -619,3 +619,39 @@ transition after M400 without blindly removing the barrier. If
 **G-code** dominates, examine staging feed and the safe Y/X motion
 segments separately from the coupling path. Changes to motion timing
 must follow **measured** behaviour and be tested independently.
+
+
+## Remove duplicated sensor verification between CXM multi-tool operations
+
+Measured on an actual T0/T1/T2 six-movement pass: approximately 27.73
+seconds overall, with **9.01 s preflight**, **6.00 s post-motion switch
+verification**, **4.10 s Klipper idle checks**, and **8.61 s executed
+G-code**. This made it clear that travel-feed increases alone would not
+fix the observed pause between operations.
+
+The multi-tool sequence now carries a **four-sample verified occupancy
+result** forward. The first operation is backed by the original
+four-consecutive-RELEASED startup check. Every successfully completed
+pickup or dropoff is backed by the original four-consecutive PRESSED or
+RELEASED post-motion check and Klipper's live idle/park verification.
+For each following operation the controller still performs a **new live
+switch read immediately before dispatching any G-code**, and checks that
+it agrees with the previous stable result. It no longer waits for an
+unnecessary *second set of four stable samples* before each move.
+
+At the boundary between full repeat cycles, the original complete
+readiness and four-stable-empty checks still run, and their verified
+result becomes the next cycle's trusted starting state. Calls to the
+internal step function without that verified result retain the old
+four-sample precheck. A mismatch, failed four-sample postcheck,
+invalid Klipper state, stale revision or missing motor/homing state
+still **fails closed and stops all later motions**.
+
+No change was made to the known-good CxChanger X/Y movement geometry,
+Standard/Faster travel profiles, M400 barriers, lock/approach feeds,
+four-sample **post-movement** confirmation or separate T0/T1+ controls.
+The intended improvement is roughly the duplicated pre-movement
+verification time (previously ~1 s per move), **not** a guarantee of
+mechanical performance. Compare a supervised one-pass T0/T1 test before
+and after installation using the live per-step timing diagnostics before
+testing repeated three-tool cycles.
