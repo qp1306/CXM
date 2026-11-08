@@ -263,6 +263,11 @@
   <span><strong>Faster clear-travel mode · 30 mm/s</strong>
    <small>Optional. Speeds up travel between docks and only the sections beyond the 10 mm approach margin. Dock contact remains 4 mm/s; locking remains 3 mm/s. Leave unticked for original proven speeds.</small></span>
  </label>
+ <label class="cxm-multi-speed" for="cxmMultiRapid">
+  <input id="cxmMultiRapid" type="checkbox">
+  <span><strong>Rapid continuous Klipper mode · local sensor checks</strong>
+   <small>Opt-in after one-time rapid safety macro installation and Klipper RESTART. Executes each pickup+dropoff pair inside Klipper with four verified PRESSED and RELEASED samples. Stop acts after current complete pair. Mechanical testing only.</small></span>
+ </label>
  <label class="cxm-capture-ack" id="cxmMultiApproval">
   <input id="cxmMultiAck" type="checkbox" disabled>
   <span class="cxm-approval-copy"><strong>Approve one supervised pass</strong><small>I have inspected and individually test-swapped each selected hotend. The carriage is EMPTY, tools are in their own docks, XYZ are genuinely homed, the full corridor is clear, and I have checked both travel speed and repeat count. I will supervise EVERY cycle. No Mainsail jogs or G-code during the run.</small></span>
@@ -838,7 +843,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-lineux.js?v=0.9.14" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
 <script src="cxm-t0-auto.js?v=1.2.3" defer></script>
 <script src="cxm-tools.js?v=0.1.3" defer></script>
-<script src="cxm-multi.js?v=0.1.3" defer></script>
+<script src="cxm-multi.js?v=0.2.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
