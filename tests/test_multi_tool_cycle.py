@@ -115,6 +115,41 @@ class MultiPassTests(unittest.TestCase):
         self.assertEqual(t0.AUTO_STATE['last_success'],'T0 dropoff')
         self.assertEqual(tools._STATE['last_success'],'T2 dropoff')
         self.assertIsNone(tools._STATE['mounted_tool'])
+    def test_timing_breakdown_reports_all_wait_phases_without_changing_movement(self):
+        self.start(cycles=1)
+        result=self.wait()
+        self.assertEqual(result['state'],'complete')
+        self.assertEqual(result['completed_steps'],6)
+        self.assertEqual(len(self.sent),6)
+        recorded=[item['message'] for item in result['results']
+                  if ' confirmed (' in item['message']]
+        self.assertEqual(len(recorded),6)
+        for message in recorded:
+            self.assertIn('preflight ',message)
+            self.assertIn('G-code ',message)
+            self.assertIn('idle ',message)
+            self.assertIn('sensor ',message)
+            self.assertIn('total ',message)
+        self.assertEqual(self.signal,'RELEASED')
+
+    def test_separate_preflight_and_idle_time_are_attributed_to_correct_phase(self):
+        values=iter([100.,100.2,103.2,103.9,104.4,104.5])
+        class Clock:
+            def monotonic(self):
+                return next(values)
+        with patch.object(multi,'time',Clock()):
+            result=multi._step(self.store,0,'pickup',self.store.revision,
+                               self.pid,{0:plan(self.store.read(),tool=0)})
+        measured=result['timing']
+        self.assertEqual(measured['preflight_sec'],0.2)
+        self.assertEqual(measured['gcode_sec'],3.0)
+        self.assertEqual(measured['idle_check_sec'],0.7)
+        self.assertEqual(measured['sensor_sec'],0.5)
+        self.assertEqual(measured['record_sec'],0.1)
+        self.assertEqual(result['total_sec'],4.5)
+        self.assertEqual(len(self.sent),1)
+        self.assertEqual(self.signal,'PRESSED')
+
     def test_standard_travel_remains_original_baseline(self):
         self.start(profile='standard')
         result=self.wait()
