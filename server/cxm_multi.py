@@ -149,7 +149,7 @@ def _prepare(store,selected,revision):
     if type(revision) is not str or revision!=saved['revision']:
         raise MultiToolError('Configuration changed: refresh the list of eligible docks')
     paths=_validate_selection(selected,saved)
-    ctx=_safe_context(saved,tool=selected[0])
+    ctx=_safe_context(saved,tool=selected[0],sensor_name=AUTO_SENSOR)
     _check_no_pending_fault(ctx)
     if AUTO_SENSOR not in ctx['objects']:
         raise MultiToolError('Carriage presence switch is unavailable')
@@ -163,7 +163,7 @@ def _prepare(store,selected,revision):
     minimum_safe=min(p['safe_y'] for p in paths.values())
     if ctx['position'][1]<minimum_safe-POSITION_TOL:
         raise MultiToolError('Home/park with Y outside every selected dock safe-Y boundary')
-    if _sensor_value(AUTO_SENSOR,ctx['objects'])!=AUTO_EMPTY:
+    if ctx['sensor_signal']!=AUTO_EMPTY:
         raise MultiToolError('Carriage FILAMENT PRESENT: first safely drop off the mounted hotend')
     verified=_stable_sensor(AUTO_SENSOR,ctx['objects'],AUTO_EMPTY,timeout_s=1.25)
     if store.read()['revision']!=revision:
@@ -181,7 +181,7 @@ def _verify_between_cycles(store,prepared,selected):
         raise MultiToolError('CXM dock settings changed between cycles')
     ctx=_safe_context(saved,tool=selected[0],
                       validated_objects=prepared['validated_objects'],
-                      expected_pid=prepared['pid'])
+                      expected_pid=prepared['pid'],sensor_name=AUTO_SENSOR)
     if ctx['pid']!=prepared['pid']:
         raise MultiToolError('Klipper process changed between cycles')
     _check_no_pending_fault(ctx)
@@ -190,7 +190,7 @@ def _verify_between_cycles(store,prepared,selected):
     minimum=min(p['safe_y'] for p in prepared['paths'].values())
     if ctx['position'][1]<minimum-POSITION_TOL:
         raise MultiToolError('Carriage is not clear of all dock approaches between cycles')
-    if _sensor_value(AUTO_SENSOR,ctx['objects'])!=AUTO_EMPTY:
+    if ctx['sensor_signal']!=AUTO_EMPTY:
         raise MultiToolError('Carriage FILAMENT PRESENT between cycles; stop and inspect')
     confirmed=_stable_sensor(AUTO_SENSOR,ctx['objects'],AUTO_EMPTY,timeout_s=1.25)
     if store.read()['revision']!=prepared['revision']:
@@ -234,7 +234,7 @@ def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='s
     ctx=_safe_context(saved,tool=tool,
                       validated_objects=validated_objects,
                       expected_pid=(expected_pid if validated_objects is not None
-                                    else None))
+                                    else None),sensor_name=AUTO_SENSOR)
     if ctx['pid']!=expected_pid:
         raise MultiToolError('Klipper restarted while multi-tool test was running')
     # At each tool's staging line or further out in the shared transfer
@@ -245,11 +245,10 @@ def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='s
     if verified_before is not None and verified_before!=wanted_before:
         raise MultiToolError('T'+str(tool)+' '+kind+
                              ' blocked: prior stable sensor confirmation is not '+wanted_before)
-    # Crucially this is a NEW live sensor read immediately before motion.
-    # The prior 4-read post-movement or startup confirmation remains required,
-    # but repeating 4 additional reads before every following move adds
-    # ~1 second of avoidable delay per movement.
-    if _sensor_value(AUTO_SENSOR,ctx['objects'])!=wanted_before:
+    # A fresh carriage-switch reading is included in the SAME live status
+    # response that verifies homing, motor power, idle, print state and XY.
+    # A mismatch still blocks motion, with no separate 250ms sensor query.
+    if ctx['sensor_signal']!=wanted_before:
         raise MultiToolError('T'+str(tool)+' '+kind+' blocked: sensor before motion is not '+wanted_before)
     # Only standalone/direct callers without prior verified evidence retain
     # the original 4-sample precheck. The multi-tool worker always supplies
