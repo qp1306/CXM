@@ -230,8 +230,8 @@ class MultiPassTests(unittest.TestCase):
         def idle(saved,**kwargs):
             captured_idle.append(kwargs)
             return original_idle(saved,**kwargs)
-        with patch.object(multi,'_safe_context',side_effect=context), \\
-             patch.object(multi,'_wait_for_idle_after_move',side_effect=idle):
+        with (patch.object(multi,'_safe_context',side_effect=context),
+              patch.object(multi,'_wait_for_idle_after_move',side_effect=idle)):
             result=multi._step(self.store,0,'pickup',self.store.revision,self.pid,
                                {0:plan(self.store.read(),tool=0)},
                                verified_before='RELEASED',
