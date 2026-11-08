@@ -146,7 +146,7 @@ class MultiPassTests(unittest.TestCase):
         self.assertEqual(state['state'],'failed')
         self.assertEqual(len(self.sent),1)
         self.assertEqual(state['completed_steps'],0)
-        self.assertIn('T0 pickup multi-tool result uncertain',t0.AUTO_STATE['fault'])
+        self.assertIn('T0 pickup result uncertain: multi-tool pass',t0.AUTO_STATE['fault'])
         self.assertEqual(self.signal,'RELEASED')
         with self.assertRaisesRegex(multi.MultiToolError,'T0 fault'):
             self.start()
@@ -163,7 +163,7 @@ class MultiPassTests(unittest.TestCase):
         self.assertEqual(result['state'],'failed')
         self.assertEqual(result['completed_steps'],2)
         self.assertEqual(len(self.sent),3)
-        self.assertIn('T1 pickup multi-tool result uncertain',tools._STATE['fault'])
+        self.assertIn('T1 pickup result uncertain: multi-tool pass',tools._STATE['fault'])
     def test_stop_after_t0_pickup_still_finishes_t0_dropoff(self):
         def rpc(url,payload):
             self.sent.append(payload['script'])
