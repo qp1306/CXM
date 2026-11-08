@@ -74,3 +74,59 @@ def automatic_script(path,kind,*,at_stage,safe_feed=600,test_feed=240,latch_feed
         return '\n'.join(movement)
     stage=gcode(path['stage'],'stage',safe_feed,test_feed,latch_feed).splitlines()
     return '\n'.join(stage+movement[1:])
+
+
+# Faster *clearance* segments for supervised mechanical-only multi-tool
+# testing. Tested T0/T1+ single-tool scripts stay unchanged. Speed F is mm/min.
+FAST_TRANSFER_FEED=1800       # 30 mm/s: dock-to-dock staging and clear corridor
+DOCK_CLEARANCE_MARGIN_Y=10.0 # stay 10 mm outside the Y-dodge point at speed
+
+def faster_cycle_script(path,kind,*,at_stage,travel_feed=FAST_TRANSFER_FEED,
+                        test_feed=240,latch_feed=180,
+                        margin_y=DOCK_CLEARANCE_MARGIN_Y):
+    """Same final docking geometry, faster ONLY when safely clear of dock.
+
+    Entry is slowed at Y=dock_y+dodge_y+margin_y, before the coupling can
+    interact with the dock. Exit runs slowly to this exact point, then
+    speeds up. X latch, dodge-Y, dock contact and locking moves retain
+    the existing trialled 240/180 mm/min. No Z, heater or extrusion G-code.
+    """
+    if kind not in ('pickup','dropoff'):
+        raise ValueError('Select pickup or dropoff for faster travel')
+    travel=finite(travel_feed,'Fast clear-corridor feed',600,1800)
+    test=finite(test_feed,'Dock approach feed',120,240)
+    latch=finite(latch_feed,'Dock latch feed',90,180)
+    margin=finite(margin_y,'Dock approach safety margin',8,15)
+    x=path['dock_reference_xy']['x']
+    y=path['dock_reference_xy']['y']
+    dy=path['dodge_y']
+    safe=path['safe_y']
+    near=y+dy+margin
+    if not (10<=x<=325 and 0<y<y+dy<near<=safe-8 and safe<=362):
+        raise ValueError('Fast transfer must have a clear, separated Y corridor')
+    points=path[kind]
+    if len(points)!=5 or len(path['stage'])!=1:
+        raise ValueError('Unexpected CxChanger motion geometry')
+    lines=['G90']
+    if not at_stage:
+        # Preserve the native stage sequence: exit to safe Y BEFORE
+        # crossing horizontally to the new tool's X coordinate.
+        lines.extend([f'G1 Y{safe:.5f} F{travel:.0f}',
+                      f'G1 X{x:.5f} F{travel:.0f}',
+                      'M400'])
+    def move(x_,y_,feed):
+        lines.append(f'G1 X{x_:.5f} Y{y_:.5f} F{feed:.0f}')
+    move(x,near,travel)   # clear corridor; speed up only outside dock
+    if kind=='pickup':
+        # Same CxChanger pickup coordinates and exact contact feed rates.
+        for p,feed in zip(points[:4],[test,test,test,latch]):
+            move(*p,feed)
+    else:
+        # Slow approach to the actual dock, then unchanged latch and
+        # movement through the Y-dodge point.
+        for p,feed in zip(points[:4],[test,latch,test,test]):
+            move(*p,feed)
+    move(x,near,test)     # slowly clear dock and dodge zone
+    move(x,safe,travel)   # speed up only after verified Y clearance
+    lines.append('M400')
+    return '\n'.join(lines)

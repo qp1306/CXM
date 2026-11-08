@@ -173,7 +173,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(404,{'error':'Not found'})
                 return
             if self.path == '/v1/tools/multi/start':
-                if set(body) != {'tools','expected_revision','acknowledgement'}:
+                if set(body) not in (
+                        {'tools','expected_revision','acknowledgement'},
+                        {'tools','expected_revision','acknowledgement','travel_profile'}):
                     raise ValueError('Unexpected multi-tool pass request')
                 self.output(200,multi_start(store=self.server.store,**body))
                 return
