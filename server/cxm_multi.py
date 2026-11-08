@@ -293,9 +293,14 @@ def _worker(store,selected,prepared,travel_profile,cycles):
                            tool=tool,action=kind,step_done=True)
                 # After every complete pair, carriage is confirmed EMPTY.
                 if _stop_requested():
-                    _update(state='stopped',
-                            last_event='Stopped after cycle '+str(cycle)+
-                            ', T'+str(tool)+' dropoff · carriage EMPTY')
+                    # If the stop arrives at the last tool's dropoff, this
+                    # entire cycle WAS completed and must count as complete.
+                    changes={'state':'stopped',
+                             'last_event':'Stopped after cycle '+str(cycle)+
+                             ', T'+str(tool)+' dropoff · carriage EMPTY'}
+                    if tool==selected[-1]:
+                        changes['completed_cycles']=cycle
+                    _update(**changes)
                     return
             _update(completed_cycles=cycle,
                     last_event='Cycle '+str(cycle)+'/'+str(cycles)+
