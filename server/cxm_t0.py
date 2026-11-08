@@ -120,8 +120,11 @@ def _safe_context(saved, *, tool=0, require_homed=True, require_in_park=False,
     status=_rpc('/printer/objects/query?'+urllib.parse.urlencode(query)).get('status',{})
     if status.get('idle_timeout',{}).get('state') not in ('Idle','Ready'):
         raise T0Error('Klipper is not idle')
-    if status.get('print_stats',{}).get('state') not in (None,'standby','complete','cancelled','error'):
-        raise T0Error('Printer has a print active or paused')
+    if 'print_stats' in objects and status.get('print_stats',{}).get('state') not in (
+            'standby','complete','cancelled','error'):
+        # If an object we already verified exists has disappeared from
+        # the query, do not infer an idle printer from a missing state.
+        raise T0Error('Printer has a print active, paused or unknown state')
     if 'virtual_sdcard' in objects and status.get('virtual_sdcard',{}).get('is_active') is not False:
         raise T0Error('Virtual SD print active or unknown')
     if 'pause_resume' in objects and status.get('pause_resume',{}).get('is_paused') is not False:
