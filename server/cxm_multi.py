@@ -257,10 +257,6 @@ def start(*,store,tools,expected_revision,acknowledgement):
     with RUN_LOCK:
         if RUN['running']:
             raise MultiToolError('A multi-tool pass is already running')
-        if RUN['state']=='failed':
-            # Revalidate and clear the underlying individual fault before
-            # starting again; don't hide a failed toolchange by repeating.
-            pass
     if not MOVE_LOCK.acquire(blocking=False):
         raise MultiToolError('Another CXM tool/dock motion operation is running')
     try:
