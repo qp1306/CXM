@@ -150,6 +150,70 @@ class MultiPassTests(unittest.TestCase):
         self.assertEqual(len(self.sent),1)
         self.assertEqual(self.signal,'PRESSED')
 
+
+    def test_continuous_pass_reuses_four_sample_verified_evidence_but_checks_live_sensor(self):
+        # Startup verifies stable EMPTY (4 samples), and *every* completed
+        # movement gets its own four-sample post confirmation. Do not repeat
+        # that stable preflight verification when nothing else has moved.
+        original_stable=multi._stable_sensor
+        original_live=multi._sensor_value
+        with patch.object(multi,'_stable_sensor',wraps=original_stable) as stable, \
+             patch.object(multi,'_sensor_value',wraps=original_live) as live:
+            self.start(cycles=1)
+            result=self.wait()
+        self.assertEqual(result['state'],'complete')
+        self.assertEqual(len(self.sent),6)
+        self.assertEqual(stable.call_count,7,
+                         '1 initial stable check and 6 post-motion checks')
+        self.assertEqual(live.call_count,7,
+                         '1 initial sensor read and 6 fresh pre-action reads')
+        self.assertEqual(self.signal,'RELEASED')
+
+    def test_repeated_runs_revalidate_empty_between_cycles(self):
+        original_stable=multi._stable_sensor
+        with patch.object(multi,'_stable_sensor',wraps=original_stable) as stable:
+            self.start(cycles=3)
+            result=self.wait()
+        self.assertEqual(result['state'],'complete')
+        self.assertEqual(result['completed_steps'],18)
+        # startup + every completed motion + 2 between-cycle confirmations
+        self.assertEqual(stable.call_count,21)
+        self.assertEqual(self.signal,'RELEASED')
+
+    def test_live_sensor_disagreement_after_verified_pickup_blocks_dropoff(self):
+        # Simulate a switch becoming unexpectedly RELEASED after a successful
+        # pickup and before the next preflight, despite prior stable PRESSED.
+        count={'n':0}
+        def live(*args):
+            count['n']+=1
+            if count['n']==3:return 'RELEASED'
+            return self.signal
+        with patch.object(multi,'_sensor_value',side_effect=live):
+            self.start()
+            result=self.wait()
+        self.assertEqual(result['state'],'failed')
+        self.assertEqual(len(self.sent),1,
+                         'never send dropoff if fresh sensor disagrees')
+        self.assertIn('T0 dropoff result uncertain',t0.AUTO_STATE['fault'])
+        self.assertEqual(result['completed_steps'],1)
+
+    def test_verified_token_mismatch_blocks_direct_step_without_motion(self):
+        with self.assertRaisesRegex(multi.MultiToolError,'prior stable sensor'):
+            multi._step(self.store,0,'pickup',self.store.revision,
+                        self.pid,{0:plan(self.store.read(),tool=0)},
+                        verified_before='PRESSED')
+        self.assertEqual(self.sent,[])
+
+    def test_without_trusted_token_direct_step_retains_full_precheck(self):
+        original_stable=multi._stable_sensor
+        with patch.object(multi,'_stable_sensor',wraps=original_stable) as stable:
+            result=multi._step(self.store,0,'pickup',self.store.revision,
+                               self.pid,{0:plan(self.store.read(),tool=0)})
+        self.assertEqual(result['signal'],'PRESSED')
+        self.assertEqual(stable.call_count,2,
+                         'direct caller must verify both pre and post')
+        self.assertEqual(len(self.sent),1)
+
     def test_standard_travel_remains_original_baseline(self):
         self.start(profile='standard')
         result=self.wait()
