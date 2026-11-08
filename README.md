@@ -447,3 +447,65 @@ still matters. An update of the CXM Python backend may restart the CXM
 service and lose ephemeral fault records: absence of the old fault after an
 update is not proof that the physical issue was fixed. Do not initiate
 more motion until the real tool, coupler and dock have been inspected.
+
+
+
+## Supervised multi-tool XY cycle test — mechanical commissioning only
+
+The **Tools** page has a **Multi-tool XY cycle test** panel. It includes
+only enabled/configured T0–T11 profiles whose CxChanger locking-hole
+**Dock XY has been measured, saved and accepted**, with a valid guarded
+CxChanger motion plan and no maintenance lockout. It is not conditional
+on XY/Z offset acceptance, heaters or the global **READY** banner:
+those are different, still-unfinished printing requirements.
+
+For first commissioning, prove each tool **individually** with a slow,
+supervised pickup and dropoff before attempting the combined pass.
+For the user's aligned front row, select T0/T1/T2 in order. The initial
+mode supports **one pass** at a time, with exactly two movements per tool:
+
+    T0 Pickup → verify PRESENT → T0 Dropoff → verify ABSENT
+    T1 Pickup → verify PRESENT → T1 Dropoff → verify ABSENT
+    T2 Pickup → verify PRESENT → T2 Dropoff → verify ABSENT
+
+The worker runs asynchronously on the loopback CXM service, preserving
+live progress across browser refreshes. **Start requires** a physically
+EMPTY carriage, confirmed by the carriage switch, genuinely homed XYZ,
+Z ≥20 mm clearance, powered X/Y and four Z motors, Klipper ready and
+idle with no print/paused job, and a valid unchanged configuration revision.
+The operator must individually inspect every dock and the complete XY
+motion route; start requires a fresh large checkbox approval. The
+multi-tool pass uses the existing native CxChanger pickup/dropoff motion
+script and speeds for each selected tool. **No Lineux movement, G28,
+heater commands, extrusion or Z movement is issued**. Four consecutive
+post-movement sensor samples must confirm the correct PRESSED/RELEASED
+transition before moving to the next action.
+
+The initial mode deliberately requires selected dock safe-Y staging
+lines to be within **1 mm** of each other, because transfer between
+misaligned dock rows has not been proven safe with this native stage
+script. The backend rejects invalid/missing docks, wrong starts, missing
+sensor, unresolved T0/T1+ faults, sensor mismatches, revision changes,
+or active movement before issuing further moves. It acquires the same
+shared CXM movement lock for the **entire pass**, so no other CXM
+dock/tool commands can interleave. **Mainsail console commands are not
+covered by that lock**: do not jog, start prints, issue custom G-code,
+or restart the printer while the pass runs.
+
+**Stop after current tool** completes the current pickup+dropoff pair
+before stopping with an EMPTY carriage. It is not an emergency stop and
+does not interrupt an in-progress G-code script. For immediate danger
+use the printer's physical E-stop. A failed pickup or dropoff halts the
+entire run with a latched T0 or T1+ fault; **no automatic retry or forced
+dropoff** follows an uncertain pickup. Inspect actual coupling and dock,
+then use the appropriate individual tool fault-recovery route.
+
+Only **one supervised pass** is enabled in this initial version. Unlimited
+automatic repeat cycles, tool heating, extruder assignment, nozzle Z
+compensation and production toolchanging remain out of scope. A pass
+confirms mechanical motion and presence-sensor transitions only; it
+does **not** mark tools commissioned or clear NOT READY labels. The
+source update may restart only the CXM backend. During an active run,
+its automatic source-reload monitor defers the restart until the pass
+finishes, but external reboots/service restarts and printer emergencies
+cannot be made safe by a web UI.

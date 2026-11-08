@@ -20,6 +20,8 @@ from cxm_lineux import (query_readiness, perform_measurement, perform_known_chec
                         release_xy_for_dock, home_and_lift_for_dock, MeasurementError)
 from cxm_tools import (status as tools_status, automatic_toolchange as tools_automatic,
                        clear_fault as tools_clear_fault)
+from cxm_multi import (status as multi_status, start as multi_start,
+                       stop as multi_stop, MultiToolError)
 from urllib.parse import parse_qs, urlsplit
 
 MAX_BODY = 4096
@@ -123,6 +125,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,runtime_evidence())
             elif self.path == '/v1/t0/status':
                 self.output(200,t0_status(self.server.store))
+            elif self.path == '/v1/tools/multi/status':
+                self.output(200,multi_status(self.server.store))
             elif self.path.startswith('/v1/tools/status?'):
                 params=parse_qs(urlsplit(self.path).query)
                 if set(params)!={'tool'} or len(params['tool'])!=1 or not params['tool'][0].isdigit():
@@ -165,8 +169,18 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/tools/multi/start':
+                if set(body) != {'tools','expected_revision','acknowledgement'}:
+                    raise ValueError('Unexpected multi-tool pass request')
+                self.output(200,multi_start(store=self.server.store,**body))
+                return
+            if self.path == '/v1/tools/multi/stop':
+                if set(body) != {'acknowledgement'}:
+                    raise ValueError('Unexpected multi-tool stop request')
+                self.output(200,multi_stop(**body))
                 return
             if self.path == '/v1/tools/auto':
                 if set(body) != {'tool','expected_revision','kind','acknowledgement'}:
@@ -272,7 +286,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected rollback parameters')
                 result=self.server.store.rollback(**body)
             self.output(200,result)
-        except (ValueError,TypeError,KeyError,SyntaxError) as e:
+        except (ValueError,TypeError,KeyError,SyntaxError,MultiToolError) as e:
             self.output(400,{'error':str(e)})
         except RuntimeError as e:
             self.output(409,{'error':str(e)})
@@ -295,13 +309,18 @@ def main():
              Path(__file__).with_name('cxm_lineux.py'),
              Path(__file__).with_name('cxm_t0.py'),
              Path(__file__).with_name('cxm_cxchanger.py'),
-             Path(__file__).with_name('cxm_tools.py')]
+             Path(__file__).with_name('cxm_tools.py'),
+             Path(__file__).with_name('cxm_multi.py')]
     before=[p.stat().st_mtime_ns for p in watched]
     def monitor_updates():
         while True:
             time.sleep(3)
             try:
                 if [p.stat().st_mtime_ns for p in watched] != before:
+                    # Never intentionally interrupt an active multi-tool pass
+                    # to reload CXM Python source while a tool may be attached.
+                    while multi_status(store)['running']:
+                        time.sleep(1)
                     os._exit(1)
             except OSError:
                 os._exit(1)
