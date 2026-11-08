@@ -255,7 +255,7 @@
  <p class="helper">Pick up and drop off each selected dock-calibrated hotend once, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating, extrusion or Z moves. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
  <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
  <label class="cxm-multi-repeat" for="cxmMultiRepeats">
-  <span><strong>Repeat complete tool cycles</strong><small>One cycle = each selected hotend picked up and dropped off once. Set 1–20 for T0/T1/T2. Maximum 240 movements per run.</small></span>
+  <span><strong>Repeat complete tool cycles</strong><small id="cxmMultiRepeatHelp">One cycle = each selected hotend picked up and dropped off once. Set 1–20 for T0/T1/T2. Maximum 240 movements per run.</small></span>
   <input type="number" id="cxmMultiRepeats" min="1" max="20" step="1" value="1" inputmode="numeric" aria-label="Number of complete tool cycles">
  </label>
  <label class="cxm-multi-speed" for="cxmMultiFastTransfer">
