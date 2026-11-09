@@ -185,6 +185,10 @@ async function start(){
    $('cxmMultiSprint').checked?'sprint':
    $('cxmMultiPerformance').checked?'performance':
    $('cxmMultiFastTransfer').checked?'faster':'standard';
+ if((travelProfile==='sprint'||travelProfile==='race')&&cycles!==1){
+  text('cxmMultiStatus','Experimental Sprint/Race requires exactly one supervised cycle. Set repeats to 1.');
+  return;
+ }
  const rapid=$('cxmMultiRapid').checked;
  requestBusy=true;$('cxmMultiAck').checked=false;chooseControls();
  text('cxmMultiStatus','Checking live Klipper readiness, real EMPTY carriage, and all '+list.length+' docks…');
