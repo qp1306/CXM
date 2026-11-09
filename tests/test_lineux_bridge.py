@@ -13,6 +13,16 @@ class FakeStore:
                          'tools':[{'maintenance_lockout':False} for _ in range(12)]}}
 
 class LineuxBridgeTests(unittest.TestCase):
+    def test_measurement_draft_uses_zero_added_x_correction(self):
+        # Guard against accidentally restoring the legacy +3 mm X addition.
+        from pathlib import Path
+        source=(Path(__file__).resolve().parents[1]/'server/cxm_lineux.py').read_text()
+        self.assertIn("'adjusted_x_preview_mm':round(xy['x'],4)",source)
+        self.assertIn("'separate_x_docking_adjust_mm':0.0",source)
+        self.assertIn("'legacy_x_docking_adjust_ignored_mm':legacy_adjust_x",source)
+        self.assertIn("'adjusted_y_preview_mm':round(xy['y']+adjust_y,4)",source)
+        self.assertNotIn("'adjusted_x_preview_mm':round(xy['x']+adjust,4)",source)
+
     def test_report(self):
         text=('Lineux Hotswap Dock Calibration\n----\nInitial MCU: X=1 Y=2\n'+
               'Calculated Dock Location:\nX: 179.25 mm\nY: 171.50 mm')

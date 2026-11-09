@@ -434,14 +434,18 @@ def perform_measurement(*, tool, expected_revision, acknowledgement, store):
         latest=store.read()
         if latest['revision']!=snapshot['revision']:
             raise MeasurementError('Settings changed during measurement; result discarded')
-        adjust=_num(latest['config']['globals']['x_docking_adjust'],'x_docking_adjust')
+        # Commissioning experiment: zero added X datum correction.
+        # Preserve existing operator settings and accepted T1/T2 XY untouched;
+        # the legacy saved offset is intentionally not applied to NEW measurements.
+        legacy_adjust_x=_num(latest['config']['globals']['x_docking_adjust'],'x_docking_adjust')
         adjust_y=_num(latest['config']['globals']['y_docking_adjust'],'y_docking_adjust')
         return {'status':'PROVISIONAL_LINEUX_UNVERIFIED',
                 'tool':tool,'expected_revision':expected_revision,
-                'raw_xy_mm':xy,'separate_x_docking_adjust_mm':adjust,
+                'raw_xy_mm':xy,'separate_x_docking_adjust_mm':0.0,
+                'legacy_x_docking_adjust_ignored_mm':legacy_adjust_x,
                 'separate_y_docking_adjust_mm':adjust_y,
-                'adjusted_x_preview_mm':round(xy['x']+adjust,4),
+                'adjusted_x_preview_mm':round(xy['x'],4),
                 'adjusted_y_preview_mm':round(xy['y']+adjust_y,4),
-                'datum_kind':'Lineux measured carriage XY, converted to CxChanger locking-hole datum',
+                'datum_kind':'Lineux raw X with ZERO added X offset; existing Y correction unchanged',
                 'save_permitted':False,'verified':False,
-                'note':'Measurement is raw Lineux XY. Apply reviewed X/Y datum correction in the draft; CxChanger motion uses only accepted dock XY. No coordinates saved yet.'}
+                'note':'Experimental no-jog/no-added-X-offset measurement. Previous X correction is preserved but ignored for this draft. Saved dock coordinates are not changed until separately reviewed and accepted.'}

@@ -10,7 +10,7 @@
   const badge = document.getElementById('saveStatus');
   const definitions = {
     global: [['tool_count', 'Configured tools', 1],
-             ['x_docking_adjust', 'Lineux to CxChanger datum X correction (mm)', 0.01],
+             ['x_docking_adjust', 'Legacy X datum correction (preserved; ignored for new Lineux measurements)', 0.01],
              ['y_docking_adjust', 'Lineux to CxChanger datum Y correction (mm)', 0.01],
              ['cxm_shift_x', 'CxChanger lateral X latch movement (mm)', 0.1],
              ['cxm_dodge_y', 'CxChanger Y dodge / docking thickness (mm)', 0.1],
