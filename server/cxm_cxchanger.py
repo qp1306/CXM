@@ -98,10 +98,10 @@ def faster_cycle_script(path,kind,*,at_stage,travel_feed=FAST_TRANSFER_FEED,
     # mode retains its original strict 30/4/3 mm/s limits and behaviour.
     # A 15mm approach margin protects the coupling from 80mm/s travel.
     travel=finite(travel_feed,'Fast clear-corridor feed',600,
-                  15000 if _trial_limits else 4800 if _performance_limits else 1800)
+                  21000 if _trial_limits else 4800 if _performance_limits else 1800)
     test=finite(test_feed,'Dock approach feed',120,
-                3000 if _trial_limits else 480 if _performance_limits else 240)
-    latch=finite(latch_feed,'Dock latch feed',90,720 if _trial_limits else 180)
+                3600 if _trial_limits else 480 if _performance_limits else 240)
+    latch=finite(latch_feed,'Dock latch feed',90,900 if _trial_limits else 180)
     margin=finite(margin_y,'Dock approach safety margin',8,15)
     x=path['dock_reference_xy']['x']
     y=path['dock_reference_xy']['y']
@@ -166,9 +166,9 @@ def performance_cycle_script(path,kind,*,at_stage):
 SPRINT_TRAVEL_FEED=9000      # 150 mm/s open corridor
 SPRINT_APPROACH_FEED=1500    # 25 mm/s guided dock movement
 SPRINT_LATCH_FEED=360       # 6 mm/s lever / latch action
-RACE_TRAVEL_FEED=15000      # 250 mm/s open corridor
-RACE_APPROACH_FEED=3000     # 50 mm/s guided dock movement
-RACE_LATCH_FEED=720        # 12 mm/s lever / latch action
+RACE_TRAVEL_FEED=21000      # 350 mm/s open corridor (above F19000)
+RACE_APPROACH_FEED=3600     # 60 mm/s guided dock movement
+RACE_LATCH_FEED=900        # 15 mm/s lever / latch action
 TRIAL_MARGIN_Y=15.0        # enter slow zone 15 mm outside Y dodge point
 
 def sprint_cycle_script(path,kind,*,at_stage):
@@ -181,7 +181,7 @@ def sprint_cycle_script(path,kind,*,at_stage):
                                _trial_limits=True)
 
 def race_cycle_script(path,kind,*,at_stage):
-    """Second-stage speed trial: ONLY after supervised Sprint passes."""
+    """Second-stage speed trial: only after supervised Sprint passes."""
     return faster_cycle_script(path,kind,at_stage=at_stage,
                                travel_feed=RACE_TRAVEL_FEED,
                                test_feed=RACE_APPROACH_FEED,
