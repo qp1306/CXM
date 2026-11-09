@@ -74,11 +74,11 @@ def check():
     assert actual_g1('_CXM_PICKUP_MOTION')==[
         'G1 X304.60625 Y65.6 F6000',
         'G1 X309.00625 Y65.6 F6000',
-        'G1 X309.00625 Y165.6 F6000']
+        'G1 X309.00625 Y165.6 F6000'], repr(actual_g1('_CXM_PICKUP_MOTION'))
     assert actual_g1('_CXM_RELEASE_MOTION')==[
         'G1 X309.00625 Y65.6 F6000',
         'G1 X304.60625 Y65.6 F6000',
-        'G1 X304.60625 Y165.6 F6000']
+        'G1 X304.60625 Y165.6 F6000'], repr(actual_g1('_CXM_RELEASE_MOTION'))
 
     controller=blocks['CXM_SELECT_TOOL']
     # A mounted tool already at the saved locked XY can unload directly
