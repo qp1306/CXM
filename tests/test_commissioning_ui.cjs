@@ -23,7 +23,7 @@ test('Testing diagnostics remain available without old MCU capture UI',()=>{
 });
 test('capture is linked to provisional dock draft, never silent AutoSave',()=>{
  assert.match(html,/id="cxmManualCapture" disabled/);
- assert.match(html,/id="cxmManualCaptureAck" type="checkbox"/);
+ assert.match(html,/<input type="checkbox" id="cxmManualCaptureAck"/);
  assert.match(manual,/\/manual\/capture/);
  assert.match(manual,/source:'motor-on-capture'/);
  assert.doesNotMatch(manual,/\/dock'|\/native\/select|CXМ_SELECT_TOOL/);
