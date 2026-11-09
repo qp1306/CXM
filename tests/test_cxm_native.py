@@ -159,12 +159,15 @@ class NativeBridgeTests(unittest.TestCase):
 
     def test_simple_unload_initializes_unknown_mounted_tool_then_dispatches(self):
         commands=[]
+        query_count=[0]
         native_states=[
             {'ready':0,'fault':1,'current_tool':-2},
+            {'ready':1,'fault':0,'current_tool':0},
             {'ready':1,'fault':0,'current_tool':-1}]
         def rpc(path,body=None,**kwargs):
             if path.startswith('/printer/objects/query?'):
-                st=native_states[min(len(commands),1)]
+                st=native_states[min(query_count[0],2)]
+                query_count[0]+=1
                 return {'status':{
                     'gcode_macro _CXM_NATIVE':{'protocol':2,**st},
                     'gcode_macro _CXM_TEST_STATE':{'running':0},
@@ -219,6 +222,8 @@ class NativeBridgeTests(unittest.TestCase):
         snapshots=[
             ({'ready':1,'fault':0,'current_tool':0},
              {'running':0},'RELEASED'),
+            ({'ready':1,'fault':0,'current_tool':-1},
+             {'running':0},'RELEASED'),
             ({'ready':1,'fault':0,'current_tool':1},
              {'running':0},'PRESSED')]
         with patch.object(native,'_native_status',side_effect=snapshots), \
@@ -233,6 +238,8 @@ class NativeBridgeTests(unittest.TestCase):
     def test_delayed_native_state_is_polled_without_resending_toolchange(self):
         commands=[]
         snapshots=[
+            ({'ready':1,'fault':0,'current_tool':-1},
+             {'running':0},'RELEASED'),
             ({'ready':1,'fault':0,'current_tool':-1},
              {'running':0},'RELEASED'),
             ({'ready':1,'fault':1,'current_tool':-1},
