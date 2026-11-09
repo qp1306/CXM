@@ -69,10 +69,13 @@ def check():
     assert 'SET_VELOCITY_LIMIT ACCEL=4000' in blocks['CXM_ACCEL_RESTORE']
     recover=blocks['CXM_RECOVER']
     assert 'confirmed != "EMPTY"' in recover
-    assert 'native.current_tool|int != -1' in recover
+    assert 'native.current_tool|int != -1' not in recover
     assert 'state != "RELEASED"' in recover
-    assert 'CXM_TEST_RESET' in recover and 'CXM_DECLARE_CARRIAGE TOOL=-1' in recover
-    assert recover.index('CXM_TEST_RESET') < recover.index('CXM_DECLARE_CARRIAGE TOOL=-1')
+    assert 'CXM_TEST_RESET' in recover and '_CXM_PREPARE_CLEARANCE EXPECT=RELEASED' in recover
+    assert recover.count('CXM_FAST_VERIFY EXPECT=RELEASED') == 4
+    assert recover.index('CXM_TEST_RESET') < recover.index('_CXM_PREPARE_CLEARANCE EXPECT=RELEASED')
+    assert recover.index('CXM_FAST_VERIFY EXPECT=RELEASED') < recover.index('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE=-1')
+    assert recover.index('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE=-1') < recover.index('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=0')
     assert 'SET_VELOCITY_LIMIT ACCEL=4000' in recover
     assert 'UPDATE_DELAYED_GCODE ID=CXM_NATIVE_TEST_STEP DURATION=0' in recover
     assert 'UPDATE_DELAYED_GCODE ID=CXM_ACCEL_RESTORE DURATION=0' in recover
