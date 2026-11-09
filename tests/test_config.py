@@ -249,21 +249,20 @@ class TestStore(unittest.TestCase):
         self.assertFalse(self.store.read()['config']['tools'][0]['dock_reference_accepted'])
         self.assertEqual((self.store.backups/result['backup']).read_text(),old)
 
-    def test_save_lineux_raw_and_cxchanger_datum_as_two_values_with_verified_conversion(self):
+    def test_manual_dock_capture_saves_direct_xy_and_clears_legacy_provenance(self):
         state=self.store.read()
-        raw={'x':299.0,'y':66.0}
-        actual={'x':299.0,'y':66.0}
-        with self.assertRaisesRegex(ValueError,'must equal Lineux'):
-            self.store.save_dock(0,{'x':302.0,'y':66.0},state['revision'],raw_xy=raw)
-        res=self.store.save_dock(0,actual,state['revision'],raw_xy=raw)
-        t=self.store.read()['config']['tools'][0]
-        self.assertEqual([t['lineux_raw_x'],t['lineux_raw_y']],[299.0,66.0])
-        self.assertTrue(t['dock_reference_accepted'])
-        self.assertEqual([t['dock_x'],t['dock_y']],[299.0,66.0])
+        with self.assertRaisesRegex(ValueError,'Legacy MCU-derived XY provenance retired'):
+            self.store.save_dock(0,{'x':309.4,'y':66.0},state['revision'],
+                                 raw_xy={'x':309.4,'y':66.0})
+        saved=self.store.save_dock(0,{'x':309.4,'y':66.0},state['revision'])
+        tool=self.store.read()['config']['tools'][0]
+        self.assertEqual([tool['dock_x'],tool['dock_y']],[309.4,66.0])
+        self.assertTrue(tool['dock_reference_accepted'])
+        self.assertIsNone(tool['lineux_raw_x'])
+        self.assertIsNone(tool['lineux_raw_y'])
+        self.assertFalse(tool['pickup_verified'])
+        self.assertFalse(tool['dropoff_verified'])
         self.assertEqual(len(self.store.history()),1)
-        updated=self.store.set_value('global','x_docking_adjust',3,res['revision'])
-        self.assertFalse(self.store.read()['config']['tools'][0]['dock_reference_accepted'])
-        self.assertTrue(updated['saved'])
 
     def test_maintenance_and_speed_invalidate_previous_verification(self):
         data=self.store.read()['config']

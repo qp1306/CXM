@@ -9,7 +9,7 @@ import math
 import threading
 import time
 import urllib.parse
-from cxm_lineux import _rpc, MOVE_LOCK, MeasurementError
+from cxm_runtime import _rpc, MOVE_LOCK, MeasurementError
 from cxm_cxchanger import plan as cxchanger_plan
 
 SESSION_LOCK=threading.Lock()

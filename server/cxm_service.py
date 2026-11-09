@@ -13,8 +13,7 @@ import urllib.request
 from cxm_config import Store
 from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
                     confirm_staging as t0_confirm_staging, T0Error)
-from cxm_lineux import (query_readiness, perform_measurement, perform_known_check,
-                        release_xy_for_dock, home_and_lift_for_dock, MeasurementError)
+from cxm_manual import status as manual_status, jog as manual_jog, capture as manual_capture, ManualDockError
 from cxm_native import (status as multi_status, start as multi_start,
                         stop as multi_stop, sync as native_sync,
                         select as native_select, confirm_empty as native_confirm_empty,
@@ -133,21 +132,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,{'tool':int(params['tool'][0]),'ready':False,'blockers':['Native Klipper tool-state interface: use /v1/native/status after accepted geometry sync']})
             elif self.path == '/v1/t0/cycles/status':
                 self.output(200,{'running':False,'phase':'retired','error':'Python toolchange cycles removed; use native Klipper cycle'})
-            elif self.path.startswith('/v1/lineux/status?'):
-                url=urlsplit(self.path)
-                args=parse_qs(url.query)
-                if not {'tool'} <= set(args) or set(args)-{'tool','mode'} or len(args['tool'])!=1 or not args['tool'][0].isdigit():
-                    raise ValueError('Select one valid hotend number')
-                mode=args.get('mode',['dock'])
-                if len(mode)!=1 or mode[0] not in ('dock','known','prepare','home'):
-                    raise ValueError('Invalid Lineux preflight mode')
-                n=int(args['tool'][0])
-                self.output(200,query_readiness(tool=n,saved=self.server.store.read(),mode=mode[0]))
+            elif self.path.startswith('/v1/manual/status?'):
+                args=parse_qs(urlsplit(self.path).query)
+                if set(args)!={'tool'} or len(args['tool'])!=1 or not args['tool'][0].isdigit():
+                    raise ValueError('Select a valid motor-on calibration hotend')
+                self.output(200,manual_status(int(args['tool'][0]),self.server.store))
             elif self.path == '/v1/health':
                 self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
-        except (OSError, ValueError, SyntaxError, MeasurementError) as e:
+        except (OSError, ValueError, SyntaxError, ManualDockError) as e:
             self.output(503,{'error':str(e)})
     def do_POST(self):
         # No CORS, strict same-origin and custom header to prevent cross-site form submits.
@@ -168,7 +162,7 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
                 return
             if self.path == '/v1/native/initialize':
@@ -259,39 +253,15 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected T0 motion request')
                 raise NativeError('Legacy Python XY tool motion retired; use accepted native CxChanger macros')
                 return
-            if self.path == '/v1/lineux/home':
-                if set(body) != {'tool','expected_revision','acknowledgement'}:
-                    raise ValueError('Unexpected dock homing parameters')
-                self.output(200,home_and_lift_for_dock(
-                    tool=body['tool'],expected_revision=body['expected_revision'],
-                    acknowledgement=body['acknowledgement'],store=self.server.store))
+            if self.path == '/v1/manual/jog':
+                if set(body)!={'tool','axis','distance','expected_revision','acknowledgement'}:
+                    raise ValueError('Invalid supervised XY jog request')
+                self.output(200,manual_jog(store=self.server.store,**body))
                 return
-            if self.path == '/v1/lineux/release-xy':
-                if set(body) != {'tool','expected_revision','acknowledgement'}:
-                    raise ValueError('Unexpected XY release parameters')
-                self.output(200,release_xy_for_dock(
-                    tool=body['tool'],
-                    expected_revision=body['expected_revision'],
-                    acknowledgement=body['acknowledgement'],
-                    store=self.server.store))
-                return
-            if self.path == '/v1/lineux/known-check':
-                if set(body) != {'tool','expected_revision','acknowledgement'}:
-                    raise ValueError('Unexpected Lineux known check parameters')
-                self.output(200,perform_known_check(
-                    tool=body['tool'],
-                    expected_revision=body['expected_revision'],
-                    acknowledgement=body['acknowledgement'],
-                    store=self.server.store))
-                return
-            if self.path == '/v1/lineux/measure':
-                if set(body) != {'tool','expected_revision','acknowledgement'}:
-                    raise ValueError('Unexpected Lineux measurement parameters')
-                self.output(200,perform_measurement(
-                    tool=body['tool'],
-                    expected_revision=body['expected_revision'],
-                    acknowledgement=body['acknowledgement'],
-                    store=self.server.store))
+            if self.path == '/v1/manual/capture':
+                if set(body)!={'tool','expected_revision','acknowledgement'}:
+                    raise ValueError('Invalid motor-on XY capture request')
+                self.output(200,manual_capture(store=self.server.store,**body))
                 return
             if not printer_safe():
                 self.output(409,{'error':'Klipper status not confirmed idle/halted; save blocked'})
@@ -325,7 +295,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected rollback parameters')
                 result=self.server.store.rollback(**body)
             self.output(200,result)
-        except (ValueError,TypeError,KeyError,SyntaxError,NativeError) as e:
+        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError) as e:
             self.output(400,{'error':str(e)})
         except RuntimeError as e:
             self.output(409,{'error':str(e)})
@@ -345,7 +315,7 @@ def main():
     # GitHub updates modify repository files but should not need an SSH step.
     # systemd Restart=always relaunches the new Python code after a source change.
     watched=[Path(__file__),Path(__file__).with_name('cxm_config.py'),
-             Path(__file__).with_name('cxm_lineux.py'),
+             Path(__file__).with_name('cxm_manual.py'),Path(__file__).with_name('cxm_runtime.py'),
              Path(__file__).with_name('cxm_t0.py'),
              Path(__file__).with_name('cxm_cxchanger.py'),
              Path(__file__).with_name('cxm_tools.py'),

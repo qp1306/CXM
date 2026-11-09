@@ -6,7 +6,7 @@ It NEVER generates, sends or coordinates XY motion G-code.
 import urllib.parse
 import math
 
-from cxm_lineux import _rpc, MOVE_LOCK
+from cxm_runtime import _rpc, MOVE_LOCK
 from cxm_cxchanger import plan as geometry_plan
 
 class NativeError(RuntimeError):

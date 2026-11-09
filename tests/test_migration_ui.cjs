@@ -7,7 +7,7 @@ const vm=require('node:vm');
 const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
 const dockSource=fs.readFileSync(path.join(__dirname,'../web/cxm-dock.js'),'utf8');
 const settingsSource=fs.readFileSync(path.join(__dirname,'../web/cxm-settings.js'),'utf8');
-const lineuxSource=fs.readFileSync(path.join(__dirname,'../web/cxm-lineux.js'),'utf8');
+const manualSource=fs.readFileSync(path.join(__dirname,'../web/cxm-manual.js'),'utf8');
 
 function fakeNode(){
   return {
@@ -98,8 +98,8 @@ test('Settings and Dock XY agree on schema 3; blocked approvals are not green',(
   assert.match(settingsSource,/fresh\.config\?\.schema!==3/);
   assert.match(settingsSource,/schema 3\?/);
   assert.doesNotMatch(settingsSource,/fresh\.config\?\.schema!==2/);
-  assert.match(lineuxSource,/input\.disabled=busy\|\|!check\|\|blocked/);
-  assert.match(lineuxSource,/id!=='cxmLineuxReleaseAck' && check\.ready!==true/);
-  assert.match(lineuxSource,/window\.addEventListener\('cxm-config-migrated',preflight\)/);
+  assert.match(manualSource,/window\.addEventListener\('cxm-config-migrated'/);
+  assert.match(manualSource,/cxmManualApproval/);
+  assert.match(manualSource,/\/manual\/status\?tool=/);
   assert.match(dockSource,/window\.addEventListener\('cxm-config-migrated'/);
 });

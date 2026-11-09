@@ -64,86 +64,44 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
  assert.match(dock,/window\.CXMToolState\?\.classify\(option\.tool/);
 });
 
-test('Lineux live measurement is gated, provisional, and separate from protected dock AutoSave',()=>{
- const lineux=fs.readFileSync(path.join(__dirname,'../web/cxm-lineux.js'),'utf8');
- assert.match(html,/<h3>Automatic dock measurement<\/h3>/);
- assert.match(html,/cxm-lineux\.js\?v=0\.9\.14/);
- for(const id of ['cxmLineuxAck','cxmLineuxPreflight','cxmLineuxStart',
-                  'cxmLineuxResult','cxmLineuxToDraft',
-                  'cxmLineuxReleaseXY','cxmLineuxReleaseAck','cxmLineuxReleaseStatus',
-                  'cxmLineuxHome','cxmLineuxHomeAck','cxmLineuxHomeStatus'])
+test('manual motor-on calibration is gated and preserves independent save',()=>{
+ const manual=fs.readFileSync(path.join(__dirname,'../web/cxm-manual.js'),'utf8');
+ assert.match(html,/<h3>Manual dock alignment<\/h3>/);
+ assert.match(html,/cxm-manual\.js\?v=1\.0\.0/);
+ for(const id of ['cxmManualApproval','cxmManualStep','cxmManualCapture',
+                  'cxmManualReadiness','cxmManualCaptureAck','cxmManualFeedback',
+                  'cxmManualX','cxmManualY','cxmManualSensor'])
    assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/id="cxmLineuxStart" disabled/);
- assert.match(html,/id="cxmLineuxHomeAck" type="checkbox"/);
- assert.match(html,/id="cxmLineuxReleaseAck" type="checkbox"/);
- assert.match(html,/id="cxmLineuxAck" type="checkbox"/);
- assert.doesNotMatch(lineux,/window\.confirm\('HOME AND PREPARE|window\.confirm\('RELEASE COREXY|window\.confirm\('START LINEUX DOCK MEASUREMENT/);
- assert.match(html,/id="cxmLineuxToDraft" disabled/);
- assert.match(html,/id="cxmLineuxKnownStart" disabled/);
- assert.match(html,/id="cxmLineuxKnownAck"/);
- assert.match(html,/Advanced diagnostic · known-position Lineux accuracy check \(optional\)/);
- assert.match(html,/1 · Home printer/);
- assert.match(html,/Advanced: old MCU step-count calculator/);
- assert.match(html,/2 · Release X\/Y/);
- assert.match(html,/3 · Align dock by hand/);
- assert.match(html,/4 · Measure dock XY/);
- assert.match(lineux,/I_CONFIRM_Z_SUPPORTED_RELEASE_XY/);
- assert.match(lineux,/I_CONFIRM_CLEAR_G28_AND_Z20_PATH/);
- assert.match(lineux,/call\('\/home'/);
- assert.match(lineux,/refreshReleaseReadiness/);
- assert.match(lineux,/mode=prepare/);
- assert.doesNotMatch(lineux,/await preflight\(\);\s*el\('cxmLineuxHomeStatus'\)/);
- assert.doesNotMatch(lineux,/!state\?\.known_verified/);
- assert.match(lineux,/I_CONFIRM_CLEAR_DOCK_PATH/);
- assert.match(lineux,/expected_revision:snapshot\.revision/);
- assert.match(lineux,/status!=='PROVISIONAL_LINEUX_UNVERIFIED'/);
- assert.match(lineux,/source:'lineux-live'/);
- assert.match(lineux,/raw_xy:result\.raw_xy_mm/);
- assert.match(dock,/rawDraft/);
- assert.match(dock,/dock_reference_accepted/);
- assert.doesNotMatch(lineux,/\/printer\/gcode\/script/);
- assert.match(dock,/\['manual-mcu-review','lineux-live'\]/);
+ assert.match(html,/id="cxmManualCapture" disabled/);
+ assert.match(html,/data-manual-axis="x"/);
+ assert.match(html,/data-manual-axis="y"/);
+ assert.match(manual,/I_APPROVE_SUPERVISED_MOTOR_ON_JOG/);
+ assert.match(manual,/I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON/);
+ assert.match(manual,/source:'motor-on-capture'/);
+ assert.match(dock,/proposal\.source!=='motor-on-capture'/);
+ assert.match(dock,/postJSON\('\/dock',\{tool:selected,xy,expected_revision:snapshot\.revision/);
+ assert.doesNotMatch(manual,/DOCK_LOCATE_CALIBRATE|SET_KINEMATIC_POSITION/);
+ assert.doesNotMatch(html,/id="cxmLineuxStart"|id="cxmLineuxReleaseXY"/);
 });
-
-test('dock layout follows measure → save and optional T0 tests, with all safety controls',()=>{
- const section=html.split('<section data-panel="calibration" hidden>')[1]
-                   .split('</section>')[0];
- const auto=section.indexOf('<h3>Automatic dock measurement</h3>');
- const align=section.indexOf('<h3>Save dock XY</h3>');
- const verify=section.indexOf('T0 · Pickup / Dropoff');
- const advanced=section.indexOf('Advanced T0 motion &amp; sensor tests');
- const recovery=section.indexOf('Recovery and backups');
- assert.ok(auto>=0 && align>auto && verify>align && advanced>verify && recovery>advanced);
+test('dock layout has manual align then provisional save and native toolchange',()=>{
+ const section=html.split('<section data-panel="calibration" hidden>')[1].split('</section>')[0];
+ const align=section.indexOf('<h3>Manual dock alignment</h3>');
+ const save=section.indexOf('<h3>Save dock XY</h3>');
+ const native=section.indexOf('T0 · Pickup / Dropoff');
+ assert.ok(align>=0 && save>align && native>save);
  assert.match(section,/Review X\/Y before saving/);
- assert.match(section,/id="cxmLineuxStart" disabled/);
- assert.match(section,/id="cxmLineuxToDraft" disabled/);
- assert.match(section,/id="cxmT0Stage" disabled/);
- assert.match(section,/id="cxmT0Pickup" disabled/);
  for(const id of ['cxmDockTool','cxmDockAccept','cxmDockReset','cxmDockBackups','cxmDockFeedback'])
    assert.equal(section.split('id="'+id+'"').length-1,1);
 });
-
-test('V0.8.2 dock preflight reads real Klipper status but cannot authorise motion',()=>{
+test('read-only dock preflight remains independent of motor-on jog',()=>{
  for(const id of ['cxmDockLiveKlipper','cxmDockLiveHoming','cxmDockLiveState',
-                  'cxmDockLivePosition','cxmDockLiveHomingTest','cxmDockLiveUpdated'])
-  assert.match(html,new RegExp('id="'+id+'"'));
- assert.doesNotMatch(html,/No MCU connected/);
- assert.match(html,/id="activeTool" hidden>Not integrated<\/span>/);
- assert.match(html,/Printer diagnostics \(optional\)/);
- assert.match(html,/XYZ is the CURRENT carriage position|read-only Klipper hardware preflight/i);
+                  'cxmDockLivePosition','cxmDockLiveUpdated'])
+   assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(dock,/async function moonrakerRead\(path\)/);
  assert.match(dock,/await moonrakerRead\('\/printer\/info'\)/);
- assert.match(dock,/await moonrakerRead\('\/printer\/objects\/list'\)/);
- assert.match(dock,/await moonrakerRead\('\/printer\/objects\/query\?'\+queries\.join\('&'\)\)/);
- assert.match(dock,/xyz\?'XYZ homed \(reported\)'/);
- assert.match(dock,/XYZ reported homed · physical validation pending/);
- assert.match(dock,/await updateLiveStatus\(\)/);
- assert.match(dock,/no motion or verification is authorised/i);
  assert.doesNotMatch(dock,/\/printer\/gcode\/script|\/printer\/gcode\/help|CARTOGRAPHER_TOUCH|SET_GCODE_OFFSET/);
- assert.match(html,/id="cxmLineuxStart" disabled/);
- assert.match(html,/id="cxmT0Stage" disabled/);
+ assert.match(html,/id="cxmManualCapture" disabled/);
 });
-
 test('old Python T0 movement interfaces are retired and native controls are exposed',()=>{
  assert.match(html,/id="cxmNativeToolPanel"/);
  assert.match(html,/id="cxmNativeSync"/);

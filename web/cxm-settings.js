@@ -10,8 +10,6 @@
   const badge = document.getElementById('saveStatus');
   const definitions = {
     global: [['tool_count', 'Configured tools', 1],
-             ['x_docking_adjust', 'Legacy X datum correction (preserved; ignored for new Lineux measurements)', 0.01],
-             ['y_docking_adjust', 'Lineux to CxChanger datum Y correction (mm)', 0.01],
              ['cxm_shift_x', 'CxChanger lateral X latch movement (mm)', 0.1],
              ['cxm_dodge_y', 'CxChanger Y dodge / docking thickness (mm)', 0.1],
              ['cxm_safe_clearance_y', 'CxChanger safe travel from dock Y (mm)', 0.1]],
@@ -108,7 +106,7 @@
     if (tool>=count || tool<0) tool=0;
     root.innerHTML=`<div class="panel" style="margin-top:16px">
       <div class="panel-heading"><h3>Printer settings</h3><span class="panel-label">AutoSave · backups</span></div>
-      <p class="muted">Lineux measures X/Y only. CxChanger uses the accepted locking-hole datum plus independent mechanical movements. Safe Y is now relative to EACH dock Y (not an absolute printer Y). Values save with backups; no Klipper restart is needed.</p>
+      <p class="muted">Motor-on manual calibration captures dock X/Y; CxChanger uses the accepted locking-hole datum and its original movement geometry. Safe Y is now relative to EACH dock Y (not an absolute printer Y). Values save with backups; no Klipper restart is needed.</p>
       <div style="margin-top:20px"><h3>Global settings</h3>${fields('global',cfg.globals)}</div>
       <div style="margin-top:20px;display:flex;align-items:center;gap:14px"><h3 style="margin:0">Hotend settings</h3><select id="cxmToolChoice" style="padding:9px;border-radius:6px;background:#161b23;border:1px solid #465061;color:white">${cfg.tools.slice(0,count).map((profile,i)=>`<option value="${i}" ${tool===i?'selected':''}>T${i}${profile.maintenance_lockout===true?' · locked out':''}</option>`).join('')}</select></div>
       ${lockoutControl(cfg.tools[tool])}

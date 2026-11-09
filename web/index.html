@@ -363,7 +363,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <p class="helper">The Stop button waits until the current hotend has been dropped off. Use the printer's <strong>physical emergency stop</strong> for immediate danger. A failed sensor or position check prevents all further automatic movements.</p>
 </div></section>
 <section data-panel="calibration" hidden>
-<div class="section-title"><div><h2>Dock XY</h2><p>Home → Release → Align → Measure → Save</p></div><span class="count-pill">Provisional only</span></div>
+<div class="section-title"><div><h2>Dock XY</h2><p>Home → Jog with motors ON → Capture → Save</p></div><span class="count-pill">Provisional only</span></div>
 <div class="panel dock-top"><div class="dock-toolbar"><label for="cxmDockTool">Hotend</label><select id="cxmDockTool" disabled></select><span class="dock-status" id="cxmDockStatus">Loading configuration</span><button class="btn" id="cxmDockRefresh">Refresh</button></div><p class="muted" id="cxmDockSummary">Reading saved dock position…</p><div class="dock-safety">Shared extruder · saved dock XY is provisional until pickup is checked</div>
 <div class="cxm-dock-migration" id="cxmDockMigration" hidden role="status" aria-live="polite">
  <div><strong>Configuration upgrade required</strong><p id="cxmDockMigrationText">An older CXM settings file is blocking calibration. Upgrade with an automatic backup; existing XY values are preserved for review.</p></div>
@@ -377,86 +377,31 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </div>
 <p class="helper" id="cxmDockLiveUpdated" role="status" aria-live="polite">Read-only Moonraker status check pending. This does not validate physical clearances, stepper directions or the dock position.</p></details>
 </div>
-<div class="panel cxm-xy-lab">
-  <div class="panel-heading"><h3>Automatic dock measurement</h3><span class="panel-label">4 steps</span></div>
-  <details class="cxm-advanced"><summary>Engineering status (optional)</summary><div class="cxm-xy-lab-grid">
-    <div><span>1 · CoreXY conversion</span><strong class="cxm-xy-lab-ok">Real 6 Nov maths test passed</strong></div>
-    <div><span>2 · MCU step-count capture</span><strong class="cxm-xy-lab-pending" id="cxmLineuxEngineBadge">Checking live engine</strong></div>
-    <div><span>3 · Y then X homing validation</span><strong class="cxm-xy-lab-pending">Homing Override V2.0 passed four tests</strong></div>
-    <div><span>4 · Accept measured dock XY</span><strong class="cxm-xy-lab-pending" id="cxmLineuxMeasureBadge">Dock measurement not yet accepted</strong></div>
-  </div>
-  </details>
-  <div class="dock-warning"><strong>SUPERVISED MOTION.</strong> The printer will move. Check all clearances and keep emergency stop accessible. Measurement does not verify pickup.</div><details class="cxm-advanced"><summary>Motion safety details</summary><p class="helper">Lineux sets a temporary kinematic position, jogs +3 mm X, then homes Y and X. CXM Homing V2.0 homes Y again before X. Klipper XY is stale after moving X/Y by hand. Confirm the physical Z clearance and complete Y/Y/X path.</p></details>
-  <div class="cxm-lineux-live">
-   <div class="panel-heading"><h3>Dock measurement</h3><span class="panel-label">Lineux</span></div>
-   <p class="helper" id="cxmLineuxStatus" role="status" aria-live="polite">Checking Lineux integration…</p>
-   <div class="cxm-step"><div class="panel-heading"><h3>1 · Home printer</h3><span class="panel-label">Z20 · Centre</span></div>
-   
-   <label class="cxm-capture-ack"><input id="cxmLineuxHomeAck" type="checkbox"><span class="cxm-approval-copy"><strong>Approve homing</strong><small>Gantry level · full XYZ path clear · no active print</small></span></label>
-   <div class="buttons"><button class="btn primary" id="cxmLineuxHome" disabled>Start homing</button></div>
-   <p class="helper" id="cxmLineuxHomeStatus" role="status">Checking homing readiness…</p></div>
-   <div class="cxm-step" id="cxmLineuxReleaseStep"><div class="panel-heading"><h3>2 · Release X/Y</h3><span class="panel-label" id="cxmLineuxReleaseBadge">Z stays powered</span></div>
-   <label class="cxm-capture-ack"><input id="cxmLineuxReleaseAck" type="checkbox"><span class="cxm-approval-copy"><strong>Approve motor release</strong><small>XYZ homed · actual Z ≥ 20 mm · gantry level and supported</small></span></label>
-   <div class="buttons"><button class="btn" id="cxmLineuxReleaseXY" disabled>Release X/Y</button></div>
-   <p class="helper" id="cxmLineuxReleaseStatus" role="status">Checking motor-release readiness…</p></div>
-   <div class="cxm-step cxm-step-manual"><div class="panel-heading"><h3>3 · Align dock by hand</h3><span class="panel-label">Manual</span></div>
-   <p class="helper">Centre the locking screw in the selected dock hole. <strong>Do not jog X/Y afterward.</strong></p></div>
-   <div class="cxm-step"><div class="panel-heading"><h3>4 · Measure dock XY</h3><span class="panel-label">Lineux · Provisional</span></div><div class="buttons"><button class="btn" id="cxmLineuxRefresh">Refresh machine readiness</button></div>
-   
-   <details class="cxm-advanced"><summary>Refresh hardware status</summary><div class="buttons"><button class="btn" id="cxmLineuxPreflight">Check printer &amp; engine</button></div></details>
-   <label class="cxm-capture-ack"><input id="cxmLineuxAck" type="checkbox"><span class="cxm-approval-copy"><strong>Approve measurement</strong><small>X/Y OFF · four Z motors ON and level · dock aligned · real Z ≥ 20 mm · Y/Y/X homing paths clear · no print</small></span></label>
-   <div class="buttons">
-    <button class="btn primary" id="cxmLineuxStart" disabled>Start measurement</button>
-   </div>
-   <p class="cxm-test-result" id="cxmLineuxResult" role="status">Awaiting live readiness check. No motion has occurred.</p>
-   
-   <div class="buttons"><button class="btn" id="cxmLineuxToDraft" disabled>Use measured XY</button></div>
-   <p class="helper">Review the result and save it below. Pickup still needs a physical test.</p></div>
-   <details class="cxm-lineux-known">
-    <summary>Advanced diagnostic · known-position Lineux accuracy check (optional)</summary>
-   <div class="cxm-lineux-known">
-    <div class="panel-heading"><h3>Optional · Verify known XY</h3><span class="panel-label">No dock coordinates saved</span></div>
-    <p class="helper"><strong>OPTIONAL ENGINEERING TEST ONLY.</strong> Move by Mainsail to known X195 Y170 Z20 with CoreXY and Z motors powered. <strong>NEVER use this after releasing X/Y or moving by hand;</strong> the displayed coordinates are then stale. The operation homes Y/Y/X and moves the motors.</p>
-    <p id="cxmLineuxKnownStatus" role="status">Optional diagnostic, already previously tested on physical CXM.</p>
-    <label class="cxm-capture-ack"><input id="cxmLineuxKnownAck" type="checkbox"> I confirm the carriage has NOT been moved by hand since homing, X/Y and all four Z motors are powered, the commanded known XY position is physically correct, there is at least 20 mm actual Z clearance, the +3 mm X jog and Y/X homing path are clear, and no print is running.</label>
-    <div class="buttons"><button class="btn primary" id="cxmLineuxKnownStart" disabled>Validate Lineux at known XY</button></div>
-    <p class="cxm-test-result" id="cxmLineuxKnownResult" role="status">Readiness and known position not yet verified. No motion has occurred.</p>
-   </div>
-
-   </details>
-  </div>
-  
+<div class="panel cxm-xy-lab" id="cxmManualDock">
+ <div class="panel-heading"><h3>Manual dock alignment</h3><span class="panel-label">MOTORS ON · LIVE XY</span></div>
+ <p class="helper">Home XYZ normally, ensure the carriage is physically EMPTY and all motors stay energised. Jog into the selected dock alignment at low speed. This never calls Lineux, changes homing, releases motors or executes pickup/dropoff.</p>
+ <div class="dock-warning">SUPERVISED MOTION. Check gantry clearance, all dock hardware and selected hotend before each jog. Stop on any contact or misalignment. Motor-on position is commanded position, not independent proof of mechanical engagement.</div>
+ <p id="cxmManualReadiness" class="helper" role="status">Checking live Klipper motor-on readiness…</p>
+ <div class="dock-live-preflight"><div><small>Live X</small><strong id="cxmManualX">—</strong></div><div><small>Live Y</small><strong id="cxmManualY">—</strong></div><div><small>Z</small><strong id="cxmManualZ">—</strong></div><div><small>Carriage</small><strong id="cxmManualSensor">—</strong></div></div>
+ <div class="buttons"><button class="btn" id="cxmManualRefresh">Refresh live position</button></div>
+ <div class="cxm-step">
+  <div class="panel-heading"><h3>1 · Select jog size</h3><span class="panel-label">mm · slow 5 mm/s</span></div>
+  <label for="cxmManualStep">Step</label>
+  <select id="cxmManualStep"><option value="10">10 mm</option><option value="1">1 mm</option><option value="0.1" selected>0.1 mm</option><option value="0.01">0.01 mm</option></select>
+  <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualApproval"><span class="cxm-approval-copy"><strong>Approve supervised jog</strong><small>XYZ homed · motors ON · carriage empty · Z ≥ 20 · selected dock clear</small></span></label>
+  <div class="buttons" style="justify-content:center"><button class="btn" data-manual-axis="y" data-manual-sign="1" disabled>Y +</button></div>
+  <div class="buttons" style="justify-content:center"><button class="btn" data-manual-axis="x" data-manual-sign="-1" disabled>X −</button><button class="btn" data-manual-axis="x" data-manual-sign="1" disabled>X +</button></div>
+  <div class="buttons" style="justify-content:center"><button class="btn" data-manual-axis="y" data-manual-sign="-1" disabled>Y −</button></div>
+ </div>
+ <div class="cxm-step">
+  <div class="panel-heading"><h3>2 · Capture live X/Y</h3><span class="panel-label">Provisional</span></div>
+  <p class="helper">After visually seating/alignment, capture the stationary position from Klipper. This copies X/Y into the draft fields below; no automatic save or tool motion occurs.</p>
+  <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualCaptureAck"><span class="cxm-approval-copy"><strong>Alignment inspected</strong><small>Correct T number, hole/lever geometry aligned and motors never released after homing</small></span></label>
+  <div class="buttons"><button class="btn primary" id="cxmManualCapture" disabled>Capture X/Y to draft</button></div>
+  <p class="helper" id="cxmManualFeedback" role="status">Awaiting operator alignment.</p>
+ </div>
+ <p class="helper">3 · Save the provisional XY below, then synchronise native geometry using the existing Control Centre workflow. Perform a single supervised CxChanger pickup/drop-off before repeat testing. Prior saved XY remains in backups.</p>
 </div>
-<details class="cxm-advanced"><summary>Advanced: old MCU step-count calculator</summary><div class="panel cxm-dock-capture">
- <div class="panel-heading"><h3>1A · Review real CoreXY motor-step captures</h3><span class="panel-label">Working offline calculator · no motion</span></div>
- <p class="muted">Enter the measured +X and +Y motor steps for a known calibration distance. Paste three MCU lines from GET_POSITION: before Y homing, after Y homing, after X homing. This calculator reconstructs a PROVISIONAL starting XY, never a verified dock position. Load the recorded 6 November 2026 reference run to validate this calculator. For a new T0 dock, only use data captured after physical clearance, endstop, and homing-override checks.</p>
- <div class="cxm-test-capture-grid">
-  <label>Calibration distance (mm)<input id="cxmTestStep" type="number" value="5" step="0.001"></label>
-  <label>+X move motor A steps<input id="cxmTestXA" type="number" value="800"></label>
-  <label>+X move motor B steps<input id="cxmTestXB" type="number" value="800"></label>
-  <label>+Y move motor A steps<input id="cxmTestYA" type="number" value="800"></label>
-  <label>+Y move motor B steps<input id="cxmTestYB" type="number" value="-800"></label>
-  <label>X endstop (mm)<input id="cxmTestEndX" type="number" value="335" step="0.001"></label>
-  <label>Y endstop (mm)<input id="cxmTestEndY" type="number" value="362" step="0.001"></label>
-  <label>Known starting X (optional)<input id="cxmTestKnownX" type="number" placeholder="Not known" step="0.001"></label>
-  <label>Known starting Y (optional)<input id="cxmTestKnownY" type="number" placeholder="Not known" step="0.001"></label>
- </div>
- <div class="cxm-test-snapshot-grid">
-  <label>Before Y home · MCU line<textarea id="cxmTestStart" rows="3" placeholder="mcu: stepper_x:… stepper_y:…"></textarea></label>
-  <label>After Y home · MCU line<textarea id="cxmTestAfterY" rows="3" placeholder="mcu: stepper_x:… stepper_y:…"></textarea></label>
-  <label>After X home · MCU line<textarea id="cxmTestAfterX" rows="3" placeholder="mcu: stepper_x:… stepper_y:…"></textarea></label>
- </div>
- <div class="buttons">
- <button class="btn primary" id="cxmTestXYReview">Calculate provisional XY</button>
- <button class="btn" id="cxmTestLoadKnown">Load 6 Nov reference test</button>
- <button class="btn" id="cxmDockCaptureNew">Start new T0 capture</button>
- <button class="btn" id="cxmDockCaptureToDraft" disabled>Copy proposed X/Y to dock draft</button>
- </div>
- <label class="cxm-capture-ack"><input id="cxmDockCaptureAck" type="checkbox"> I have checked the actual dock capture is from the selected tool, the complete physical Y-then-X path was safe, and the homing Z issue has been resolved.</label>
- <p class="cxm-test-result" id="cxmTestXYResult" role="status">Awaiting actual MCU snapshot lines.</p>
- <div class="dock-warning">This manual MCU reviewer never issues movement commands. The separate Lineux live measurement above is supervised and requires its own preflight. No pickup or dropoff commands are authorised.</div>
-</div>
-</details>
 <div class="dock-columns">
 <div class="panel">
  <div class="panel-heading"><h3>Save dock XY</h3><span class="panel-label">No Z coordinate required</span></div>
@@ -916,14 +861,14 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.5" defer></script>
 <script src="cxm-dock.js?v=0.9.6" defer></script>
-<script src="cxm-lineux.js?v=0.9.14" defer></script>
+<script src="cxm-manual.js?v=1.0.0" defer></script>
 
 
 <script src="cxm-multi.js?v=1.4.0" defer></script>
 <script src="cxm-native-control.js?v=1.1.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
-<script src="cxm-test-math.js?v=0.9.3" defer></script>
+
 <script src="cxm-testing.js?v=0.9.3" defer></script>
-<script src="cxm-dock-review.js?v=0.9.3" defer></script>
+
 </body></html>
