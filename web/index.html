@@ -379,7 +379,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </div>
 <div class="panel cxm-xy-lab" id="cxmManualDock">
  <div class="panel-heading"><h3>Manual dock alignment</h3><span class="panel-label">MOTORS ON · LIVE XY</span></div>
- <p class="helper">Home XYZ normally, ensure the carriage is physically EMPTY and all motors stay energised. Jog into the selected dock alignment at low speed. This never calls Lineux, changes homing, releases motors or executes pickup/dropoff.</p>
+ <p class="helper">Home XYZ normally, mount the selected hotend on the carriage and keep all motors energised. Jog into the selected dock alignment at low speed. This never calls Lineux, changes homing, releases motors or executes pickup/dropoff.</p>
  <div class="dock-warning">SUPERVISED MOTION. Check gantry clearance, all dock hardware and selected hotend before each jog. Stop on any contact or misalignment. Motor-on position is commanded position, not independent proof of mechanical engagement.</div>
  <p id="cxmManualReadiness" class="helper" role="status">Checking live Klipper motor-on readiness…</p>
  <div class="dock-live-preflight"><div><small>Live X</small><strong id="cxmManualX">—</strong></div><div><small>Live Y</small><strong id="cxmManualY">—</strong></div><div><small>Z</small><strong id="cxmManualZ">—</strong></div><div><small>Carriage</small><strong id="cxmManualSensor">—</strong></div></div>
@@ -388,7 +388,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
   <div class="panel-heading"><h3>1 · Select jog size</h3><span class="panel-label">mm · slow 5 mm/s</span></div>
   <label for="cxmManualStep">Step</label>
   <select id="cxmManualStep"><option value="10">10 mm</option><option value="1">1 mm</option><option value="0.1" selected>0.1 mm</option><option value="0.01">0.01 mm</option></select>
-  <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualApproval"><span class="cxm-approval-copy"><strong>Approve supervised jog</strong><small>XYZ homed · motors ON · carriage empty · Z ≥ 20 · selected dock clear</small></span></label>
+  <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualApproval"><span class="cxm-approval-copy"><strong>Approve supervised jog</strong><small>XYZ homed · motors ON · selected hotend MOUNTED (PRESSED) · Z ≥ 20 · dock clear</small></span></label>
   <div class="buttons" style="justify-content:center"><button class="btn" data-manual-axis="y" data-manual-sign="1" disabled>Y +</button></div>
   <div class="buttons" style="justify-content:center"><button class="btn" data-manual-axis="x" data-manual-sign="-1" disabled>X −</button><button class="btn" data-manual-axis="x" data-manual-sign="1" disabled>X +</button></div>
   <div class="buttons" style="justify-content:center"><button class="btn" data-manual-axis="y" data-manual-sign="-1" disabled>Y −</button></div>
@@ -396,7 +396,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <div class="cxm-step">
   <div class="panel-heading"><h3>2 · Capture live X/Y</h3><span class="panel-label">Provisional</span></div>
   <p class="helper">After visually seating/alignment, capture the stationary position from Klipper. This copies X/Y into the draft fields below; no automatic save or tool motion occurs.</p>
-  <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualCaptureAck"><span class="cxm-approval-copy"><strong>Alignment inspected</strong><small>Correct T number, hole/lever geometry aligned and motors never released after homing</small></span></label>
+  <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualCaptureAck"><span class="cxm-approval-copy"><strong>Alignment inspected</strong><small>I visually confirmed the mounted hotend is the selected T number, aligned its locking screw with the dock and never released motors</small></span></label>
   <div class="buttons"><button class="btn primary" id="cxmManualCapture" disabled>Capture X/Y to draft</button></div>
   <p class="helper" id="cxmManualFeedback" role="status">Awaiting operator alignment.</p>
  </div>
