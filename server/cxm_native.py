@@ -29,7 +29,25 @@ def status(store):
     running=test.get('running')==1
     selected=[x for x in (test.get('tool_a'),test.get('tool_b'),test.get('tool_c')) if type(x) is int and x >= 0]
     count=len(selected)
-    return {'state':'running' if running else test.get('state','idle'),
+    saved=store.read()
+    candidates=[]
+    for n in range(saved['config']['globals']['tool_count']):
+        tool=saved['config']['tools'][n]
+        eligible=not saved['migration_required'] and not tool['maintenance_lockout'] and tool['dock_reference_accepted'] is True
+        reason=None
+        if eligible:
+            try:
+                geometry_plan(saved,tool=n)
+            except (ValueError,TypeError,KeyError) as exc:
+                eligible=False
+                reason='Geometry: '+str(exc)
+        else:
+            reason='Dock XY not accepted / maintenance lockout / migration required'
+        candidates.append({'tool':n,'eligible':eligible,'reason':reason,
+                           'xy':{'x':tool['dock_x'],'y':tool['dock_y']}})
+    return {'candidates':candidates,'max_repeat_cycles':20,'max_total_movements':120,
+            'run_id':'native-klipper' if selected else None,
+            'state':'running' if running else test.get('state','idle'),
             'running':running,'execution_mode':'native',
             'travel_profile':native.get('profile','standard'),
             'tools':selected,
@@ -100,6 +118,17 @@ def sync(store,expected_revision):
                 'note':'No XY motion. Klipper-native tool identity intentionally invalidated.'}
     finally:
         MOVE_LOCK.release()
+
+def invalidate_for_config_edit():
+    """No movement. Invalidate previous Klipper geometry BEFORE on-disk changes."""
+    native,test,signal=_native_status()
+    if test.get('running')==1 or native.get('current_tool') not in (-1,-2) or signal!='RELEASED':
+        raise NativeError('Cannot edit tool configuration during native test or with mounted/unknown hotend')
+    _rpc('/printer/gcode/script',{'script':
+        'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=ready VALUE=0\n'
+        'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=1\n'
+        'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE=-2'})
+    return {'invalidated':True,'needs_native_sync':True}
 
 def confirm_empty():
     native,test,signal=_native_status()
