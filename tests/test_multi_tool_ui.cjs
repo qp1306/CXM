@@ -30,6 +30,7 @@ function harness({lockedTwo=false}={}){
  }
  function snapshot(){
    return {running:state==='running',state,stop_requested:false,
+     run_id:state==='idle'?null:'unit-test-run',
      travel_profile:travelProfile,execution_mode:executionMode,
      revision:'a'.repeat(64),candidates:candidates(),
      max_repeat_cycles:20,max_total_movements:240,
@@ -94,7 +95,9 @@ test('Tools page exposes explicit one-pass mechanical test, not a printing readi
  assert.match(html,/id="cxmMultiPanel"/);
  assert.match(html,/id="cxmMultiAck" type="checkbox" disabled/);
  assert.match(html,/id="cxmMultiStop" disabled/);
- assert.match(html,/src="cxm-multi\.js\?v=0\.2\.4"/);
+ assert.match(html,/src="cxm-multi\.js\?v=0\.2\.5"/);
+ assert.match(html,/id="cxmMultiPlanned"/);
+ assert.match(html,/id="cxmMultiLastRun"/);
  assert.match(html,/id="cxmMultiPerformance" type="checkbox"/);
  assert.match(html,/id="cxmMultiSprint" type="checkbox"/);
  assert.match(html,/id="cxmMultiRace" type="checkbox"/);
@@ -162,6 +165,35 @@ test('Uninterrupted stream refuses a selected fourth tool or multiple repeats',a
  assert.equal(h.get('cxmMultiStart').disabled,true);
  assert.equal(h.get('cxmMultiAck').disabled,true);
  assert.equal(h.calls.filter(x=>x.url.endsWith('/multi/start')).length,0);
+});
+test('NEXT TEST and LAST RECORDED RUN remain distinct after a failed Standard stream',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ h.get('cxmMultiStream').checked=true;
+ h.get('cxmMultiStream').listeners.change();
+ assert.match(h.get('cxmMultiPlanned').textContent,/UNINTERRUPTED STREAM · STANDARD/);
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const p=h.calls.find(x=>x.url.endsWith('/multi/start'));
+ assert.equal(JSON.parse(p.options.body).travel_profile,'standard');
+ assert.equal(JSON.parse(p.options.body).execution_mode,'stream');
+ h.setState('failed');h.poll();await h.tick();await h.tick();
+ assert.match(h.get('cxmMultiLastRun').textContent,/LAST RECORDED RUN.*UNINTERRUPTED STREAM · STANDARD.*FAILED/);
+ h.get('cxmMultiBoost').checked=true;h.get('cxmMultiBoost').listeners.change();
+ assert.match(h.get('cxmMultiPlanned').textContent,/NEXT TEST.*BOOST requested/);
+ assert.match(h.get('cxmMultiLastRun').textContent,/LAST RECORDED RUN.*STANDARD/);
+});
+
+test('start request always sends visible selected profile, not historical run profile',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ h.get('cxmMultiBoost').checked=true;
+ h.get('cxmMultiBoost').listeners.change();
+ h.get('cxmMultiStream').checked=true;h.get('cxmMultiStream').listeners.change();
+ assert.match(h.get('cxmMultiPlanned').textContent,/BOOST requested/);
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const p=h.calls.find(x=>x.url.endsWith('/multi/start'));
+ assert.equal(JSON.parse(p.options.body).travel_profile,'boost');
+ assert.equal(JSON.parse(p.options.body).execution_mode,'stream');
 });
 test('existing standard mode never sends execution_mode or silently enables rapid',async()=>{
   const h=harness();await h.tick();await h.tick();
