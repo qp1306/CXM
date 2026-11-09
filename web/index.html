@@ -262,30 +262,30 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <div id="message" class="notice" role="status" aria-live="polite"></div>
 <section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected hotends only</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Use <strong>Dock XY</strong> to calibrate a hotend or <strong>Settings</strong> to edit its profile. The <strong>NOT READY</strong> banner remains until all required verification is complete.</div>
 <div class="panel" id="cxmNativeToolPanel">
- <div class="panel-heading"><h3>Klipper-native tool control</h3><span class="panel-label">CXM_SELECT_TOOL · T0–T11 · XY only</span></div>
- <p class="helper">Dock XY measurement remains in Dock Calibration. Klipper controls pickup and release using the accepted geometry and carriage-switch interlocks.</p>
+ <div class="panel-heading"><h3>Load / Unload</h3><span class="panel-label">CXM native toolchanger</span></div>
+ <p class="helper">Choose a tool and press LOAD or UNLOAD. CXM automatically applies saved dock coordinates and verifies the carriage sensor.</p>
 <div class="cxm-simple-setup">
- <label for="cxmCarriageIdentity"><strong>What is currently fitted to the carriage?</strong></label>
+ <label for="cxmCarriageIdentity"><strong>Currently fitted (only choose when identity is unknown)</strong></label>
  <div class="buttons">
   <select id="cxmCarriageIdentity" aria-label="Current physically inspected carriage identity">
    <option value="">Choose EMPTY or mounted tool</option>
    <option value="-1">EMPTY — no hotend fitted</option>
   </select>
-  <button class="btn primary" id="cxmDeclareCarriage">Set carriage state</button>
+  <button class="btn primary" id="cxmDeclareCarriage" hidden>Set carriage state</button>
  </div>
- <p class="helper">This is your one physical declaration. Klipper checks the sensor, synchronises saved XY if needed and automatically raises Z to 25 mm when homed and safe. No repeated approval boxes.</p>
+ 
 </div>
  <div class="buttons">
   <label for="cxmNativeSelectedTool">Target hotend <select id="cxmNativeSelectedTool"><option value="">Choose a hotend</option></select></label>
  </div>
- <label class="cxm-capture-ack"><input id="cxmNativeToolAck" type="checkbox">
+ <label class="cxm-capture-ack" hidden><input id="cxmNativeToolAck" type="checkbox">
   <span class="cxm-approval-copy"><strong>Approve this physical toolchange</strong><small>I inspected the selected hotend, mounted/empty carriage state, full XY corridor and emergency-stop access.</small></span>
  </label>
  <div class="buttons">
-  <button class="btn primary" id="cxmNativeSelect" disabled>Pick up selected hotend</button>
-  <button class="btn" id="cxmNativeUnload" disabled>UNTOOL · Drop off current hotend</button>
+  <button class="btn primary" id="cxmNativeSelect" disabled>LOAD selected tool</button>
+  <button class="btn" id="cxmNativeUnload" disabled>UNLOAD current tool</button>
  </div>
- <div class="cxm-step" id="cxmCalibrationReleasePanel">
+ <div class="cxm-step" id="cxmCalibrationReleasePanel" hidden>
  <div class="panel-heading"><h3>Release from calibration position</h3><span class="panel-label">SUPERVISED · DOCK-ENGAGED ONLY</span></div>
  <p class="helper">Only when the selected mounted hotend is also fully engaged in its own dock at the saved XY. Completes the remaining CxChanger release waypoints without a staging approach. Not a general recovery command.</p>
  <label class="cxm-capture-ack"><input type="checkbox" id="cxmCalibrationReleaseAck"><span class="cxm-approval-copy"><strong>Approve release from dock-engaged position</strong><small>I inspected the correct mounted hotend, dock engagement, motor power, unobstructed release path and emergency stop.</small></span></label>
@@ -872,7 +872,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 
 
 <script src="cxm-multi.js?v=1.4.0" defer></script>
-<script src="cxm-native-control.js?v=1.1.1" defer></script>
+<script src="cxm-native-control.js?v=2.0.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 
