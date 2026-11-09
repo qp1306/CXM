@@ -319,22 +319,36 @@ def simple_change(store, tool, expected_revision, *, mounted_tool=None):
         t=saved['config']['tools'][tool]
         if t['maintenance_lockout'] or not t['dock_reference_accepted']:
             raise NativeError('Destination dock not calibrated or in maintenance lockout')
-    if store.read()['revision']!=expected_revision:
-        raise NativeError('Dock coordinates changed; refresh before toolchange')
-    _rpc('/printer/gcode/script',{'script':'CXM_SELECT_TOOL TOOL='+str(tool)})
-    # Moonraker can acknowledge the macro before all post-motion state
-    # queries reflect completion. Poll status only; NEVER resend movement.
-    desired_sensor='RELEASED' if tool==-1 else 'PRESSED'
-    deadline=time.monotonic()+5.0
-    while True:
-        after,after_test,after_sensor=_native_status()
-        if (after.get('ready')==1 and after.get('fault')==0
-            and after.get('current_tool')==tool
-            and after_sensor==desired_sensor):
-            return {'changed':True,'current_tool':tool,'sensor':after_sensor}
-        if time.monotonic()>=deadline:
-            raise NativeError('Toolchange outcome not confirmed; inspect carriage before retrying')
-        time.sleep(0.15)
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise NativeError('Another CXM calibration or toolchange is active')
+    try:
+        if store.read()['revision']!=expected_revision:
+            raise NativeError('Dock coordinates changed; refresh before toolchange')
+        # Sync/declare may have run before acquiring this lock. Recheck
+        # physical identity now, atomically with dispatch, so Save cannot
+        # invalidate geometry while native toolchange is being issued.
+        armed,running,observed=_native_status()
+        if (running.get('running') or armed.get('ready')!=1
+            or armed.get('fault')!=0
+            or armed.get('current_tool')!=mounted_tool
+            or observed!=expected):
+            raise NativeError('Native state changed before movement; refresh tool controls')
+        _rpc('/printer/gcode/script',{'script':'CXM_SELECT_TOOL TOOL='+str(tool)})
+        # Poll status only; NEVER resend the physical command.
+        desired_sensor='RELEASED' if tool==-1 else 'PRESSED'
+        deadline=time.monotonic()+5.0
+        while True:
+            after,after_test,after_sensor=_native_status()
+            if (after.get('ready')==1 and after.get('fault')==0
+                and after.get('current_tool')==tool
+                and after_sensor==desired_sensor):
+                return {'changed':True,'current_tool':tool,'sensor':after_sensor}
+            if time.monotonic()>=deadline:
+                raise NativeError('Toolchange outcome not confirmed; inspect carriage before retrying')
+            time.sleep(0.15)
+    finally:
+        MOVE_LOCK.release()
+
 
 def select(store,tool,expected_revision):
     saved=store.read()
