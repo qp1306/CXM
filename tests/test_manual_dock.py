@@ -32,10 +32,11 @@ class ManualDockTests(unittest.TestCase):
             if path=='/printer/gcode/script':
                 script=payload['script']
                 self.command_log.append(script)
-                if 'G1 X' in script:
-                    self.state['toolhead']['position'][0]+=float(script.split('G1 X')[1].split()[0])
-                elif 'G1 Y' in script:
-                    self.state['toolhead']['position'][1]+=float(script.split('G1 Y')[1].split()[0])
+                if script.startswith('CXM_MANUAL_DOCK_JOG '):
+                    values=dict(item.split('=',1) for item in script.split()[1:])
+                    axis=values['AXIS']
+                    distance=float(values['DIST'])
+                    self.state['toolhead']['position'][0 if axis=='X' else 1]+=distance
                 return {}
             raise AssertionError('Unexpected Moonraker API: '+path)
         self.patcher=patch.object(m,'_rpc',side_effect=rpc)
@@ -52,8 +53,9 @@ class ManualDockTests(unittest.TestCase):
         d=m.jog(tool=0,axis='x',distance=0.1,expected_revision='a'*64,
           acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG',store=self.store)
         self.assertAlmostEqual(d['position']['x'],309.5)
-        self.assertIn('SAVE_GCODE_STATE NAME=CXM_MANUAL_JOG',self.command_log[0])
-        self.assertIn('RESTORE_GCODE_STATE NAME=CXM_MANUAL_JOG MOVE=0',self.command_log[0])
+        self.assertEqual(self.command_log[0],
+                         'CXM_MANUAL_DOCK_JOG TOOL=0 AXIS=X DIST=0.1000')
+        self.assertNotIn('G1 ',self.command_log[0])
     def test_transient_post_jog_busy_settles_without_repeat_motion(self):
         original=m._check
         calls=[0]
