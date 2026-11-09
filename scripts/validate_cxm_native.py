@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""Hardware-free checks for CXM native Klipper toolchange architecture.
+
+Does not connect to Moonraker or generate physical motion.
+Jinja2 is needed only to check that every gcode macro is syntactically valid.
+"""
+import ast
+from pathlib import Path
+import re
+import sys
+
+ROOT=Path(__file__).resolve().parent.parent
+sys.path.insert(0,str(ROOT/'server'))
+
+def macro_sections():
+    source=(ROOT/'vendor/cxm/cxm_native_toolchange.cfg').read_text('utf8')
+    pattern=re.compile(r'(?m)^\[(gcode_macro|delayed_gcode) ([^\]]+)\]\s*$')
+    matches=list(pattern.finditer(source))
+    if not matches:raise AssertionError('No native Klipper macro definitions')
+    return {m.group(2):source[m.end():matches[i+1].start() if i+1<len(matches) else len(source)]
+            for i,m in enumerate(matches)}
+
+def check():
+    from jinja2 import Environment, TemplateSyntaxError
+    blocks=macro_sections()
+    required=('CXM_SELECT_TOOL','_CXM_PICKUP_MOTION','_CXM_RELEASE_MOTION',
+              '_CXM_VERIFY','CXM_CONFIRM_EMPTY','CXM_TEST_START','CXM_TEST_STOP',
+              'CXM_NATIVE_TEST_STEP','CXM_TEST_RESET')
+    for name in required:
+        assert name in blocks, 'missing native macro '+name
+    env=Environment()
+    for name,source in blocks.items():
+        assert 'gcode:' in source, name+' has no G-code body'
+        body=source.split('gcode:',1)[1]
+        try:env.parse(body)
+        except TemplateSyntaxError as exc:
+            raise AssertionError(name+' Jinja syntax error: '+str(exc)) from exc
+    # The original user-supplied toolchange-EN.cfg movement order:
+    # Pickup: dodge, X shift, dock entry, X clamp, retract to safe Y.
+    # Release: dock entry, X shift, dodge, X reset, retract to safe Y.
+    from cxm_cxchanger import plan
+    tools=[]
+    for n in range(12):
+        tools.append({'dock_x':150.0+n*3,'dock_y':100.0,
+                      'dock_reference_accepted':True})
+    saved={'config':{'globals':{'tool_count':12,
+                               'cxm_shift_x':-3.0,
+                               'cxm_dodge_y':14.0,
+                               'cxm_safe_clearance_y':60.0},'tools':tools}}
+    for n in range(12):
+        p=plan(saved,tool=n)
+        x=150.0+n*3;y=100.0
+        assert p['pickup']==[(x,y+14),(x-3,y+14),(x-3,y),(x,y),(x,y+60)]
+        assert p['dropoff']==[(x,y),(x-3,y),(x-3,y+14),(x,y+14),(x,y+60)]
+    verify=blocks['_CXM_VERIFY']
+    assert verify.count('CXM_FAST_VERIFY EXPECT={expect}')==4
+    assert blocks['CXM_SELECT_TOOL'].count('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=1')==2
+    for name in ('cxm_multi.py','cxm_rapid.py'):
+        assert not (ROOT/'server'/name).exists(), 'legacy Python motion worker remains: '+name
+    for name in ('cxm_native.py','cxm_service.py','cxm_tools.py','cxm_t0.py'):
+        ast.parse((ROOT/'server'/name).read_text('utf8'))
+    assert 'def automatic_toolchange' not in (ROOT/'server/cxm_t0.py').read_text('utf8')
+    assert 'def automatic_toolchange' not in (ROOT/'server/cxm_tools.py').read_text('utf8')
+    print('CXM native source checks passed:',len(blocks),'Klipper sections and 12 tool geometries')
+if __name__=='__main__':
+    check()
