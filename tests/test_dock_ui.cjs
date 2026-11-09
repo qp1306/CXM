@@ -144,32 +144,16 @@ test('V0.8.2 dock preflight reads real Klipper status but cannot authorise motio
  assert.match(html,/id="cxmT0Stage" disabled/);
 });
 
-test('T0 test controls are hardware-gated and never mark a tool verified',()=>{
- const t0=fs.readFileSync(path.join(__dirname,'../web/cxm-t0.js'),'utf8');
- assert.match(html,/cxm-t0\.js\?v=[\w.-]+/);
- assert.match(html,/id="cxmT0ConfirmStage" hidden disabled/);
- for(const id of ['cxmT0Sensor','cxmT0RecordEmpty','cxmT0RecordMounted',
-   'cxmT0Stage','cxmT0Pickup','cxmT0Dropoff','cxmT0Plan'])
-   assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(t0,/state\?\.sensor_calibrated===true/);
- assert.match(t0,/state\?\.stage==='staged'/);
- assert.match(t0,/I_VISUALLY_VERIFIED_T0_CLEARANCE_AND_TEST_PATH/);
- assert.match(t0,/first_dropoff_ready/);
- const auto=fs.readFileSync(path.join(__dirname,'../web/cxm-t0-auto.js'),'utf8');
- assert.match(html,/cxm-t0-auto\.js\?v=[\w.-]+/);
- for(const id of ['cxmT0AutoPickup','cxmT0AutoDropoff','cxmT0AutoStatus',
-   'cxmT0AutoFaultBox','cxmT0AutoClearFault',
-   'cxmT0Cycles','cxmT0StartCycles','cxmT0StopCycles','cxmT0CycleStatus'])
-   assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(auto,/request|send\('\/auto'/);
- assert.match(auto,/setInterval/);
- assert.match(html,/id="cxmT0AutoFaultBox" class="cxm-t0-auto-fault" hidden/);
- assert.match(html,/value="-4\.8"/);
- assert.doesNotMatch(auto,/SET_GCODE_OFFSET|SET_HEATER_TEMPERATURE|G1 Z|printer\/gcode\/script/);
- assert.match(t0,/can_confirm_staging/);
- assert.match(t0,/request\('\/confirm-stage'/);
- assert.match(t0,/I_PHYSICALLY_CONFIRMED_T0_STAGED_AND_XY_NOT_HAND_MOVED/);
- assert.match(html,/first supervised dropoff/);
- assert.doesNotMatch(t0,/SET_GCODE_OFFSET|SET_HEATER_TEMPERATURE|G1 Z|printer\/gcode\/script/);
+test('old Python T0 movement interfaces are retired and native controls are exposed',()=>{
+ assert.match(html,/id="cxmNativeToolPanel"/);
+ assert.match(html,/id="cxmNativeSync"/);
+ assert.match(html,/id="cxmNativeConfirm"/);
+ assert.match(html,/id="cxmNativeToolAck"/);
+ assert.match(html,/id="cxmNativeSelect"/);
+ assert.match(html,/id="cxmNativeUnload"/);
+ assert.doesNotMatch(html,/<script src="cxm-t0\.js/);
+ assert.doesNotMatch(html,/<script src="cxm-t0-auto\.js/);
+ assert.doesNotMatch(html,/<script src="cxm-tools\.js/);
+ assert.match(html,/src="cxm-native-control\.js\?v=/);
+ assert.match(html,/data-retired-python-control="true"/);
 });
-

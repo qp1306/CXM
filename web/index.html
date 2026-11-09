@@ -240,6 +240,7 @@
 .cxm-capture-ack:has(input:checked) .cxm-approval-copy strong{color:#a5ffca}.dock-warning{font-size:13px;line-height:1.55;border-radius:9px}.cxm-t0-motion-ack{margin:12px 0 17px}
 .cxm-t0-auto-buttons .btn{min-height:54px}.cxm-advanced>summary{padding:10px 2px}
 @media(max-width:600px){main{padding:17px 13px 45px}.panel{padding:15px}.tabs .tab{padding:12px 11px}.cxm-step{padding:13px}.cxm-capture-ack,.cxm-lineux-live .cxm-capture-ack{padding:13px;gap:12px}.cxm-approval-copy strong{font-size:16px}.cxm-approval-copy small{font-size:12px}.cxm-step .btn.primary{width:100%}}
+[data-retired-python-control="true"]{display:none!important}
 </style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
@@ -250,8 +251,23 @@
 <section class="printer-strip" aria-label="Printer status"><div class="stat"><span class="stat-label">KLIPPER</span><strong id="klipperStatus">Unknown</strong></div><div class="stat"><span class="stat-label">HOMING</span><strong id="homing">—</strong></div><div class="stat"><span class="stat-label">PRINT STATE</span><strong id="printStatus">—</strong></div><span id="activeTool" hidden>Not integrated</span><span id="cxmActiveTools" hidden>Awaiting config</span></section>
 <div id="message" class="notice" role="status" aria-live="polite"></div>
 <section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected hotends only</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Use <strong>Dock XY</strong> to calibrate a hotend or <strong>Settings</strong> to edit its profile. The <strong>NOT READY</strong> banner remains until all required verification is complete.</div>
+<div class="panel" id="cxmNativeToolPanel">
+ <div class="panel-heading"><h3>Klipper-native tool control</h3><span class="panel-label">CXM_SELECT_TOOL · T0–T11 · XY only</span></div>
+ <p class="helper">Dock XY measurement remains in Dock Calibration. Klipper controls pickup and release using the accepted geometry and carriage-switch interlocks.</p>
+ <div class="buttons">
+  <label for="cxmNativeSelectedTool">Target hotend <select id="cxmNativeSelectedTool"><option value="">Choose a hotend</option></select></label>
+ </div>
+ <label class="cxm-capture-ack"><input id="cxmNativeToolAck" type="checkbox">
+  <span class="cxm-approval-copy"><strong>Approve this physical toolchange</strong><small>I inspected the selected hotend, mounted/empty carriage state, full XY corridor and emergency-stop access.</small></span>
+ </label>
+ <div class="buttons">
+  <button class="btn primary" id="cxmNativeSelect" disabled>Pick up selected hotend</button>
+  <button class="btn" id="cxmNativeUnload" disabled>UNTOOL · Drop off current hotend</button>
+ </div>
+ <p class="helper" id="cxmNativeToolStatus" role="status" aria-live="polite">Reading live Klipper tool state…</p>
+</div>
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
- <div class="panel-heading"><h3>Multi-tool XY cycle test</h3><span class="panel-label">Supervised · 1–20 complete cycles · mechanical testing only</span></div>
+ <div class="panel-heading"><h3>Native Klipper toolchange test</h3><span class="panel-label">CXM_SELECT_TOOL · supervised XY mechanical testing</span></div>
  <p class="helper">Pick up and drop off each selected dock-calibrated hotend once per complete cycle, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating, extrusion or Z moves. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
  <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
  <label class="cxm-multi-repeat" for="cxmMultiRepeats">
@@ -283,16 +299,18 @@
   <span><strong>Stage 3 · Boost — 600 / 120 / 40 mm/s requested</strong>
    <small>EXPERIMENTAL HIGH-LOAD test. Only after Race has passed on these physical docks. With max_accel 4000, short clear transfers cannot reach 600 mm/s; guided and latch moves will be substantially faster. One supervised pass only.</small></span>
  </label>
- <label class="cxm-multi-speed" for="cxmMultiRapid">
-  <input id="cxmMultiRapid" type="checkbox">
-  <span><strong>Rapid continuous Klipper mode · local sensor checks</strong>
-   <small>Opt-in after one-time rapid safety macro installation and Klipper RESTART. Executes each pickup+dropoff pair inside Klipper with four verified PRESSED and RELEASED samples. Stop acts after current complete pair. Mechanical testing only.</small></span>
- </label>
- <label class="cxm-multi-speed" for="cxmMultiStream">
-  <input id="cxmMultiStream" type="checkbox">
-  <span><strong>Uninterrupted Stream · no waiting between T0 → T1 → T2</strong>
-   <small>Experimental, opt-in. One continuous Klipper G-code script for 2–3 selected tools, one cycle only. Retains four live sensor checks after each pickup and dropoff. IMPORTANT: Stop-after-current-tool is unavailable while streaming. PHYSICAL EMERGENCY STOP ONLY. Begin with two tools, after confirming Rapid mode works at this speed.</small></span>
- </label>
+ <input id="cxmMultiRapid" type="checkbox" hidden disabled>
+ <input id="cxmMultiStream" type="checkbox" hidden disabled>
+ <div class="buttons">
+  <button class="btn" id="cxmNativeSync">1 · Sync saved dock XY to Klipper</button>
+  <label class="cxm-capture-ack" for="cxmNativeEmptyAck">
+   <input id="cxmNativeEmptyAck" type="checkbox">
+   <span class="cxm-approval-copy"><strong>2 · I physically inspected the carriage: EMPTY</strong><small>No hotend mounted. XYZ homed and Z at least 20 mm. Confirm only after inspecting the real machine.</small></span>
+  </label>
+  <button class="btn" id="cxmNativeConfirm">Confirm EMPTY in Klipper</button>
+  <button class="btn" id="cxmNativeRecover" disabled>Recover after inspected fault · EMPTY only</button>
+ </div>
+ <p class="helper" id="cxmNativeStatus" role="status" aria-live="polite">Native Klipper geometry has not been confirmed.</p>
  <p class="helper" id="cxmMultiPlanned" aria-live="polite"><strong>NEXT TEST:</strong> Waiting for verified settings.</p>
  <p class="helper" id="cxmMultiLastRun" aria-live="polite"><strong>LAST RECORDED RUN:</strong> No run yet.</p>
  <label class="cxm-capture-ack" id="cxmMultiApproval">
@@ -309,7 +327,7 @@
  <div class="helper" id="cxmMultiProgressText">0 of 0 movements verified</div>
  <div class="helper" id="cxmMultiCycleText">Complete cycles: 0 of 0</div>
  <div id="cxmMultiFault" class="dock-warning" hidden>Test stopped. Inspect the actual carriage and selected dock before any further motion.</div>
- <p class="helper"><strong>Timing diagnostics:</strong> Every completed pickup/dropoff shows Preflight (checks before moving), G-code (staging and docking), Idle (waiting for Klipper) and Sensor (stable carriage-switch verification). Compare these before changing speeds.</p>
+ <p class="helper"><strong>Native execution:</strong> Klipper owns pickup, drop-off and four live sensor checks after each motion. The old Python-generated Standard, Rapid and Stream movement routes are removed.</p>
  <div class="cxm-multi-log" id="cxmMultiLog" aria-label="Multi-tool test events"></div>
  <p class="helper">The Stop button waits until the current hotend has been dropped off. Use the printer's <strong>physical emergency stop</strong> for immediate danger. A failed sensor or position check prevents all further automatic movements.</p>
 </div></section>
@@ -421,7 +439,7 @@
  <div class="buttons"><button class="btn primary" id="cxmDockAccept" disabled>Save dock XY</button><button class="btn" id="cxmDockReset">Reset draft</button></div>
  <p id="cxmDockFeedback" class="helper" role="status" aria-live="polite">Waiting for configuration service.</p>
 </div>
-<div class="panel cxm-t0-auto" id="cxmT0Auto" aria-busy="false">
+<div class="panel cxm-t0-auto" id="cxmT0Auto" data-retired-python-control="true" aria-busy="false">
  <div class="panel-heading"><h3>T0 · Pickup / Dropoff</h3><span class="panel-label">Live carriage switch</span></div>
  <p id="cxmT0AutoStatus" role="status" aria-live="polite">Checking T0 and Klipper…</p>
  <label class="cxm-capture-ack cxm-t0-motion-ack"><input id="cxmT0MotionAck" type="checkbox"><span class="cxm-approval-copy"><strong>Approve T0 movement</strong><small>Correct tool and carriage state · full XY path clear · emergency stop accessible · supervised operation</small></span></label><div class="buttons cxm-t0-auto-buttons">
@@ -443,7 +461,7 @@
   <button class="btn" id="cxmT0AutoClearFault" disabled>Clear fault after inspection</button>
  </div>
 </div>
-<div class="panel cxm-t0-auto" id="cxmToolAuto" hidden aria-busy="false">
+<div class="panel cxm-t0-auto" id="cxmToolAuto" data-retired-python-control="true" hidden aria-busy="false">
  <div class="panel-heading"><h3 id="cxmToolAutoTitle">Selected hotend · Pickup / Dropoff</h3><span class="panel-label">Live carriage switch · controller 0.1.3</span></div>
  <p id="cxmToolAutoStatus" role="status" aria-live="polite">Checking selected hotend and Klipper…</p>
  <label class="cxm-capture-ack cxm-t0-motion-ack"><input id="cxmToolMotionAck" type="checkbox">
@@ -465,7 +483,7 @@
  <summary>Advanced T0 motion &amp; sensor tests</summary>
  <p class="helper">Slow, supervised tests. Home XYZ first and keep X/Y motors powered; do not hand-move the carriage after homing.</p>
  <strong id="cxmDockLiveHomingTest" hidden>No live status</strong>
-  <div class="cxm-t0-test" id="cxmT0TestPanel">
+  <div class="cxm-t0-test" id="cxmT0TestPanel" data-retired-python-control="true">
    <div class="panel-heading"><h3>T0 · Supervised XY motion test</h3><span class="panel-label">Slow speed · one action at a time</span></div>
    <p class="helper" id="cxmT0Status" role="status">Checking T0 motion safety…</p>
    <div class="cxm-t0-grid">
@@ -867,10 +885,11 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.5" defer></script>
 <script src="cxm-dock.js?v=0.9.6" defer></script>
-<script src="cxm-lineux.js?v=0.9.14" defer></script><script src="cxm-t0.js?v=1.2.1" defer></script>
-<script src="cxm-t0-auto.js?v=1.2.3" defer></script>
-<script src="cxm-tools.js?v=0.1.3" defer></script>
-<script src="cxm-multi.js?v=0.2.5" defer></script>
+<script src="cxm-lineux.js?v=0.9.14" defer></script>
+
+
+<script src="cxm-multi.js?v=1.0.0" defer></script>
+<script src="cxm-native-control.js?v=1.0.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>

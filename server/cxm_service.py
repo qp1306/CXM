@@ -12,16 +12,15 @@ import urllib.error
 import urllib.request
 from cxm_config import Store
 from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
-                    motion as t0_motion, confirm_staging as t0_confirm_staging,
-                    automatic_toolchange as t0_automatic, clear_automatic_fault as t0_clear_fault,
-                    repeat_t0_cycles as t0_repeat, cycle_status as t0_cycle_status,
-                    stop_cycles as t0_stop_cycles, T0Error)
+                    confirm_staging as t0_confirm_staging, T0Error)
 from cxm_lineux import (query_readiness, perform_measurement, perform_known_check,
                         release_xy_for_dock, home_and_lift_for_dock, MeasurementError)
-from cxm_tools import (status as tools_status, automatic_toolchange as tools_automatic,
-                       clear_fault as tools_clear_fault)
-from cxm_multi import (status as multi_status, start as multi_start,
-                       stop as multi_stop, MultiToolError)
+from cxm_native import (status as multi_status, start as multi_start,
+                        stop as multi_stop, sync as native_sync,
+                        select as native_select, confirm_empty as native_confirm_empty,
+                        recover_empty as native_recover_empty,
+                        invalidate_for_config_edit as native_invalidate,
+                        NativeError)
 from urllib.parse import parse_qs, urlsplit
 
 MAX_BODY = 4096
@@ -125,15 +124,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,runtime_evidence())
             elif self.path == '/v1/t0/status':
                 self.output(200,t0_status(self.server.store))
-            elif self.path == '/v1/tools/multi/status':
+            elif self.path == '/v1/tools/multi/status' or self.path == '/v1/native/status':
                 self.output(200,multi_status(self.server.store))
             elif self.path.startswith('/v1/tools/status?'):
                 params=parse_qs(urlsplit(self.path).query)
                 if set(params)!={'tool'} or len(params['tool'])!=1 or not params['tool'][0].isdigit():
                     raise ValueError('Select one tool number T1–T11')
-                self.output(200,tools_status(store=self.server.store,tool=int(params['tool'][0])))
+                self.output(200,{'tool':int(params['tool'][0]),'ready':False,'blockers':['Native Klipper tool-state interface: use /v1/native/status after accepted geometry sync']})
             elif self.path == '/v1/t0/cycles/status':
-                self.output(200,t0_cycle_status())
+                self.output(200,{'running':False,'phase':'retired','error':'Python toolchange cycles removed; use native Klipper cycle'})
             elif self.path.startswith('/v1/lineux/status?'):
                 url=urlsplit(self.path)
                 args=parse_qs(url.query)
@@ -169,8 +168,32 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/native/sync':
+                if set(body)!={'expected_revision'}:
+                    raise ValueError('Expected saved CXM revision for native runtime synchronization')
+                if not printer_safe():
+                    raise NativeError('Klipper must be safely idle for native geometry synchronization')
+                self.output(200,native_sync(self.server.store,**body))
+                return
+            if self.path == '/v1/native/confirm-empty':
+                if set(body)!={'acknowledgement'} or body['acknowledgement']!='I_PHYSICALLY_INSPECTED_EMPTY_CARRIAGE':
+                    raise NativeError('Physical empty carriage inspection acknowledgement required')
+                self.output(200,native_confirm_empty())
+                return
+            if self.path == '/v1/native/recover-empty':
+                if set(body)!={'acknowledgement'} or body['acknowledgement']!='I_INSPECTED_ALL_DOCKS_AND_CONFIRMED_PHYSICALLY_EMPTY':
+                    raise NativeError('Inspect carriage and every affected dock before recovery')
+                if not printer_safe():
+                    raise NativeError('Klipper not safely IDLE: cannot clear a live/uncertain cycle')
+                self.output(200,native_recover_empty())
+                return
+            if self.path == '/v1/native/select':
+                if set(body)!={'tool','expected_revision','acknowledgement'} or body['acknowledgement']!='I_CONFIRMED_SELECTED_HOTEND_IDENTITY_AND_FULL_XY_PATH_CLEAR':
+                    raise NativeError('Explicit tool identity and full XY path approval required')
+                self.output(200,native_select(self.server.store,body['tool'],body['expected_revision']))
                 return
             if self.path == '/v1/tools/multi/start':
                 required={'tools','expected_revision','acknowledgement'}
@@ -187,27 +210,27 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/v1/tools/auto':
                 if set(body) != {'tool','expected_revision','kind','acknowledgement'}:
                     raise ValueError('Unexpected selected-tool motion request')
-                self.output(200,tools_automatic(store=self.server.store,**body))
+                raise NativeError('Legacy Python-generated movement removed. Use native /v1/native/select with accepted geometry sync')
                 return
             if self.path == '/v1/tools/clear-fault':
                 if set(body) != {'tool','expected_revision','acknowledgement'}:
                     raise ValueError('Unexpected selected-tool fault request')
-                self.output(200,tools_clear_fault(store=self.server.store,**body))
+                raise NativeError('Legacy Python tool fault service retired; inspect machine and use native empty confirmation after appropriate recovery')
                 return
             if self.path == '/v1/t0/cycles':
                 if set(body) != {'expected_revision','cycles','acknowledgement'}:
                     raise ValueError('Unexpected T0 repeat-cycle request')
-                self.output(200,t0_repeat(store=self.server.store,**body))
+                raise NativeError('Legacy Python T0 repeat motion removed. Use native two-tool Klipper cycle')
                 return
             if self.path == '/v1/t0/cycles/stop':
                 if set(body) != {'acknowledgement'}:
                     raise ValueError('Unexpected T0 stop request')
-                self.output(200,t0_stop_cycles(**body))
+                raise NativeError('Legacy Python T0 stop retired. Use native Klipper stop')
                 return
             if self.path == '/v1/t0/auto':
                 if set(body) != {'expected_revision','kind','acknowledgement'}:
                     raise ValueError('Unexpected T0 auto-toolchange request')
-                self.output(200,t0_automatic(store=self.server.store,**body))
+                raise NativeError('Legacy Python T0 toolchange removed. Use native /v1/native/select')
                 return
             if self.path == '/v1/t0/clear-fault':
                 if set(body) != {'expected_revision','acknowledgement'}:
@@ -227,7 +250,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/v1/t0/motion':
                 if set(body) != {'expected_revision','kind','acknowledgement','shift_x','dodge_y'}:
                     raise ValueError('Unexpected T0 motion request')
-                self.output(200,t0_motion(store=self.server.store,**body))
+                raise NativeError('Legacy Python XY tool motion retired; use accepted native CxChanger macros')
                 return
             if self.path == '/v1/lineux/home':
                 if set(body) != {'tool','expected_revision','acknowledgement'}:
@@ -266,6 +289,13 @@ class Handler(BaseHTTPRequestHandler):
             if not printer_safe():
                 self.output(409,{'error':'Klipper status not confirmed idle/halted; save blocked'})
                 return
+            # Block stale Klipper geometry before any disk configuration change.
+            # Invalidate only when the native macros are actually installed.
+            try:
+                native_invalidate()
+            except NativeError as exc:
+                if 'Install and load CXM native Klipper macro' not in str(exc):
+                    raise
             if self.path=='/v1/setting':
                 if set(body) != {'tool','key','value','expected_revision'}:
                     raise ValueError('Unexpected setting parameters')
@@ -288,7 +318,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected rollback parameters')
                 result=self.server.store.rollback(**body)
             self.output(200,result)
-        except (ValueError,TypeError,KeyError,SyntaxError,MultiToolError) as e:
+        except (ValueError,TypeError,KeyError,SyntaxError,NativeError) as e:
             self.output(400,{'error':str(e)})
         except RuntimeError as e:
             self.output(409,{'error':str(e)})
@@ -312,7 +342,7 @@ def main():
              Path(__file__).with_name('cxm_t0.py'),
              Path(__file__).with_name('cxm_cxchanger.py'),
              Path(__file__).with_name('cxm_tools.py'),
-             Path(__file__).with_name('cxm_multi.py')]
+             Path(__file__).with_name('cxm_native.py')]
     before=[p.stat().st_mtime_ns for p in watched]
     def monitor_updates():
         while True:
@@ -321,8 +351,13 @@ def main():
                 if [p.stat().st_mtime_ns for p in watched] != before:
                     # Never intentionally interrupt an active multi-tool pass
                     # to reload CXM Python source while a tool may be attached.
-                    while multi_status(store)['running']:
-                        time.sleep(1)
+                    try:
+                        while multi_status(store)['running']:
+                            time.sleep(1)
+                    except (NativeError, OSError, KeyError, ValueError):
+                        # Native macro not yet installed or Klipper in reload.
+                        # Never block source reload indefinitely.
+                        pass
                     os._exit(1)
             except OSError:
                 os._exit(1)
