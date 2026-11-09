@@ -13,7 +13,7 @@ MACROS=('CXM_SELECT_TOOL','_CXM_NATIVE','_CXM_CHECK_TOOL',
         '_CXM_PICKUP_MOTION','_CXM_RELEASE_MOTION',
         '_CXM_VERIFY','_CXM_COMMIT_STATE','CXM_CONFIRM_EMPTY',
         '_CXM_TEST_STATE','CXM_TEST_START','CXM_TEST_STOP',
-        '_CXM_TEST_ADVANCE')
+        'CXM_SET_PROFILE','CXM_TEST_RESET','_CXM_TEST_ADVANCE')
 def atomic_write(path,contents):
     with tempfile.NamedTemporaryFile(dir=path.parent,delete=False) as f:
         tmp=Path(f.name)
