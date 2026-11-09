@@ -46,7 +46,7 @@ function harness({lockedTwo=false}={}){
      const body=JSON.parse(options.body);
      assert.equal(body.acknowledgement,'I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH');
      assert.equal(body.expected_revision,'a'.repeat(64));
-     assert.ok(['standard','faster','performance'].includes(body.travel_profile));
+     assert.ok(['standard','faster','performance','sprint','race'].includes(body.travel_profile));
      assert.ok(Number.isInteger(body.cycles)&&body.cycles>=1&&body.cycles<=20);
      requestedCycles=body.cycles;currentCycle=1;completedCycles=0;
      travelProfile=body.travel_profile;
@@ -92,8 +92,10 @@ test('Tools page exposes explicit one-pass mechanical test, not a printing readi
  assert.match(html,/id="cxmMultiPanel"/);
  assert.match(html,/id="cxmMultiAck" type="checkbox" disabled/);
  assert.match(html,/id="cxmMultiStop" disabled/);
- assert.match(html,/src="cxm-multi\.js\?v=0\.2\.1"/);
+ assert.match(html,/src="cxm-multi\.js\?v=0\.2\.2"/);
  assert.match(html,/id="cxmMultiPerformance" type="checkbox"/);
+ assert.match(html,/id="cxmMultiSprint" type="checkbox"/);
+ assert.match(html,/id="cxmMultiRace" type="checkbox"/);
   assert.match(html,/id="cxmMultiRapid" type="checkbox"/);
  assert.match(html,/NOT READY.*printing commissioning is incomplete/);
  assert.match(html,/physical emergency stop/);
@@ -159,6 +161,47 @@ test('Faster override clears performance option and keeps speed at 30mm per seco
  assert.equal(JSON.parse(post.options.body).travel_profile,'faster');
 });
 
+test('Stage 1 Sprint is exclusive, requires renewed approval, and selects 200/40/10',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ assert.equal(h.get('cxmMultiSprint').checked,false);
+ h.get('cxmMultiPerformance').checked=true;
+ h.get('cxmMultiPerformance').listeners.change();
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ h.get('cxmMultiSprint').checked=true;h.get('cxmMultiSprint').listeners.change();
+ assert.equal(h.get('cxmMultiPerformance').checked,false);
+ assert.equal(h.get('cxmMultiAck').checked,false);
+ assert.match(h.get('cxmMultiStatus').textContent,/200 clear \/ 40 guided \/ 10 latch/);
+ h.get('cxmMultiRapid').checked=true;h.get('cxmMultiRapid').listeners.change();
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const post=h.calls.find(c=>c.url.endsWith('/multi/start'));
+ assert.equal(JSON.parse(post.options.body).travel_profile,'sprint');
+ assert.equal(JSON.parse(post.options.body).execution_mode,'rapid');
+ assert.equal(h.get('cxmMultiSprint').disabled,true);
+});
+
+test('Stage 2 Race is exclusive, resets approval, and selects 400/80/20',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ h.get('cxmMultiSprint').checked=true;h.get('cxmMultiSprint').listeners.change();
+ h.get('cxmMultiRace').checked=true;h.get('cxmMultiRace').listeners.change();
+ assert.equal(h.get('cxmMultiSprint').checked,false);
+ assert.equal(h.get('cxmMultiRace').checked,true);
+ assert.match(h.get('cxmMultiStatus').textContent,/400 clear \/ 80 guided \/ 20 latch/);
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const post=h.calls.find(c=>c.url.endsWith('/multi/start'));
+ assert.equal(JSON.parse(post.options.body).travel_profile,'race');
+});
+
+test('experimental Sprint/Race do not submit multi-repeat requests',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ h.get('cxmMultiSprint').checked=true;h.get('cxmMultiSprint').listeners.change();
+ h.get('cxmMultiRepeats').value='2';h.get('cxmMultiRepeats').listeners.input();
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ assert.equal(h.calls.filter(c=>c.url.endsWith('/multi/start')).length,0);
+ assert.match(h.get('cxmMultiStatus').textContent,/exactly one supervised cycle/);
+});
 test('three eligible docks are shown selected with saved coordinates and no motion until approval',async()=>{
  const h=harness();await h.tick();await h.tick();
  assert.equal(h.getCandidates().length,3);
