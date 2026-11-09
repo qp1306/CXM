@@ -52,6 +52,12 @@ def check():
         x=150.0+n*3;y=100.0
         assert p['pickup']==[(x,y+14),(x-3,y+14),(x-3,y),(x,y),(x,y+60)]
         assert p['dropoff']==[(x,y),(x-3,y),(x-3,y+14),(x,y+14),(x,y+60)]
+    controller=blocks['CXM_SELECT_TOOL']
+    assert 'pos.y|float < target_safe - 1.0' in controller
+    pickup=blocks['_CXM_PICKUP_MOTION']
+    assert pickup.index('G1 Y{safe}') < pickup.index('G1 X{x}')
+    test_start=blocks['CXM_TEST_START']
+    assert 'printer.toolhead.position.y|float < ([y_a,y_b,y_c]|max) - 1.0' in test_start
     verify=blocks['_CXM_VERIFY']
     assert verify.count('CXM_FAST_VERIFY EXPECT={expect}')==4
     assert blocks['CXM_SELECT_TOOL'].count('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=1')==2
