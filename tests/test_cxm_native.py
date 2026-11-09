@@ -85,6 +85,49 @@ class NativeBridgeTests(unittest.TestCase):
                 native.invalidate_for_config_edit(
                     permit_mounted_provisional_dock=True,store=self.store,tool=0)
 
+    def test_calibration_release_dispatches_only_dedicated_macro(self):
+        scripts=[]
+        self.store.tools[0]['dock_reference_accepted']=True
+        def rpc(path,body=None,**kwargs):
+            if path=='/printer/info':
+                return {'state':'ready'}
+            if path.startswith('/printer/objects/query?'):
+                return {'status':{
+                    'gcode_macro _CXM_NATIVE':{'protocol':2,'ready':1,'fault':0,
+                                              'current_tool':0},
+                    'gcode_macro _CXM_TEST_STATE':{'running':0,'state':'idle'},
+                    'gcode_button cxm_tool_detect':{'state':'PRESSED'}}}
+            if path=='/printer/gcode/script':
+                scripts.append(body['script'])
+                return {}
+            raise AssertionError(path)
+        with patch.object(native,'_rpc',side_effect=rpc):
+            result=native.calibration_release(
+                self.store,0,'rev1',
+                'I_VERIFIED_MOUNTED_TOOL_ENGAGED_IN_CORRECT_DOCK_AND_APPROVE_RELEASE')
+        self.assertEqual(result['requested_release'],0)
+        self.assertEqual(scripts,['CXM_CALIBRATION_RELEASE TOOL=0 CONFIRM=1'])
+
+    def test_calibration_release_never_moves_if_state_or_approval_wrong(self):
+        scripts=[]
+        def rpc(path,body=None,**kwargs):
+            if path.startswith('/printer/objects/query?'):
+                return {'status':{
+                    'gcode_macro _CXM_NATIVE':{'protocol':2,'ready':1,'fault':0,'current_tool':-1},
+                    'gcode_macro _CXM_TEST_STATE':{'running':0,'state':'idle'},
+                    'gcode_button cxm_tool_detect':{'state':'RELEASED'}}}
+            if path=='/printer/gcode/script':
+                scripts.append(body['script'])
+            return {'state':'ready'}
+        with patch.object(native,'_rpc',side_effect=rpc):
+            with self.assertRaises(native.NativeError):
+                native.calibration_release(self.store,0,'rev1','WRONG')
+            with self.assertRaises(native.NativeError):
+                native.calibration_release(
+                    self.store,0,'rev1',
+                    'I_VERIFIED_MOUNTED_TOOL_ENGAGED_IN_CORRECT_DOCK_AND_APPROVE_RELEASE')
+        self.assertEqual(scripts,[])
+
     def test_sync_sets_all_tool_datums_and_never_moves(self):
         scripts=[]
         def rpc(path,body=None,**kw):
