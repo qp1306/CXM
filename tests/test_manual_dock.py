@@ -108,11 +108,14 @@ class ManualDockTests(unittest.TestCase):
             m.jog(tool=0,axis='x',distance=0.1,expected_revision='a'*64,
               acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG',store=self.store)
         self.assertEqual(self.command_log,[])
-    def test_block_wrong_native_tool_identity(self):
+    def test_stale_native_identity_is_not_tool_identity_during_manual_alignment(self):
         self.state['gcode_macro _CXM_NATIVE']['current_tool']=1
-        with self.assertRaisesRegex(m.ManualDockError,'identity conflicts'):
-            m.status(0,self.store)
+        result=m.status(0,self.store)
+        self.assertTrue(result['ready'])
+        self.assertEqual(result['identity_source'],'operator_selected')
+        self.assertEqual(result['native_tool_identity'],1)
         self.assertEqual(self.command_log,[])
+
     def test_allow_unknown_native_identity_after_invalidation(self):
         self.state['gcode_macro _CXM_NATIVE']['current_tool']=-2
         self.state['gcode_macro _CXM_NATIVE']['ready']=0
