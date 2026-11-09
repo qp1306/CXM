@@ -804,3 +804,35 @@ passes, inspect the hardware, then one Stage 2 test only if Sprint
 shows no mechanical or sensor failures. Changing profiles resets the
 approval checkbox, and only one speed profile can be selected.
 See [rapid and larger motion speed tests](docs/rapid-mechanical-cycle.md).
+
+
+## Uninterrupted native Stream and Stage 3 Boost
+
+The supervised mechanical Tool cycle now has a separate opt-in
+**Uninterrupted Stream** execution mode. Unlike the per-tool
+Rapid Klipper mode, this submits **one ordered Klipper script for
+the entire T0/T1 or T0/T1/T2 pass**, removing Python/Moonraker
+round-trips between dock releases and the next pickup. Each tool's
+unchanged motion path still completes and checks four native PRESSED
+readings after pickup and four RELEASED readings after dropoff with
+M400-separated time windows. Any failed check aborts the entire script
+and latches an all-tools uncertain-state fault. The 390ms settling
+window after dropoff remains intentionally unchanged.
+
+**Stop-after-current-tool is NOT available in Stream**, because
+Klipper cannot be reliably interrupted between already-queued
+commands by that Stop request. The Control Centre disables the
+misleading Stop button and warns that a working physical emergency
+stop is required. Standard and per-tool Rapid remain available with
+their previous Stop-after-current-tool behaviour. Stream requires
+2–3 accepted docks and exactly one cycle while uncommissioned.
+
+A separate **Stage 3 Boost** requested speed test adds
+**600 / 120 / 40 mm/s** (open / guided / latch). The 600mm/s
+commanded travel may not be reached on 40mm segments under the
+current 4000mm/s² acceleration. Both Stream and Boost are opt-in,
+software-tested only, and must first pass a separately witnessed T0/T1
+physical cycle using a previously proven lower speed. No saved
+Lineux/CxChanger dock coordinates or printer.cfg settings change.
+
+See [rapid mechanical cycle, Stream and Boost tests](docs/rapid-mechanical-cycle.md).
