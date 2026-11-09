@@ -30,13 +30,22 @@ class MeasurementError(RuntimeError):
     pass
 
 
-def _rpc(path, payload=None):
+def _rpc(path, payload=None, *, timeout_s=None):
     data = None if payload is None else json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(BASE+path, data=data,
         headers={'Content-Type': 'application/json'} if data is not None else {},
         method='POST' if data is not None else 'GET')
+    # Long-running supervised native tool streams may legitimately exceed
+    # the 125s default POST read timeout at commissioning feed rates.
+    # Only their explicit caller may increase this read timeout; all
+    # existing Lineux/T0/T1+ operations retain the original limits.
+    if timeout_s is not None:
+        if (type(timeout_s) not in (int,float) or
+                not 4 <= timeout_s <= 600):
+            raise ValueError('Moonraker read timeout outside approved 4–600s range')
+    deadline = timeout_s if timeout_s is not None else 125 if data else 4
     try:
-        with urllib.request.urlopen(req, timeout=125 if data else 4) as f:
+        with urllib.request.urlopen(req, timeout=deadline) as f:
             answer = json.load(f)
     except (OSError, ValueError, urllib.error.URLError) as exc:
         raise MeasurementError('Moonraker unavailable: '+str(exc)[:140]) from exc

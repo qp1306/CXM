@@ -290,3 +290,58 @@ the UI now reports its one-script time. The programmed 390 ms
 sensor confirmation at every dropoff remains. If further reduction
 is required, first measure real sensor stability and bounce rather
 than shortening it blindly.
+
+
+## 2026-11-09: Uninterrupted Standard-speed stream timed out at 125 seconds
+
+A real T0→T1→T2 stream was recorded at **15:29:09** with
+`execution_mode=stream`, `travel_profile=standard`, and F600/F240/F180
+(10/4/3mm/s) G-code. Although the user later checked **Boost + Stream**
+in Control Centre, the actual *historical* run was **Standard + Stream**.
+Earlier 15:08 standalone Race runs correctly generated
+F24000/F4800/F1200, so available evidence does not support a
+Boost-to-Standard backend conversion defect.
+
+CXM's common Moonraker RPC helper formerly used a **125-second**
+timeout for every POST. A legitimate three-tool Standard-speed
+stream can exceed that limit, so the client timed out and (correctly)
+latched an uncertain result. Klipper later reported **Ready**,
+`homed_axes=xyz`, position `[226.01,109.21,20.0]`,
+`cxm_tool_detect=RELEASED`, `speed_factor=1.0`, and no matching
+recent Klipper errors. These are *reassuring readings*, but do NOT
+establish physical hotend seating. The old dashboard's 0-of-6
+progress counter reflects that no successful **whole-script**
+response was received, NOT that Klipper performed zero movements.
+
+### Narrow software correction
+
+- The **entire uninterrupted stream only** gets a bounded **600-second
+  Moonraker read timeout**. It is not a motion delay; it merely allows
+  an already-sent script to finish and report its result. Existing
+  GET (4 seconds), regular POST (125 seconds), and per-tool Rapid
+  routes keep their old timeouts.
+- A request timeout still means the result is **uncertain**. Never
+  automatically retry an unknown stream: inspect the actual machine
+  before clearing the latched fault. The physical emergency stop is
+  still the only immediate-stop option during streaming.
+- The Control Centre now shows **NEXT TEST** (live checkboxes)
+  separately from **LAST RECORDED RUN** (backend-frozen mode,
+  profile, tools and result). It displays the selected speed in the
+  status line when submitting a new run and shows the recorded speed
+  even after a failure. This prevents the mistaken interpretation
+  that an already-failed Standard run had been Boost because Boost
+  was ticked later.
+
+This update does not modify XYZ dock positions, G-code feed rates,
+Klipper native safety guards, number/timing of sensor samples,
+Klipper global speed limits or acceleration. It does **not** require
+another Klipper RESTART once the existing rapid macro is loaded.
+
+**Recovery:** Before further movement visually inspect T0, T1, T2
+docking and the empty carriage; check Klipper ready, genuine XYZ
+homing and Z≥20, and clear the latched uncertain tool state only
+after physical inspection. Then select the *last physically validated
+speed* explicitly, confirm the new NEXT TEST summary, begin with
+T0/T1 and one supervised cycle, and observe with the physical
+emergency stop accessible. Do not assume a timeout-free stream
+confirms every tool's mechanical seating: inspect after the run.

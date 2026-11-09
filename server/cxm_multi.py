@@ -50,6 +50,11 @@ EXECUTION_MODES=('legacy','rapid','stream')
 RAPID_MACRO='gcode_macro CXM_FAST_VERIFY'
 MAX_REPEAT_CYCLES=20
 MAX_TOTAL_MOVEMENTS=240  # bound unattended batch size across tool counts
+# Moonraker's script response is synchronous. Slow three-tool mechanical
+# streams can exceed the default 125s POST read timeout while still moving.
+# Bound the longer timeout to THIS single supervised stream only; never
+# auto-retry when a request times out or another outcome is uncertain.
+STREAM_READ_TIMEOUT_S=600
 # This initial commissioning mode assumes an aligned front dock row. The
 # stock per-tool CxChanger staging script is not a general safe transfer
 # route between docks at very different Y depths.
@@ -357,7 +362,8 @@ def _stream_run(store,selected,prepared,travel_profile):
         raise MultiToolError('Klipper restarted or not ready before stream')
     script=stream_script(prepared['paths'],selected,travel_profile)
     began=time.monotonic()
-    _rpc('/printer/gcode/script',{'script':script})
+    _rpc('/printer/gcode/script',{'script':script},
+         timeout_s=STREAM_READ_TIMEOUT_S)
     elapsed=round(time.monotonic()-began,2)
     if store.read()['revision']!=prepared['revision']:
         raise MultiToolError('CXM dock config changed during stream; inspect all selected docks')
@@ -395,7 +401,9 @@ def _worker(store,selected,prepared,travel_profile,cycles,execution_mode='legacy
             kind='uninterrupted stream'
             _update(current_cycle=1,current_action=kind,current_tool=None)
             _event('Uninterrupted '+(' → '.join('T'+str(t) for t in selected))+
-                   ' native stream · physical E-stop only; no queued Stop-after-pair')
+                   ' · '+travel_profile.upper()+
+                   ' profile · stream may take minutes at slow commissioning feeds'+
+                   ' · physical E-stop only; no queued Stop-after-pair')
             result=_stream_run(store,selected,prepared,travel_profile)
             for t in selected:
                 _event('T'+str(t)+' native pickup confirmed (PRESSED)',
