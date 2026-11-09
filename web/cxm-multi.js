@@ -49,6 +49,7 @@ function chooseControls(){
  $('cxmMultiPerformance').disabled=requestBusy||running;
  $('cxmMultiSprint').disabled=requestBusy||running;
  $('cxmMultiRace').disabled=requestBusy||running;
+ $('cxmMultiBoost').disabled=requestBusy||running;
  $('cxmMultiRapid').disabled=requestBusy||running;
  $('cxmMultiStream').disabled=requestBusy||running;
  $('cxmMultiRepeats').disabled=requestBusy||running;
@@ -119,7 +120,8 @@ function showStatus(){
  }else if(run.running){
    const speed=(run.execution_mode==='stream'?'UNINTERRUPTED KLIPPER STREAM · ':
      run.execution_mode==='rapid'?'RAPID KLIPPER · ':'')+
-     (run.travel_profile==='race'?'STAGE 2 RACE (400 / 80 / 20 mm/s)':
+     (run.travel_profile==='boost'?'STAGE 3 BOOST (600 / 120 / 40 mm/s requested)':
+      run.travel_profile==='race'?'STAGE 2 RACE (400 / 80 / 20 mm/s)':
       run.travel_profile==='sprint'?'STAGE 1 SPRINT (200 / 40 / 10 mm/s)':
       run.travel_profile==='performance'?'PERFORMANCE (80 / 8 / 3 mm/s)':
       run.travel_profile==='faster'?'FASTER CLEAR TRAVEL (30 mm/s)':'STANDARD TRAVEL (10 mm/s)');
@@ -190,7 +192,8 @@ async function start(){
  if(list.length<2||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
  const cycles=repeatCount();
  if(cycles===null)return;
- const travelProfile=$('cxmMultiRace').checked?'race':
+ const travelProfile=$('cxmMultiBoost').checked?'boost':
+   $('cxmMultiRace').checked?'race':
    $('cxmMultiSprint').checked?'sprint':
    $('cxmMultiPerformance').checked?'performance':
    $('cxmMultiFastTransfer').checked?'faster':'standard';
@@ -247,7 +250,7 @@ $('cxmMultiRepeats').addEventListener('input',()=>{
  }
 });
 function clearOtherSpeedModes(active){
- for(const id of ['cxmMultiFastTransfer','cxmMultiPerformance','cxmMultiSprint','cxmMultiRace']){
+ for(const id of ['cxmMultiFastTransfer','cxmMultiPerformance','cxmMultiSprint','cxmMultiRace','cxmMultiBoost']){
    if(id!==active)$(id).checked=false;
  }
 }
@@ -280,6 +283,13 @@ $('cxmMultiRace').addEventListener('change',()=>{
  if(!current?.running)text('cxmMultiStatus',$('cxmMultiRace').checked
    ?'STAGE 2 RACE selected: 400 clear / 80 guided / 20 latch mm/s. HIGH-LOAD trial only after physical Sprint pass; one supervised T0/T1 cycle.'
    :'Race disabled · choose an individually verified movement profile.');
+});
+$('cxmMultiBoost').addEventListener('change',()=>{
+ if($('cxmMultiBoost').checked)clearOtherSpeedModes('cxmMultiBoost');
+ $('cxmMultiAck').checked=false;chooseControls();
+ if(!current?.running)text('cxmMultiStatus',$('cxmMultiBoost').checked
+   ?'STAGE 3 BOOST selected: 600 clear / 120 guided / 40 latch mm/s REQUESTED. High-load trial only after Race passed; one supervised T0/T1 pass.'
+   :'Boost disabled · choose a physically tested lower-speed profile.');
 });
 $('cxmMultiRapid').addEventListener('change',()=>{
  if($('cxmMultiRapid').checked)$('cxmMultiStream').checked=false;
