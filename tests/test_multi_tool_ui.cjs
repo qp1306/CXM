@@ -46,7 +46,7 @@ function harness({lockedTwo=false}={}){
      const body=JSON.parse(options.body);
      assert.equal(body.acknowledgement,'I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH');
      assert.equal(body.expected_revision,'a'.repeat(64));
-     assert.ok(['standard','faster'].includes(body.travel_profile));
+     assert.ok(['standard','faster','performance'].includes(body.travel_profile));
      assert.ok(Number.isInteger(body.cycles)&&body.cycles>=1&&body.cycles<=20);
      requestedCycles=body.cycles;currentCycle=1;completedCycles=0;
      travelProfile=body.travel_profile;
