@@ -22,7 +22,7 @@ class ManualDockTests(unittest.TestCase):
                     'print_stats':{'state':'standby'},
                     'stepper_enable':{'steppers':motors},
                     'gcode_button cxm_tool_detect':{'state':'PRESSED'},
-                    'gcode_macro _CXM_NATIVE':{'current_tool':-1},
+                    'gcode_macro _CXM_NATIVE':{'current_tool':-2},
                     'gcode_macro _CXM_TEST_STATE':{'running':0},
                     'configfile':{'settings':{'stepper_x':{'position_min':0,'position_max':335},
                                              'stepper_y':{'position_min':0,'position_max':362}}}}
