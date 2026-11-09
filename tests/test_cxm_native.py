@@ -43,6 +43,48 @@ class NativeBridgeTests(unittest.TestCase):
     def setUp(self):
         self.store=Store()
 
+    def test_mounted_provisional_save_only_when_native_already_invalidated(self):
+        def rpc(path,body=None,**kwargs):
+            if path.startswith('/printer/objects/query?'):
+                return {'status':{
+                    'gcode_macro _CXM_NATIVE':{'protocol':2,'ready':0,'fault':1,'current_tool':-2},
+                    'gcode_macro _CXM_TEST_STATE':{'running':0,'state':'idle'},
+                    'gcode_button cxm_tool_detect':{'state':'PRESSED'}}}
+            if path=='/printer/gcode/script':
+                self.fail('Mounted provisional dock save must not send native Klipper commands')
+            raise AssertionError(path)
+        with patch.object(native,'_rpc',side_effect=rpc), \
+             patch('cxm_manual.status',return_value={'ready':True}) as preflight:
+            reply=native.invalidate_for_config_edit(
+                permit_mounted_provisional_dock=True,store=self.store,tool=0)
+        self.assertTrue(reply['already_invalidated'])
+        self.assertTrue(reply['needs_native_sync'])
+        preflight.assert_called_once_with(0,self.store)
+
+    def test_mounted_save_rejects_native_active_or_conflicting_identity(self):
+        for ready,fault,identity in ((1,0,-2),(0,1,0),(1,1,-2)):
+            def rpc(path,body=None,**kwargs):
+                return {'status':{
+                    'gcode_macro _CXM_NATIVE':{'protocol':2,'ready':ready,'fault':fault,'current_tool':identity},
+                    'gcode_macro _CXM_TEST_STATE':{'running':0,'state':'idle'},
+                    'gcode_button cxm_tool_detect':{'state':'PRESSED'}}}
+            with patch.object(native,'_rpc',side_effect=rpc):
+                with self.assertRaises(native.NativeError):
+                    native.invalidate_for_config_edit(
+                        permit_mounted_provisional_dock=True,store=self.store,tool=0)
+
+    def test_mounted_provisional_save_rejects_failed_manual_preflight(self):
+        def rpc(path,body=None,**kwargs):
+            return {'status':{
+                'gcode_macro _CXM_NATIVE':{'protocol':2,'ready':0,'fault':1,'current_tool':-2},
+                'gcode_macro _CXM_TEST_STATE':{'running':0,'state':'idle'},
+                'gcode_button cxm_tool_detect':{'state':'PRESSED'}}}
+        with patch.object(native,'_rpc',side_effect=rpc), \
+             patch('cxm_manual.status',side_effect=ValueError('not homed')):
+            with self.assertRaisesRegex(ValueError,'not homed'):
+                native.invalidate_for_config_edit(
+                    permit_mounted_provisional_dock=True,store=self.store,tool=0)
+
     def test_sync_sets_all_tool_datums_and_never_moves(self):
         scripts=[]
         def rpc(path,body=None,**kw):
