@@ -39,12 +39,22 @@ def _check(tool, saved):
     for name in ('stepper_x','stepper_y','stepper_z','stepper_z1','stepper_z2','stepper_z3'):
         if motors.get(name) is not True:
             raise ManualDockError(name+' is not energised; rehome and recheck')
-    if state.get('gcode_button cxm_tool_detect',{}).get('state')!='RELEASED':
-        raise ManualDockError('Carriage sensor is not EMPTY (RELEASED)')
+    # Mechanical dock alignment REQUIRES the selected hotend to be mounted.
+    # This mode is separate from native pickup/dropoff, which retains its own
+    # strict EMPTY/PRESSED transition and identity interlocks.
+    signal=state.get('gcode_button cxm_tool_detect',{}).get('state')
+    if signal!='PRESSED':
+        raise ManualDockError('Manual dock alignment requires a MOUNTED hotend (sensor PRESSED)')
     test=state.get('gcode_macro _CXM_TEST_STATE',{})
     native=state.get('gcode_macro _CXM_NATIVE',{})
-    if test.get('running')==1 or native.get('current_tool') not in (-1,-2):
-        raise ManualDockError('Native tool movement running or carriage identity mounted')
+    if test.get('running')==1:
+        raise ManualDockError('Native tool test running; alignment blocked')
+    identity=native.get('current_tool')
+    if identity not in (-2,tool):
+        raise ManualDockError('Native carriage identity conflicts with selected tool; inspect before alignment')
+    # -2 is expected after configuration invalidation; it is NOT a declaration
+    # that the mounted tool identity has been verified. The operator must
+    # explicitly confirm the selected physical hotend for each motion.
     limits=state.get('configfile',{}).get('settings',{})
     xy={}
     for i,ax in enumerate('xy'):
@@ -60,7 +70,8 @@ def _check(tool, saved):
     return {'tool':tool,'xy':{'x':xy['x']['position'],'y':xy['y']['position']},
             'limits':{ax:[xy[ax]['min'],xy[ax]['max']] for ax in 'xy'},
             'z':float(pos[2]),'homed':True,'motors_enabled':True,
-            'sensor':'RELEASED','revision':saved['revision'],'ready':True}
+            'sensor':'PRESSED','identity_source':'operator_selected',
+            'native_tool_identity':identity,'revision':saved['revision'],'ready':True}
 
 def status(tool,store):
     return _check(tool,store.read())
@@ -88,6 +99,8 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
                  'M400\nRESTORE_GCODE_STATE NAME=CXM_MANUAL_JOG MOVE=0')
         _rpc('/printer/gcode/script',{'script':command})
         after=_check(tool,store.read())
+        if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:
+            raise ManualDockError('Carriage state changed during jog; inspect printer')
         if abs(after['xy'][axis]-next_value)>0.08:
             raise ManualDockError('Commanded jog and reported coordinates differ; inspect printer')
         return {'jogged':True,'position':after['xy'],'revision':after['revision']}
@@ -105,6 +118,8 @@ def capture(*,tool,expected_revision,acknowledgement,store):
             raise ManualDockError('Settings changed; refresh before capture')
         _rpc('/printer/gcode/script',{'script':'M400'})
         after=_check(tool,store.read())
+        if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:
+            raise ManualDockError('Mounted carriage state changed during capture')
         if after['revision']!=before['revision']:
             raise ManualDockError('Settings changed during capture')
         for axis in 'xy':
