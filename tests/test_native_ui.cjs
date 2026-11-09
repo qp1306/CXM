@@ -26,7 +26,7 @@ test('single operator declaration replaces repetitive readiness checkbox flow',(
  assert.match(multi,/nativePost\('initialize'/);
  assert.match(multi,/carriage_tool:tool/);
  assert.match(multi,/\$\('cxmMultiStart'\)\.disabled=!ready;/);
- assert.match(native,/post\\('simple-change'/);
+ assert.match(native,/post\('simple-change'/);
  assert.match(native,/mounted_tool:mounted/);
 });
 
