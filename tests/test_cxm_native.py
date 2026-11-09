@@ -192,6 +192,61 @@ class NativeBridgeTests(unittest.TestCase):
             with self.assertRaisesRegex(native.NativeError,'sensor'):
                 native.simple_change(self.store,-1,'rev1',mounted_tool=0)
 
+    def test_stale_known_identity_can_be_invalidated_for_selected_other_tool_dock(self):
+        sent=[]
+        def rpc(path,body=None,**kwargs):
+            if path.startswith('/printer/objects/query?'):
+                state={'ready':0,'fault':1,'current_tool':-2} if sent else {
+                    'ready':1,'fault':0,'current_tool':0}
+                return {'status':{
+                    'gcode_macro _CXM_NATIVE':{'protocol':2,**state},
+                    'gcode_macro _CXM_TEST_STATE':{'running':0,'state':'idle'},
+                    'gcode_button cxm_tool_detect':{'state':'PRESSED'}}}
+            if path=='/printer/gcode/script':
+                sent.append(body['script'])
+                return {'ok':True}
+            raise AssertionError(path)
+        with patch.object(native,'_rpc',side_effect=rpc), \
+             patch('cxm_manual.status',return_value={'ready':True}):
+            result=native.invalidate_for_config_edit(
+                permit_mounted_provisional_dock=True,store=self.store,tool=1)
+        self.assertTrue(result['invalidated'])
+        self.assertEqual(len(sent),1)
+        self.assertNotIn('G1 ',sent[0])
+
+    def test_stale_mounted_identity_sensor_empty_can_load_other_tool(self):
+        sent=[]
+        snapshots=[
+            ({'ready':1,'fault':0,'current_tool':0},
+             {'running':0},'RELEASED'),
+            ({'ready':1,'fault':0,'current_tool':1},
+             {'running':0},'PRESSED')]
+        with patch.object(native,'_native_status',side_effect=snapshots), \
+             patch.object(native,'initialize',return_value={'ready':True}) as init, \
+             patch.object(native,'_rpc',side_effect=lambda path,body=None,**kw:
+                          sent.append(body['script']) or {'ok':True}):
+            result=native.simple_change(self.store,1,'rev1',mounted_tool=-1)
+        init.assert_called_once_with(self.store,'rev1',-1)
+        self.assertEqual(sent,['CXM_SELECT_TOOL TOOL=1'])
+        self.assertTrue(result['changed'])
+
+    def test_delayed_native_state_is_polled_without_resending_toolchange(self):
+        commands=[]
+        snapshots=[
+            ({'ready':1,'fault':0,'current_tool':-1},
+             {'running':0},'RELEASED'),
+            ({'ready':1,'fault':1,'current_tool':-1},
+             {'running':0},'RELEASED'),
+            ({'ready':1,'fault':0,'current_tool':0},
+             {'running':0},'PRESSED')]
+        with patch.object(native,'_native_status',side_effect=snapshots), \
+             patch.object(native,'_rpc',side_effect=lambda path,body=None,**kw:
+                          commands.append(body['script']) or {'ok':True}), \
+             patch.object(native.time,'sleep'):
+            result=native.simple_change(self.store,0,'rev1',mounted_tool=-1)
+        self.assertTrue(result['changed'])
+        self.assertEqual(commands,['CXM_SELECT_TOOL TOOL=0'])
+
     def test_ready_mounted_invalidation_must_be_confirmed(self):
         scripts=[]
         def rpc(path,body=None,**kwargs):
