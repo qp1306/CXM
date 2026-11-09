@@ -77,7 +77,7 @@ test('manual motor-on calibration is gated and preserves independent save',()=>{
  assert.match(html,/data-manual-axis="y"/);
  assert.match(manual,/I_APPROVE_SUPERVISED_MOTOR_ON_JOG/);
  assert.match(manual,/I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON/);
- assert.match(manual,/source:'motor-on-capture'/);
+ assert.match(manual,/request\\('\\/dock'/);
  assert.match(dock,/proposal\.source!=='motor-on-capture'/);
  assert.match(dock,/postJSON\('\/dock',\{tool:selected,xy,expected_revision:snapshot\.revision/);
  assert.doesNotMatch(manual,/DOCK_LOCATE_CALIBRATE|SET_KINEMATIC_POSITION/);
