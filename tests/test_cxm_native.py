@@ -43,6 +43,52 @@ class NativeBridgeTests(unittest.TestCase):
     def setUp(self):
         self.store=Store()
 
+    def test_empty_sensor_allows_disk_edit_with_stale_mounted_identity(self):
+        scripts=[]
+        def rpc(path,body=None,**kwargs):
+            if path.startswith('/printer/objects/query?'):
+                state={'ready':0,'fault':1,'current_tool':-2} if scripts else {
+                    'ready':1,'fault':0,'current_tool':0}
+                return {'status':{
+                    'gcode_macro _CXM_NATIVE':{'protocol':2,**state},
+                    'gcode_macro _CXM_TEST_STATE':{'running':0},
+                    'gcode_button cxm_tool_detect':{'state':'RELEASED'}}}
+            if path=='/printer/gcode/script':
+                scripts.append(body['script'])
+                return {'ok':True}
+            raise AssertionError(path)
+        with patch.object(native,'_rpc',side_effect=rpc):
+            reply=native.invalidate_for_config_edit()
+        self.assertTrue(reply['needs_native_sync'])
+        self.assertEqual(len(scripts),1)
+        self.assertNotIn('G1 ',scripts[0])
+        self.assertIn('VARIABLE=current_tool VALUE=-2',scripts[0])
+
+    def test_empty_sensor_edit_rejects_unconfirmed_invalidation(self):
+        scripts=[]
+        def rpc(path,body=None,**kwargs):
+            if path.startswith('/printer/objects/query?'):
+                return {'status':{
+                    'gcode_macro _CXM_NATIVE':{
+                        'protocol':2,'ready':1,'fault':0,'current_tool':0},
+                    'gcode_macro _CXM_TEST_STATE':{'running':0},
+                    'gcode_button cxm_tool_detect':{'state':'RELEASED'}}}
+            if path=='/printer/gcode/script':
+                scripts.append(body['script'])
+                return {'ok':True}
+            raise AssertionError(path)
+        with patch.object(native,'_rpc',side_effect=rpc):
+            with self.assertRaisesRegex(native.NativeError,'invalidation not confirmed'):
+                native.invalidate_for_config_edit()
+        self.assertEqual(len(scripts),1)
+
+    def test_empty_sensor_edit_rejects_running_test(self):
+        with patch.object(native,'_native_status',return_value=(
+            {'ready':1,'fault':0,'current_tool':0},
+            {'running':1},'RELEASED')):
+            with self.assertRaisesRegex(native.NativeError,'during native test'):
+                native.invalidate_for_config_edit()
+
     def test_mounted_provisional_save_only_when_native_already_invalidated(self):
         def rpc(path,body=None,**kwargs):
             if path.startswith('/printer/objects/query?'):

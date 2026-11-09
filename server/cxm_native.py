@@ -195,12 +195,21 @@ def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False, store=N
             or after.get('current_tool')!=-2):
             raise NativeError('Native invalidation not confirmed; dock coordinates NOT saved')
         return {'invalidated':True,'previously_ready':True,'needs_native_sync':True}
-    if native.get('current_tool') not in (-1,-2) or signal!='RELEASED':
-        raise NativeError('Cannot edit tool configuration during native test or with mounted/unknown hotend')
+    # Changing disk configuration needs an idle test and physically EMPTY
+    # carriage. A manual release through Mainsail can leave Klipper's
+    # current_tool stale even though the sensor is now RELEASED.
+    # Do not block disk-only edits on that stale bookkeeping state.
+    if signal!='RELEASED':
+        raise NativeError('Cannot edit tool configuration while carriage sensor reports mounted/unknown')
     _rpc('/printer/gcode/script',{'script':
         'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=ready VALUE=0\n'
         'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=1\n'
         'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE=-2'})
+    after,after_test,after_signal=_native_status()
+    if (after_test.get('running')==1 or after_signal!='RELEASED'
+        or after.get('ready')!=0 or after.get('fault')!=1
+        or after.get('current_tool')!=-2):
+        raise NativeError('Native geometry invalidation not confirmed; configuration NOT saved')
     return {'invalidated':True,'needs_native_sync':True}
 
 def confirm_empty():
