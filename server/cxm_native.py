@@ -156,27 +156,42 @@ def initialize(store,expected_revision,carriage_tool):
             'note':'Geometry and carriage identity checked; Klipper raises Z to 25 mm only if needed and safe'}
 
 def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False, store=None, tool=None):
-    """Never modify live geometry with a mounted hotend.
+    """Invalidate Klipper geometry BEFORE any disk edits, without moving axes.
 
-    The only mounted exception is a MANUAL dock datum disk save when native
-    toolchanging is ALREADY fully invalidated (ready=0,fault=1,identity=-2).
-    It sends no Klipper commands; disk Save remains provisional, and native
-    geometry must still be synchronised before any toolchange.
+    A mounted dock-datum save is allowed only with a selected tool passing
+    full motor-on manual alignment preflight and a non-running native test.
+    If Klipper is currently READY with the SAME declared mounted tool, first
+    invalidate ready/fault/identity so stale geometry can never be reused.
+    Other settings edits still require a physically empty carriage.
     """
     native,test,signal=_native_status()
     if test.get('running')==1:
         raise NativeError('Cannot edit tool configuration during native test')
-    if (permit_mounted_provisional_dock and signal=='PRESSED'
-        and native.get('current_tool')==-2
-        and native.get('ready')==0 and native.get('fault')==1):
-        # The operator-selected T number and all motor-on homing, Z and
-        # sensor preflights must still pass before accepting any dock datum.
+    if permit_mounted_provisional_dock and signal=='PRESSED':
         if store is None or type(tool) is not int:
             raise NativeError('Mounted dock save requires a selected tool and live preflight')
         from cxm_manual import status as manual_dock_status
         manual_dock_status(tool,store)
-        return {'invalidated':True,'already_invalidated':True,
-                'needs_native_sync':True}
+        identity=native.get('current_tool')
+        invalid=(native.get('ready')==0 and native.get('fault')==1 and identity==-2)
+        verified=(native.get('ready')==1 and native.get('fault')==0 and identity==tool)
+        if not (invalid or verified):
+            raise NativeError('Mounted dock save refused: native identity or fault state conflicts with selected tool')
+        if invalid:
+            return {'invalidated':True,'already_invalidated':True,
+                    'needs_native_sync':True}
+        # Do not save a new datum while the old native geometry is armed.
+        # This command contains state changes only: NO G0/G1 or Z movement.
+        _rpc('/printer/gcode/script',{'script':
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=ready VALUE=0\n'
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=1\n'
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE=-2'})
+        after,after_test,after_signal=_native_status()
+        if (after_test.get('running')==1 or after_signal!='PRESSED'
+            or after.get('ready')!=0 or after.get('fault')!=1
+            or after.get('current_tool')!=-2):
+            raise NativeError('Native invalidation not confirmed; dock coordinates NOT saved')
+        return {'invalidated':True,'previously_ready':True,'needs_native_sync':True}
     if native.get('current_tool') not in (-1,-2) or signal!='RELEASED':
         raise NativeError('Cannot edit tool configuration during native test or with mounted/unknown hotend')
     _rpc('/printer/gcode/script',{'script':
