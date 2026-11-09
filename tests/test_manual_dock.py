@@ -21,8 +21,8 @@ class ManualDockTests(unittest.TestCase):
                     'idle_timeout':{'state':'Idle'},
                     'print_stats':{'state':'standby'},
                     'stepper_enable':{'steppers':motors},
-                    'gcode_button cxm_tool_detect':{'state':'RELEASED'},
-                    'gcode_macro _CXM_NATIVE':{'current_tool':-1},
+                    'gcode_button cxm_tool_detect':{'state':'PRESSED'},
+                    'gcode_macro _CXM_NATIVE':{'current_tool':-2},
                     'gcode_macro _CXM_TEST_STATE':{'running':0},
                     'configfile':{'settings':{'stepper_x':{'position_min':0,'position_max':335},
                                              'stepper_y':{'position_min':0,'position_max':362}}}}
@@ -54,12 +54,25 @@ class ManualDockTests(unittest.TestCase):
         self.assertAlmostEqual(d['position']['x'],309.5)
         self.assertIn('SAVE_GCODE_STATE NAME=CXM_MANUAL_JOG',self.command_log[0])
         self.assertIn('RESTORE_GCODE_STATE NAME=CXM_MANUAL_JOG MOVE=0',self.command_log[0])
-    def test_no_motion_when_sensor_mounted(self):
-        self.state['gcode_button cxm_tool_detect']['state']='PRESSED'
-        with self.assertRaisesRegex(m.ManualDockError,'not EMPTY'):
+    def test_no_motion_when_carriage_empty(self):
+        self.state['gcode_button cxm_tool_detect']['state']='RELEASED'
+        with self.assertRaisesRegex(m.ManualDockError,'requires a MOUNTED hotend'):
             m.jog(tool=0,axis='x',distance=0.1,expected_revision='a'*64,
               acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG',store=self.store)
         self.assertEqual(self.command_log,[])
+    def test_block_wrong_native_tool_identity(self):
+        self.state['gcode_macro _CXM_NATIVE']['current_tool']=1
+        with self.assertRaisesRegex(m.ManualDockError,'identity conflicts'):
+            m.status(0,self.store)
+        self.assertEqual(self.command_log,[])
+    def test_allow_unknown_native_identity_after_invalidation(self):
+        self.state['gcode_macro _CXM_NATIVE']['current_tool']=-2
+        self.state['gcode_macro _CXM_NATIVE']['ready']=0
+        self.state['gcode_macro _CXM_NATIVE']['fault']=1
+        result=m.status(0,self.store)
+        self.assertTrue(result['ready'])
+        self.assertEqual(result['sensor'],'PRESSED')
+        self.assertEqual(result['identity_source'],'operator_selected')
     def test_no_motion_when_unhomed_or_motor_off(self):
         self.state['toolhead']['homed_axes']='xy'
         with self.assertRaises(m.ManualDockError):

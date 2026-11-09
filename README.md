@@ -29,11 +29,11 @@ save clears the old raw values.
 ## New dock calibration procedure
 
 - Home XYZ with the existing tested Y-first homing override. Keep ALL X/Y and four Z motors
-  energised, confirm Z >= 20 mm and physically EMPTY carriage.
+  energised, confirm Z >= 20 mm and the selected hotend physically MOUNTED on the carriage (sensor PRESSED).
 - Dock Calibration → select T0 → **Refresh live position**.
 - Approve supervised jog, use 10 / 1 / 0.1 / 0.01 mm jog increments to align the
   locking screw with the centre of the correct dock hole. Every jog is guarded by
-  homing, motor, sensor, idle, physical axis limits and tool identity checks.
+  homing, motor, PRESSED sensor, idle, physical axis limits and any conflicting native identity. The operator must verify the selected mounted hotend identity.
 - Inspect alignment; approve and **Capture X/Y to draft**. This runs M400 and reads
   Klipper's live XY. No auto save, release motors, calibration G28 or toolchanging.
 - Review and **Save dock XY**. Persisted calibration has revision checks and backups;
