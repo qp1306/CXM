@@ -8,7 +8,7 @@
   const get = id => document.getElementById(id);
   const axis = ['x','y'];
   let snapshot = null, selected = 0, busy = false, dirty = false, activeAxis = 'x';
-  let rawDraft=null; // Lineux-measured reference, only for unchanged live capture.
+  let rawDraft=null; // Legacy MCU provenance remains schema-compatible, never used for manual captures.
   let migrationMessage='';
 
   const report = (message, error = false) => {
@@ -78,7 +78,7 @@
     get('cxmDockSummary').textContent = tool
       ? 'T'+selected+' CxChanger locking-hole XY: '+
         axis.map(name => nice(tool['dock_'+name])).join(' / ')+
-        ' mm · Lineux raw X'+nice(tool.lineux_raw_x)+' Y'+nice(tool.lineux_raw_y)+
+        ' mm · ' +
         ' · '+(tool.dock_reference_accepted?'accepted for supervised testing':'NOT accepted')
       : 'No profile selected. Choose a tool from the configured count.';
     updateActions(); // Never enable Save for empty or unchanged coordinates.
@@ -311,7 +311,7 @@
       get('cxmDockTool').disabled = !snapshot || !configured(snapshot.config).length;
       if (verified) {
         fill(); // Re-enable inputs after the request and show the saved values.
-        report('T'+selected+' CxChanger docking-hole XY saved with Lineux provenance if measured. '+
+        report('T'+selected+' motor-on dock XY saved as provisional. '+
           'Now run ONE supervised pickup/dropoff to verify physical geometry.');
       } else {
         // On failure, retain the user's draft and make its inputs editable.
@@ -354,7 +354,7 @@
   // selected tool. Draft only; never save, move, or unlock the printer.
   window.addEventListener('cxm-dock-provisional-xy',event=>{
     const proposal=event.detail||{},n=proposal.tool;
-    if (!['manual-mcu-review','lineux-live'].includes(proposal.source)||!Number.isInteger(n)||n!==selected
+    if (proposal.source!=='motor-on-capture'||!Number.isInteger(n)||n!==selected
         ||!Number.isFinite(proposal.x)||!Number.isFinite(proposal.y)
         ||proposal.x<0||proposal.x>limits.x[1]
         ||proposal.y<0||proposal.y>limits.y[1]) {
@@ -371,9 +371,7 @@
           '? This will replace the current unsaved XY values.')) return;
     xInput.value=Number(proposal.x).toFixed(5);
     yInput.value=Number(proposal.y).toFixed(5);
-    rawDraft=proposal.source==='lineux-live'&&proposal.raw_xy &&
-        axis.every(a=>Number.isFinite(proposal.raw_xy[a]))
-      ? {x:proposal.raw_xy.x,y:proposal.raw_xy.y}:null;
+    rawDraft=null;
     markDraft();
     report('T'+selected+' CxChanger docking-hole XY copied from Lineux measurement. '+
       (proposal.source==='manual-mcu-review'
