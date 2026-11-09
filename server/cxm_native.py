@@ -155,7 +155,7 @@ def initialize(store,expected_revision,carriage_tool):
     return {'ready':True,'current_tool':carriage_tool,'sensor':sensor,
             'note':'Geometry and carriage identity checked; Klipper raises Z to 25 mm only if needed and safe'}
 
-def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False):
+def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False, store=None, tool=None):
     """Never modify live geometry with a mounted hotend.
 
     The only mounted exception is a MANUAL dock datum disk save when native
@@ -169,6 +169,12 @@ def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False):
     if (permit_mounted_provisional_dock and signal=='PRESSED'
         and native.get('current_tool')==-2
         and native.get('ready')==0 and native.get('fault')==1):
+        # The operator-selected T number and all motor-on homing, Z and
+        # sensor preflights must still pass before accepting any dock datum.
+        if store is None or type(tool) is not int:
+            raise NativeError('Mounted dock save requires a selected tool and live preflight')
+        from cxm_manual import status as manual_dock_status
+        manual_dock_status(tool,store)
         return {'invalidated':True,'already_invalidated':True,
                 'needs_native_sync':True}
     if native.get('current_tool') not in (-1,-2) or signal!='RELEASED':
