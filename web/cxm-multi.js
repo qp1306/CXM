@@ -34,17 +34,23 @@ function chooseControls(){
  text('cxmMultiRepeatHelp','Allowed 1–'+maxRepeat+' complete cycles for '+
    selection().length+' selected hotends (maximum 240 movements).');
  const cycles=repeatCount();
- const ready=!requestBusy&&!running&&valid&&cycles!==null&&!!current?.revision;
+ const streaming=$('cxmMultiStream').checked;
+ const streamEligible=!streaming||(cycles===1&&selection().length<=3);
+ const ready=!requestBusy&&!running&&valid&&cycles!==null&&streamEligible&&!!current?.revision;
  $('cxmMultiAck').disabled=!ready;
  if(!ready)$('cxmMultiAck').checked=false;
  $('cxmMultiStart').disabled=!ready||!$('cxmMultiAck').checked;
- $('cxmMultiStop').disabled=!running||current?.stop_requested===true||requestBusy;
+ $('cxmMultiStop').disabled=!running||current?.execution_mode==='stream'||
+   current?.stop_requested===true||requestBusy;
+ text('cxmMultiStop',running&&current?.execution_mode==='stream'
+   ?'No queued Stop · use physical E-stop':'Stop after current tool');
  $('cxmMultiRefresh').disabled=requestBusy;
  $('cxmMultiFastTransfer').disabled=requestBusy||running;
  $('cxmMultiPerformance').disabled=requestBusy||running;
  $('cxmMultiSprint').disabled=requestBusy||running;
  $('cxmMultiRace').disabled=requestBusy||running;
  $('cxmMultiRapid').disabled=requestBusy||running;
+ $('cxmMultiStream').disabled=requestBusy||running;
  $('cxmMultiRepeats').disabled=requestBusy||running;
  text('cxmMultiStart',running?'Cycle test running…':
    'Start '+(cycles===null?'—':cycles)+' '+(cycles===1?'cycle':'cycles'));
@@ -111,12 +117,15 @@ function showStatus(){
  if(lastError){
    text('cxmMultiStatus',lastError);
  }else if(run.running){
-   const speed=(run.execution_mode==='rapid'?'RAPID KLIPPER · ':'')+
+   const speed=(run.execution_mode==='stream'?'UNINTERRUPTED KLIPPER STREAM · ':
+     run.execution_mode==='rapid'?'RAPID KLIPPER · ':'')+
      (run.travel_profile==='race'?'STAGE 2 RACE (400 / 80 / 20 mm/s)':
       run.travel_profile==='sprint'?'STAGE 1 SPRINT (200 / 40 / 10 mm/s)':
       run.travel_profile==='performance'?'PERFORMANCE (80 / 8 / 3 mm/s)':
       run.travel_profile==='faster'?'FASTER CLEAR TRAVEL (30 mm/s)':'STANDARD TRAVEL (10 mm/s)');
-   text('cxmMultiStatus',run.stop_requested
+   text('cxmMultiStatus',run.execution_mode==='stream'
+      ?'STREAM RUNNING · '+speed+' · NO software Stop-after-pair. Physical emergency stop ONLY. '+run.last_event
+      :run.stop_requested
       ?'STOP REQUESTED · current tool pair must complete, or use physical E-stop for immediate danger.'
       :'RUNNING · '+speed+' · '+run.last_event+' · supervise all movement');
  }else if(run.state==='complete'){
@@ -189,13 +198,19 @@ async function start(){
   text('cxmMultiStatus','Experimental Sprint/Race requires exactly one supervised cycle. Set repeats to 1.');
   return;
  }
+ const streaming=$('cxmMultiStream').checked;
+ if(streaming&&(cycles!==1||list.length>3)){
+  text('cxmMultiStatus','Uninterrupted Stream requires 2–3 selected tools and exactly 1 cycle.');
+  return;
+ }
  const rapid=$('cxmMultiRapid').checked;
  requestBusy=true;$('cxmMultiAck').checked=false;chooseControls();
  text('cxmMultiStatus','Checking live Klipper readiness, real EMPTY carriage, and all '+list.length+' docks…');
  try{
    const requestBody={tools:list,expected_revision:current.revision,
      acknowledgement:ack,travel_profile:travelProfile,cycles};
-   if(rapid)requestBody.execution_mode='rapid';
+   if(streaming)requestBody.execution_mode='stream';
+   else if(rapid)requestBody.execution_mode='rapid';
    const reply=await request('/start',requestBody);
    if(!reply.started)throw Error('Backend did not confirm a started run');
    lastError='';
@@ -267,11 +282,23 @@ $('cxmMultiRace').addEventListener('change',()=>{
    :'Race disabled · choose an individually verified movement profile.');
 });
 $('cxmMultiRapid').addEventListener('change',()=>{
+ if($('cxmMultiRapid').checked)$('cxmMultiStream').checked=false;
  $('cxmMultiAck').checked=false;
  chooseControls();
  if(!current?.running)text('cxmMultiStatus',$('cxmMultiRapid').checked
    ?'RAPID KLIPPER selected · requires installed CXM_FAST_VERIFY macro and Klipper restart; approve only after inspection.'
    :'ORIGINAL MECHANICAL TEST selected · proven commissioning sequence.');
+});
+$('cxmMultiStream').addEventListener('change',()=>{
+ if($('cxmMultiStream').checked){
+  $('cxmMultiRapid').checked=false;
+  // Stream is a one-cycle supervised physical test, never repetitions.
+  $('cxmMultiRepeats').value='1';
+ }
+ $('cxmMultiAck').checked=false;chooseControls();
+ if(!current?.running)text('cxmMultiStatus',$('cxmMultiStream').checked
+   ?'UNINTERRUPTED STREAM: 2–3 tools, one continuous native Klipper script. No Stop-after-pair; PHYSICAL EMERGENCY STOP ONLY. Inspect every dock and approve.'
+   :'Original Stop-after-current-tool behaviour available in Rapid or Standard.');
 });
 $('cxmMultiStart').addEventListener('click',start);
 $('cxmMultiStop').addEventListener('click',stop);
