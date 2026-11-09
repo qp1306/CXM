@@ -46,6 +46,14 @@ save clears the old raw values.
 an independent mechanical measurement. The carriage sensor only proves a binary
 presence change, not perfect seating. Failed pickups must stop and require inspection.
 
+**Mounted dock Save:** Manual alignment requires the selected hotend mounted and
+sensor PRESSED. A provisional XY Save is permitted with the hotend still
+mounted only while the native Klipper toolchanger is already fully invalidated
+(ready=0, fault=1, current_tool=-2), no native test is running and the full
+motor-on calibration preflight still passes. Saving writes configuration and a
+backup only; it does NOT declare the mounted tool, synchronise geometry or
+authorise motion. This exception does not apply to general settings edits.
+
 **This release does not alter the existing CxChanger pickup/dropoff macro sequence.**
 The 1 mm cross-tool safe-Y guard still applies; calibrate and evaluate each physical
 dock Y before multi-tool cycles. Older release notes below are historical.
