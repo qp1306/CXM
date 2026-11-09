@@ -47,8 +47,17 @@ def _rpc(path, payload=None, *, timeout_s=None):
     try:
         with urllib.request.urlopen(req, timeout=deadline) as f:
             answer = json.load(f)
+    except urllib.error.HTTPError as exc:
+        try:
+            detail=json.loads(exc.read(16384).decode('utf8')).get('error',{})
+            trace=detail.get('traceback','')
+            match=re.search(r'gcode\\.CommandError: ([^\\n]+)',trace)
+            reason=match.group(1) if match else detail.get('message',str(exc))
+        except (ValueError,UnicodeError,TypeError):
+            reason=str(exc)
+        raise MeasurementError('Klipper rejected command: '+str(reason)[:240]) from exc
     except (OSError, ValueError, urllib.error.URLError) as exc:
-        raise MeasurementError('Moonraker unavailable: '+str(exc)[:140]) from exc
+        raise MeasurementError('Moonraker connection failed: '+str(exc)[:140]) from exc
     if not isinstance(answer, dict) or 'error' in answer or 'result' not in answer:
         raise MeasurementError('Invalid Moonraker response')
     return answer['result']
