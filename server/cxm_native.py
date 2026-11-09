@@ -139,6 +139,24 @@ def confirm_empty():
     _rpc('/printer/gcode/script',{'script':'CXM_CONFIRM_EMPTY'})
     return {'empty_confirmed':True}
 
+def recover_empty():
+    """Manual fault recovery, only with physically inspected EMPTY carriage.
+
+    The HTTP handler must independently require an explicit acknowledgement
+    and a confirmed idle printer. This macro does no motion.
+    """
+    native,test,signal=_native_status()
+    if native.get('ready')!=1 or signal!='RELEASED':
+        raise NativeError('Native geometry must be synchronized and physical carriage EMPTY')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise NativeError('Another calibration/motion operation is active')
+    try:
+        _rpc('/printer/gcode/script',{'script':'CXM_TEST_RESET\nCXM_CONFIRM_EMPTY'})
+        return {'recovered':True,'empty_confirmed':True,
+                'note':'No movement; inspected EMPTY state restored and native test reset'}
+    finally:
+        MOVE_LOCK.release()
+
 def select(store,tool,expected_revision):
     saved=store.read()
     if saved['revision']!=expected_revision:
