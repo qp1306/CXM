@@ -134,3 +134,69 @@ measured mechanical travel benchmark**. For comparison, record actual
 wall-clock duration and both switch states across the complete run.
 Motion gains depend on the actual move distances, acceleration,
 feedrate override and dock geometry.
+
+
+## Larger toolchange speed stages — Sprint and Race
+
+These are **opt-in physical test profiles**. They increase speed
+dramatically without increasing printer-wide `max_velocity`,
+`max_accel`, `square_corner_velocity` or Z motion settings.
+The measured and accepted CxChanger X/Y datum, Y-dodge and 4.8 mm
+latch geometry remain exactly unchanged, as do the Klipper-native
+four PRESSED + four RELEASED sensor confirmation gates.
+
+| Speed profile | Clear travel | Guided dock movement | Latch/unlatch | Evidence |
+| --- | ---: | ---: | ---: | --- |
+| Standard | 10 mm/s | 4 mm/s | 3 mm/s | Existing commissioning |
+| Faster | 30 mm/s | 4 mm/s | 3 mm/s | Existing experimental |
+| Performance | 80 mm/s | 8 mm/s | 3 mm/s | Existing experimental |
+| **Stage 1 — Sprint** | **200 mm/s** | **40 mm/s** | **10 mm/s** | New; software-tested only |
+| **Stage 2 — Race** | **400 mm/s** | **80 mm/s** | **20 mm/s** | New; software-tested only |
+
+The original CxChanger `toolchange.cfg` defines fast travel of
+`F24000` (400 mm/s) and its generic precision speed of `F5000`
+(83.3 mm/s). This is **design context, not a guarantee** that a
+particular 3D-printed dock, magnet or hotend mount can tolerate these
+forces. Race approaches that original travel/precision envelope but
+**does not** copy its optional 15,000 mm/s² acceleration. The user's
+actual Klipper setting is 4,000 mm/s²; it stays untouched. With short
+moves, actual velocity may fall well below requested `F24000`.
+
+The cross-dock XY transfer runs outside the dock at safe Y before
+crossing X. Each fast entry slows at a point **15 mm before the
+Y-dodge position**. The remaining engagement/lever path is commanded
+at the trial's guided/latch feed rates, not open-corridor speed.
+
+### Required incremental mechanical verification
+
+1. Upgrade the CXM source using Control Centre **Updates**. The
+   previously installed Klipper native rapid guard still applies;
+   there is **no further printer.cfg edit or Klipper RESTART**.
+2. With the printer homed XYZ, Z≥20, dock seats visually checked and
+   carriage empty, run **one** supervised T0/T1 pass in the last
+   verified lower-speed profile. Do not run experimental speeds during
+   a print or during any other G-code activity.
+3. **Stage 1 Sprint:** select only T0/T1, one cycle, Rapid Klipper
+   enabled, and Stage 1 Sprint (200/40/10). Confirm the emergency
+   stop is immediately accessible. Approve and supervise each
+   pickup/dropoff. Observe vibrations, coupling flex, hotend
+   retention, lost steps and switch failures.
+4. Only after a fully successful Stage 1 with **no mechanical impact,
+   scraping, missed steps, false carriage sensor change or failed
+   latch**, and with docks visually inspected, try **Stage 2 Race**
+   with the same single T0/T1 cycle and Rapid enabled.
+5. If both pass cleanly, repeat this validation with T2 in a new
+   single supervised run. **The backend rejects multi-repeat
+   Sprint/Race requests** until we have physical commissioning evidence.
+
+**Failure handling:** Stop physically with E-stop for an imminent
+impact; ordinary Stop only takes effect after the current full tool
+pair. Do not clear and retry a latched fault without inspecting the
+carriage and affected dock. A PRESSED switch alone cannot prove
+mechanical tool seating, particularly at the new speeds. These are
+test presets, **not a claim that CXM is ready for production printing**.
+
+For an apples-to-apples comparison, record **actual wall-clock
+duration**, the on-screen run profile, and whether the carriage is
+physically empty at the end. Motion limits and short-segment
+acceleration often matter more than a large requested feed rate.
