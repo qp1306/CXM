@@ -75,10 +75,13 @@ class StreamTests(unittest.TestCase):
 
     def test_native_stream_is_exactly_one_script_request_for_all_tools(self):
         calls=[]
-        def rpc(path,payload=None):
-            calls.append((path,payload))
-            if path=='/printer/info':return {'state':'ready','process_id':123}
+        def rpc(path,payload=None,**kwargs):
+            calls.append((path,payload,kwargs))
+            if path=='/printer/info':
+                self.assertEqual(kwargs,{})
+                return {'state':'ready','process_id':123}
             self.assertEqual(path,'/printer/gcode/script')
+            self.assertEqual(kwargs,{'timeout_s':multi.STREAM_READ_TIMEOUT_S})
             return {}
         chosen=[0,1,2]
         self.prepared['paths']={n:self.paths[n] for n in chosen}
