@@ -14,7 +14,7 @@ test('native CXM Control Centre offers only the new toolchange controller',()=>{
    assert.match(html,new RegExp('id="'+id+'"'));
  }
  assert.match(html,/src="cxm-native-control\.js\?v=/);
- assert.match(html,/src="cxm-multi\.js\?v=1\.1\.0"/);
+ assert.match(html,/src="cxm-multi\.js\?v=1\.2\.0"/);
  assert.doesNotMatch(html,/src="cxm-t0-auto\.js/);
  assert.doesNotMatch(html,/src="cxm-tools\.js/);
 });
@@ -27,6 +27,14 @@ test('single operator declaration replaces repetitive readiness checkbox flow',(
  assert.match(multi,/carriage_tool:tool/);
  assert.match(multi,/\$\('cxmMultiStart'\)\.disabled=!ready;/);
  assert.match(native,/const approved=true/);
+});
+
+test('high-speed profiles exposed with one-cycle limiter',()=>{
+ for(const mode of ['sprint','race','boost']){
+  assert.match(html,new RegExp('<option value="'+mode+'">'));
+ }
+ assert.match(multi,/\['sprint','race','boost'\]\.includes\(selectedProfile\(\)\)/);
+ assert.match(multi,/\$\('cxmMultiRepeats'\)\.value='1'/);
 });
 
 test('selected hotend UI only requests named Klipper macros through native API',()=>{
