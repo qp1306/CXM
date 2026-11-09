@@ -211,9 +211,11 @@ async function refresh(){
      carrier.value=prev;
    }
    text('cxmNativeStatus',next.native_ready&&next.fault===0&&next.current_tool===-1
-     ?'Native Klipper READY · carriage confirmed EMPTY'
-     :next.native_ready?'Native geometry synced · EMPTY confirmation or recovery required'
-     :'Native XY not synchronized. Use Sync saved dock XY to Klipper.');
+     ?'READY · Carriage EMPTY'
+     :next.native_ready&&next.fault===0&&Number.isInteger(next.current_tool)&&next.current_tool>=0
+     ?'READY · T'+next.current_tool+' mounted · sensor '+next.sensor
+     :next.native_ready?'Select the actual carriage state above to verify it'
+     :'Choose EMPTY or mounted tool above to prepare Klipper automatically.');
    if(revisionChanged||!existing||wasRunning!==next.running)
      drawChoices();
    else if(current.running)chooseControls();
