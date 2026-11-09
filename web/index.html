@@ -401,13 +401,13 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
   <div class="buttons" style="justify-content:center"><button class="btn" data-manual-axis="y" data-manual-sign="-1" disabled>Y −</button></div>
  </div>
  <div class="cxm-step">
-  <div class="panel-heading"><h3>2 · Capture live X/Y</h3><span class="panel-label">Provisional</span></div>
-  <p class="helper">After visually seating/alignment, capture the stationary position from Klipper. This copies X/Y into the draft fields below; no automatic save or tool motion occurs.</p>
-  <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualCaptureAck"><span class="cxm-approval-copy"><strong>Alignment inspected</strong><small>I visually confirmed the mounted hotend is the selected T number, aligned its locking screw with the dock and never released motors</small></span></label>
-  <div class="buttons"><button class="btn primary" id="cxmManualCapture" disabled>Capture X/Y to draft</button></div>
+  <div class="panel-heading"><h3>2 · Save dock position</h3><span class="panel-label">Capture + Save</span></div>
+  <p class="helper">Align the mounted hotend with the dock, then press Save. CXM captures live X/Y and writes the verified coordinates with a backup. No extra confirmation step.</p>
+  <label class="cxm-capture-ack" hidden><input type="checkbox" id="cxmManualCaptureAck"><span class="cxm-approval-copy"><strong>Alignment inspected</strong><small>I visually confirmed the mounted hotend is the selected T number, aligned its locking screw with the dock and never released motors</small></span></label>
+  <div class="buttons"><button class="btn primary" id="cxmManualCapture" disabled>Save aligned dock XY</button></div>
   <p class="helper" id="cxmManualFeedback" role="status">Awaiting operator alignment.</p>
  </div>
- <p class="helper">3 · Save the provisional XY below, then synchronise native geometry using the existing Control Centre workflow. Perform a single supervised CxChanger pickup/drop-off before repeat testing. Prior saved XY remains in backups.</p>
+ <p class="helper">Dock position is saved in one step. Use Tools → LOAD / UNLOAD to operate the CxChanger.</p>
 </div>
 <div class="dock-columns">
 <div class="panel">
@@ -867,8 +867,8 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-picker.js?v=0.9.3" defer></script>
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.5" defer></script>
-<script src="cxm-dock.js?v=0.9.6" defer></script>
-<script src="cxm-manual.js?v=1.0.2" defer></script>
+<script src="cxm-dock.js?v=1.0.0" defer></script>
+<script src="cxm-manual.js?v=2.0.0" defer></script>
 
 
 <script src="cxm-multi.js?v=1.4.0" defer></script>
