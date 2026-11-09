@@ -25,6 +25,32 @@ function repeatCount(){
  const count=Number(value);
  return Number.isSafeInteger(count)&&count<=repeatMaximum()?count:null;
 }
+function selectedProfile(){
+ return $('cxmMultiBoost').checked?'boost':
+   $('cxmMultiRace').checked?'race':
+   $('cxmMultiSprint').checked?'sprint':
+   $('cxmMultiPerformance').checked?'performance':
+   $('cxmMultiFastTransfer').checked?'faster':'standard';
+}
+function selectedMode(){
+ return $('cxmMultiStream').checked?'stream':
+   $('cxmMultiRapid').checked?'rapid':'legacy';
+}
+function profileLabel(profile){
+ const names={
+   standard:'STANDARD (10 / 4 / 3 mm/s)',
+   faster:'FASTER (30 / 4 / 3 mm/s)',
+   performance:'PERFORMANCE (80 / 8 / 3 mm/s)',
+   sprint:'SPRINT (200 / 40 / 10 mm/s)',
+   race:'RACE (400 / 80 / 20 mm/s)',
+   boost:'BOOST requested (600 / 120 / 40 mm/s)'
+ };
+ return names[profile]||'UNKNOWN PROFILE';
+}
+function modeLabel(mode){
+ return mode==='stream'?'UNINTERRUPTED STREAM':
+   mode==='rapid'?'RAPID KLIPPER':'ORIGINAL';
+}
 function chooseControls(){
  const running=current?.running===true;
  const valid=selection().length>=2&&
@@ -35,6 +61,9 @@ function chooseControls(){
    selection().length+' selected hotends (maximum 240 movements).');
  const cycles=repeatCount();
  const streaming=$('cxmMultiStream').checked;
+ text('cxmMultiPlanned','NEXT TEST (not previous run): '+
+   modeLabel(selectedMode())+' · '+profileLabel(selectedProfile())+
+   ' · '+(cycles??'INVALID')+' cycle(s) · '+selection().length+' tools');
  const streamEligible=!streaming||(cycles===1&&selection().length<=3);
  const ready=!requestBusy&&!running&&valid&&cycles!==null&&streamEligible&&!!current?.revision;
  $('cxmMultiAck').disabled=!ready;
@@ -95,6 +124,11 @@ function drawChoices(){
 function showStatus(){
  if(!current)return;
  const run=current;
+ text('cxmMultiLastRun','LAST RECORDED RUN (not current checkbox selection): '+
+   (run.run_id
+     ?modeLabel(run.execution_mode)+' · '+profileLabel(run.travel_profile)+
+      ' · '+run.state.toUpperCase()+' · '+(run.tools||[]).map(t=>'T'+t).join(' → ')
+     :'No run recorded in this CXM service session'));
  const total=run.total_steps||0;
  const done=run.completed_steps||0;
  $('cxmMultiProgressFill').style.width=(total?Math.round(100*done/total):0)+'%';
@@ -133,7 +167,8 @@ function showStatus(){
  }else if(run.state==='complete'){
    text('cxmMultiStatus','CYCLE TEST COMPLETE · '+run.last_event);
  }else if(run.state==='failed'){
-   text('cxmMultiStatus','FAILED · '+run.last_event);
+   text('cxmMultiStatus','FAILED · '+modeLabel(run.execution_mode)+' · '+
+     profileLabel(run.travel_profile)+' · '+run.last_event);
  }else if(run.state==='stopped'){
    text('cxmMultiStatus','STOPPED · '+run.last_event);
  }else{
@@ -192,11 +227,7 @@ async function start(){
  if(list.length<2||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
  const cycles=repeatCount();
  if(cycles===null)return;
- const travelProfile=$('cxmMultiBoost').checked?'boost':
-   $('cxmMultiRace').checked?'race':
-   $('cxmMultiSprint').checked?'sprint':
-   $('cxmMultiPerformance').checked?'performance':
-   $('cxmMultiFastTransfer').checked?'faster':'standard';
+ const travelProfile=selectedProfile();
  if((travelProfile==='sprint'||travelProfile==='race')&&cycles!==1){
   text('cxmMultiStatus','Experimental Sprint/Race requires exactly one supervised cycle. Set repeats to 1.');
   return;
@@ -208,7 +239,9 @@ async function start(){
  }
  const rapid=$('cxmMultiRapid').checked;
  requestBusy=true;$('cxmMultiAck').checked=false;chooseControls();
- text('cxmMultiStatus','Checking live Klipper readiness, real EMPTY carriage, and all '+list.length+' docks…');
+ text('cxmMultiStatus','SUBMITTING '+modeLabel(selectedMode())+' · '+
+   profileLabel(travelProfile)+' · '+list.map(n=>'T'+n).join(' → ')+
+   '. Checking Klipper readiness and real EMPTY carriage…');
  try{
    const requestBody={tools:list,expected_revision:current.revision,
      acknowledgement:ack,travel_profile:travelProfile,cycles};
