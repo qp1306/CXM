@@ -336,7 +336,7 @@ async function measure(){
       ' Y'+answer.raw_xy_mm.y.toFixed(3)+
       ' · CxChanger datum X'+answer.adjusted_x_preview_mm.toFixed(3)+
       ' Y'+answer.adjusted_y_preview_mm.toFixed(3)+
-      '. Review the large-hole / locking-screw alignment before saving.','pending');
+      ' · X correction 0.000 mm (legacy correction ignored). Review actual locking-hole alignment before saving.','pending');
     await preflightAfterMeasurement();
   }catch(e){
     result=null;tool=null;
@@ -369,7 +369,7 @@ async function copy(){
        x.toFixed(3)+' Y'+y.toFixed(3)+'?\\n\\n'+
        'Lineux measured X'+result.raw_xy_mm.x.toFixed(3)+
        ' Y'+result.raw_xy_mm.y.toFixed(3)+
-       ' (X/Y corrections included).\\n'+
+       ' (X offset deliberately zero; Y correction retained).\\n'+
        'Check locking-screw alignment. This is a DRAFT, not physical verification.'))return;
     window.dispatchEvent(new CustomEvent('cxm-dock-provisional-xy',
       {detail:{tool:n,x,y,raw_xy:result.raw_xy_mm,source:'lineux-live'}}));
