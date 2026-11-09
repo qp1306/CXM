@@ -14,7 +14,7 @@ test('native CXM Control Centre offers only the new toolchange controller',()=>{
    assert.match(html,new RegExp('id="'+id+'"'));
  }
  assert.match(html,/src="cxm-native-control\.js\?v=/);
- assert.match(html,/src="cxm-multi\.js\?v=1\.0\.0"/);
+ assert.match(html,/src="cxm-multi\.js\?v=1\.1\.0"/);
  assert.doesNotMatch(html,/src="cxm-t0-auto\.js/);
  assert.doesNotMatch(html,/src="cxm-tools\.js/);
 });
