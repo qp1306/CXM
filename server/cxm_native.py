@@ -173,10 +173,13 @@ def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False, store=N
         from cxm_manual import status as manual_dock_status
         manual_dock_status(tool,store)
         identity=native.get('current_tool')
+        # A mounted calibration can legitimately follow a rejected native
+        # toolchange. A fault latch is not proof that the mounted hotend changed.
+        # Never accept a different positively-known tool identity, or any
+        # active native test. Save is disk-only; mark live geometry UNKNOWN.
+        if identity not in (-2, tool):
+            raise NativeError('Mounted tool identity conflicts with selected dock')
         invalid=(native.get('ready')==0 and native.get('fault')==1 and identity==-2)
-        verified=(native.get('ready')==1 and native.get('fault')==0 and identity==tool)
-        if not (invalid or verified):
-            raise NativeError('Mounted dock save refused: native identity or fault state conflicts with selected tool')
         if invalid:
             return {'invalidated':True,'already_invalidated':True,
                     'needs_native_sync':True}
@@ -261,6 +264,56 @@ def calibration_release(store,tool,expected_revision,acknowledgement):
                 'result':'inspect carriage EMPTY and hotend docked; verify native status'}
     finally:
         MOVE_LOCK.release()
+
+def simple_change(store, tool, expected_revision, *, mounted_tool=None):
+    """Single operator action: sync stored XY, declare sensor-matched identity
+    when necessary, then use the proven native CxChanger toolchange macro.
+
+    PRESSSED can prove presence but not identity. On UNKNOWN state, the operator
+    must select the actual mounted T-number; no tool is guessed from the sensor.
+    Refuse to auto-clear any fault on a known tool or an active native test.
+    """
+    saved=store.read()
+    count=saved['config']['globals']['tool_count']
+    if saved['migration_required'] or saved['revision']!=expected_revision:
+        raise NativeError('Saved dock changed; refresh tool selection')
+    if type(tool) is not int or tool < -1 or tool >= count:
+        raise NativeError('Select a valid tool number or UNLOAD')
+    if type(mounted_tool) is not int or mounted_tool < -1 or mounted_tool >= count:
+        raise NativeError('Select the currently mounted hotend, or EMPTY')
+    native,test,signal=_native_status()
+    if test.get('running'):
+        raise NativeError('Native tool test active')
+    expected='RELEASED' if mounted_tool==-1 else 'PRESSED'
+    if signal!=expected:
+        raise NativeError('Carriage sensor does not match selected mounted/empty state')
+    identity=native.get('current_tool')
+    if identity not in (-2,mounted_tool):
+        raise NativeError('Klipper reports a different mounted tool; inspect identity')
+    if native.get('fault')==1 and identity!=-2:
+        raise NativeError('Native toolchange fault with known identity; inspect motion before recovery')
+    if native.get('ready')!=1 or identity==-2 or native.get('fault')!=0:
+        # Re-establish state using accepted geometry and existing Klipper
+        # carriage declaration, never direct XY movement from Python.
+        initialize(store,expected_revision,mounted_tool)
+    if tool==-1 and mounted_tool==-1:
+        return {'already_empty':True,'current_tool':-1}
+    if tool==mounted_tool:
+        return {'already_mounted':True,'current_tool':tool}
+    # Refuse an unavailable dock before calling a physical motion macro.
+    if tool>=0:
+        t=saved['config']['tools'][tool]
+        if t['maintenance_lockout'] or not t['dock_reference_accepted']:
+            raise NativeError('Destination dock not calibrated or in maintenance lockout')
+    if store.read()['revision']!=expected_revision:
+        raise NativeError('Dock coordinates changed; refresh before toolchange')
+    _rpc('/printer/gcode/script',{'script':'CXM_SELECT_TOOL TOOL='+str(tool)})
+    after,_,after_sensor=_native_status()
+    if (after.get('ready')!=1 or after.get('fault')!=0
+        or after.get('current_tool')!=tool or
+        after_sensor!=('RELEASED' if tool==-1 else 'PRESSED')):
+        raise NativeError('Toolchange outcome not confirmed; inspect carriage before retrying')
+    return {'changed':True,'current_tool':tool,'sensor':after_sensor}
 
 def select(store,tool,expected_revision):
     saved=store.read()

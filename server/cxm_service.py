@@ -16,7 +16,8 @@ from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
 from cxm_manual import status as manual_status, jog as manual_jog, capture as manual_capture, ManualDockError
 from cxm_native import (status as multi_status, start as multi_start,
                         stop as multi_stop, sync as native_sync,
-                        select as native_select, calibration_release as native_calibration_release,
+                        select as native_select, simple_change as native_simple_change,
+                        calibration_release as native_calibration_release,
                         confirm_empty as native_confirm_empty,
                         recover_empty as native_recover_empty, initialize as native_initialize,
                         invalidate_for_config_edit as native_invalidate,
@@ -163,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
                 return
             if self.path == '/v1/native/initialize':
@@ -196,6 +197,15 @@ class Handler(BaseHTTPRequestHandler):
                 if set(body)!={'tool','expected_revision','acknowledgement'} or body['acknowledgement']!='I_CONFIRMED_SELECTED_HOTEND_IDENTITY_AND_FULL_XY_PATH_CLEAR':
                     raise NativeError('Explicit tool identity and full XY path approval required')
                 self.output(200,native_select(self.server.store,body['tool'],body['expected_revision']))
+                return
+            if self.path == '/v1/native/simple-change':
+                if set(body)!={'tool','mounted_tool','expected_revision'}:
+                    raise ValueError('Choose tool, current mounted tool, and revision')
+                if not printer_safe():
+                    raise NativeError('Printer not idle; toolchange blocked')
+                self.output(200,native_simple_change(
+                    self.server.store,body['tool'],body['expected_revision'],
+                    mounted_tool=body['mounted_tool']))
                 return
             if self.path == '/v1/native/calibration-release':
                 if set(body)!={'tool','expected_revision','acknowledgement'}:

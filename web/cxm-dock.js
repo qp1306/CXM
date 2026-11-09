@@ -320,6 +320,7 @@
       }
     }
   }
+  window.addEventListener('cxm-dock-save-completed',()=>load());
   get('cxmDockRefresh').addEventListener('click',load);
   get('cxmDockMigrate').addEventListener('click',migrate);
   get('cxmDockTool').addEventListener('change',e => {

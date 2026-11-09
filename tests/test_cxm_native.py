@@ -87,6 +87,65 @@ class NativeBridgeTests(unittest.TestCase):
         self.assertIn('VARIABLE=ready VALUE=0',scripts[0])
         self.assertIn('VARIABLE=current_tool VALUE=-2',scripts[0])
 
+    def test_mounted_fault_latched_selected_tool_can_save_without_motion(self):
+        scripts=[]
+        states=[
+            {'ready':1,'fault':1,'current_tool':0},
+            {'ready':0,'fault':1,'current_tool':-2}]
+        def rpc(path,body=None,**kwargs):
+            if path.startswith('/printer/objects/query?'):
+                st=states[min(len(scripts),1)]
+                return {'status':{
+                    'gcode_macro _CXM_NATIVE':{'protocol':2,**st},
+                    'gcode_macro _CXM_TEST_STATE':{'running':0,'state':'idle'},
+                    'gcode_button cxm_tool_detect':{'state':'PRESSED'}}}
+            if path=='/printer/gcode/script':
+                scripts.append(body['script'])
+                return {'ok':True}
+            raise AssertionError(path)
+        with patch.object(native,'_rpc',side_effect=rpc), \
+             patch('cxm_manual.status',return_value={'ready':True}):
+            reply=native.invalidate_for_config_edit(
+                permit_mounted_provisional_dock=True,store=self.store,tool=0)
+        self.assertTrue(reply['invalidated'])
+        self.assertEqual(len(scripts),1)
+        self.assertNotIn('G1 ',scripts[0])
+
+    def test_simple_unload_initializes_unknown_mounted_tool_then_dispatches(self):
+        commands=[]
+        native_states=[
+            {'ready':0,'fault':1,'current_tool':-2},
+            {'ready':1,'fault':0,'current_tool':-1}]
+        def rpc(path,body=None,**kwargs):
+            if path.startswith('/printer/objects/query?'):
+                st=native_states[min(len(commands),1)]
+                return {'status':{
+                    'gcode_macro _CXM_NATIVE':{'protocol':2,**st},
+                    'gcode_macro _CXM_TEST_STATE':{'running':0},
+                    'gcode_button cxm_tool_detect':{'state':'PRESSED' if not commands else 'RELEASED'}}}
+            if path=='/printer/gcode/script':
+                commands.append(body['script'])
+                return {}
+            raise AssertionError(path)
+        with patch.object(native,'_rpc',side_effect=rpc), \
+             patch.object(native,'initialize',return_value={'ready':True}) as init:
+            reply=native.simple_change(self.store,-1,'rev1',mounted_tool=0)
+        init.assert_called_once_with(self.store,'rev1',0)
+        self.assertEqual(commands,['CXM_SELECT_TOOL TOOL=-1'])
+        self.assertTrue(reply['changed'])
+
+    def test_simple_unload_rejects_unknown_mounted_sensor_identity_mismatch(self):
+        def rpc(path,body=None,**kwargs):
+            if path.startswith('/printer/objects/query?'):
+                return {'status':{
+                    'gcode_macro _CXM_NATIVE':{'protocol':2,'ready':0,'fault':1,'current_tool':-2},
+                    'gcode_macro _CXM_TEST_STATE':{'running':0},
+                    'gcode_button cxm_tool_detect':{'state':'RELEASED'}}}
+            raise AssertionError(path)
+        with patch.object(native,'_rpc',side_effect=rpc):
+            with self.assertRaisesRegex(native.NativeError,'sensor'):
+                native.simple_change(self.store,-1,'rev1',mounted_tool=0)
+
     def test_ready_mounted_invalidation_must_be_confirmed(self):
         scripts=[]
         def rpc(path,body=None,**kwargs):
@@ -107,7 +166,7 @@ class NativeBridgeTests(unittest.TestCase):
         self.assertEqual(len(scripts),1)
 
     def test_mounted_save_rejects_native_active_or_conflicting_identity(self):
-        for ready,fault,identity in ((1,0,-2),(0,1,0),(1,1,-2)):
+        for ready,fault,identity in ((1,0,1),(0,1,1),(1,1,1)):
             def rpc(path,body=None,**kwargs):
                 return {'status':{
                     'gcode_macro _CXM_NATIVE':{'protocol':2,'ready':ready,'fault':fault,'current_tool':identity},

@@ -26,7 +26,8 @@ test('single operator declaration replaces repetitive readiness checkbox flow',(
  assert.match(multi,/nativePost\('initialize'/);
  assert.match(multi,/carriage_tool:tool/);
  assert.match(multi,/\$\('cxmMultiStart'\)\.disabled=!ready;/);
- assert.match(native,/const approved=true/);
+ assert.match(native,/post\('simple-change'/);
+ assert.match(native,/mounted_tool:mounted/);
 });
 
 test('high-speed profiles exposed with one-cycle limiter',()=>{
@@ -58,8 +59,8 @@ test('custom speed limits increase without dropping native safety checks',()=>{
 
 test('selected hotend UI only requests named Klipper macros through native API',()=>{
  assert.match(native,/api\+'native\/status'/);
- assert.match(native,/post\('select'/);
- assert.match(native,/I_CONFIRMED_SELECTED_HOTEND_IDENTITY_AND_FULL_XY_PATH_CLEAR/);
+ assert.match(native,/post\('simple-change'/);
+ assert.match(native,/expected_revision:state.revision/);
  assert.match(native,/cxmNativeToolAck/);
  assert.match(native,/current>=-1/);
  assert.doesNotMatch(native,/\/printer\/gcode\/script|\bG1 [XYZ]|\bG0 [XYZ]/);

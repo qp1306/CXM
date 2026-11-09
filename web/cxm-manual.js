@@ -20,7 +20,7 @@ async function request(path,body){
 function controls(){
   const allowed=!busy&&live?.ready&&tool===selected()&&config?.revision===live?.revision;
   for(const button of root.querySelectorAll('[data-manual-axis]'))button.disabled=!allowed||!el('cxmManualApproval').checked;
-  el('cxmManualCapture').disabled=!allowed||!el('cxmManualCaptureAck').checked;
+  el('cxmManualCapture').disabled=!allowed;
   el('cxmManualRefresh').disabled=busy;
 }
 async function refresh(silent=false){
@@ -75,21 +75,34 @@ async function jog(button){
   }finally{busy=false;controls();}
 }
 async function capture(){
-  if(busy||!live?.ready||!el('cxmManualCaptureAck').checked)return;
-  busy=true;controls();
-  try{
-    const result=await request('/manual/capture',{
-      tool,expected_revision:live.revision,
-      acknowledgement:'I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON'});
-    if(!result.captured||result.tool!==selected()||result.expected_revision!==live.revision)
-      throw Error('Capture tool/revision mismatch');
-    window.dispatchEvent(new CustomEvent('cxm-dock-provisional-xy',{
-      detail:{tool,x:result.xy.x,y:result.xy.y,source:'motor-on-capture'}}));
-    el('cxmManualCaptureAck').checked=false;
-    say('Captured T'+tool+' X'+result.xy.x.toFixed(3)+' Y'+result.xy.y.toFixed(3)+
-      '. Review draft below, save, then verify one slow native pickup/dropoff.');
-  }catch(e){say('Capture failed: '+e.message,true);}
-  finally{busy=false;controls();}
+ if(busy||!live?.ready)return;
+ busy=true;controls();
+ say('Capturing and saving dock T'+tool+'…');
+ try{
+   const result=await request('/manual/capture',{
+     tool,expected_revision:live.revision,
+     acknowledgement:'I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON'});
+   if(!result.captured||result.tool!==selected()||result.expected_revision!==live.revision)
+     throw Error('Captured position or config revision changed');
+   const saved=await request('/dock',{
+     tool,xy:result.xy,expected_revision:result.expected_revision});
+   if(!saved.saved)throw Error('Configuration store did not confirm save');
+   const check=await request('/config');
+   const actual=check.config.tools[tool];
+   if(actual.dock_x!==result.xy.x||actual.dock_y!==result.xy.y)
+     throw Error('Saved XY does not match measured coordinates');
+   config=check;
+   live=null;
+   window.dispatchEvent(new CustomEvent('cxm-dock-save-completed',{
+     detail:{tool,x:actual.dock_x,y:actual.dock_y}}));
+   say('SAVED T'+tool+' · X'+actual.dock_x.toFixed(3)+
+     ' Y'+actual.dock_y.toFixed(3)+' mm. Backup created. Select LOAD or UNLOAD on Tools.');
+ }catch(e){
+   say('Save not confirmed: '+e.message+
+     '. No new motion was requested. Refresh before retrying.',true);
+ }finally{
+   busy=false;controls();refresh(true);
+ }
 }
 root.querySelectorAll('[data-manual-axis]').forEach(b=>b.addEventListener('click',()=>jog(b)));
 el('cxmManualRefresh').addEventListener('click',()=>refresh(false));
