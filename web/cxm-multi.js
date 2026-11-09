@@ -78,6 +78,7 @@ function chooseControls(){
  $('cxmNativeSync').disabled=requestBusy||running;
  $('cxmNativeEmptyAck').disabled=requestBusy||running;
  $('cxmNativeConfirm').disabled=requestBusy||running||!$('cxmNativeEmptyAck').checked||current?.native_ready!==true;
+ $('cxmNativeRecover').disabled=requestBusy||!$('cxmNativeEmptyAck').checked||current?.native_ready!==true||current?.sensor!=='RELEASED';
  text('cxmMultiStart',running?'Cycle test running…':
    'Start '+(cycles===null?'—':cycles)+' '+(cycles===1?'cycle':'cycles'));
  $('cxmMultiPanel').setAttribute('aria-busy',requestBusy?'true':'false');
@@ -301,6 +302,18 @@ async function confirmNativeEmpty(){
  }catch(e){text('cxmNativeStatus','CONFIRM BLOCKED: '+e.message);}
  finally{requestBusy=false;await refresh();}
 }
+async function recoverNativeEmpty(){
+ if(requestBusy||!$('cxmNativeEmptyAck').checked||current?.sensor!=='RELEASED')return;
+ requestBusy=true;chooseControls();
+ try{
+   await nativePost('recover-empty',{acknowledgement:'I_INSPECTED_ALL_DOCKS_AND_CONFIRMED_PHYSICALLY_EMPTY'});
+   $('cxmNativeEmptyAck').checked=false;
+   text('cxmNativeStatus','Inspected EMPTY recovery complete. Recheck all dock seating and live status.');
+   lastError='';
+ }catch(e){text('cxmNativeStatus','RECOVERY BLOCKED: '+e.message);}
+ finally{requestBusy=false;await refresh();}
+}
+$('cxmNativeRecover').addEventListener('click',recoverNativeEmpty);
 $('cxmNativeEmptyAck').addEventListener('change',chooseControls);
 $('cxmNativeSync').addEventListener('click',synchronizeNative);
 $('cxmNativeConfirm').addEventListener('click',confirmNativeEmpty);
