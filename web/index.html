@@ -241,6 +241,16 @@
 .cxm-t0-auto-buttons .btn{min-height:54px}.cxm-advanced>summary{padding:10px 2px}
 @media(max-width:600px){main{padding:17px 13px 45px}.panel{padding:15px}.tabs .tab{padding:12px 11px}.cxm-step{padding:13px}.cxm-capture-ack,.cxm-lineux-live .cxm-capture-ack{padding:13px;gap:12px}.cxm-approval-copy strong{font-size:16px}.cxm-approval-copy small{font-size:12px}.cxm-step .btn.primary{width:100%}}
 [data-retired-python-control="true"]{display:none!important}
+</style><style>
+.cxm-simple-setup,.cxm-simple-profile{display:block;background:#1b3040;border:1px solid #416481;border-radius:12px;padding:16px;margin:12px 0}
+.cxm-simple-setup strong,.cxm-simple-profile strong{font-size:17px}
+.cxm-simple-setup select,.cxm-simple-profile select{background:#182432;border:1px solid #6486a3;color:#fff;border-radius:9px;padding:12px;font-size:16px;min-width:220px}
+.cxm-simple-setup .buttons{display:flex;gap:10px;margin:12px 0;flex-wrap:wrap}
+#cxmMultiFastTransfer,#cxmMultiPerformance,#cxmMultiSprint,#cxmMultiRace,#cxmMultiBoost{display:none}
+#cxmNativeToolAck{display:none!important}
+.cxm-capture-ack:has(#cxmNativeToolAck){display:none!important}
+label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmMultiPerformance),label.cxm-multi-speed:has(#cxmMultiSprint),label.cxm-multi-speed:has(#cxmMultiRace),label.cxm-multi-speed:has(#cxmMultiBoost){display:none!important}
+#cxmNativeSync,#cxmNativeConfirm,#cxmNativeRecover,#cxmMultiRefresh,#cxmMultiApproval,.cxm-capture-ack:has(#cxmNativeEmptyAck){display:none!important}
 </style></head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
@@ -254,6 +264,17 @@
 <div class="panel" id="cxmNativeToolPanel">
  <div class="panel-heading"><h3>Klipper-native tool control</h3><span class="panel-label">CXM_SELECT_TOOL · T0–T11 · XY only</span></div>
  <p class="helper">Dock XY measurement remains in Dock Calibration. Klipper controls pickup and release using the accepted geometry and carriage-switch interlocks.</p>
+<div class="cxm-simple-setup">
+ <label for="cxmCarriageIdentity"><strong>What is currently fitted to the carriage?</strong></label>
+ <div class="buttons">
+  <select id="cxmCarriageIdentity" aria-label="Current physically inspected carriage identity">
+   <option value="">Choose EMPTY or mounted tool</option>
+   <option value="-1">EMPTY — no hotend fitted</option>
+  </select>
+  <button class="btn primary" id="cxmDeclareCarriage">Set carriage state</button>
+ </div>
+ <p class="helper">This is your one physical declaration. Klipper checks the sensor, synchronises saved XY if needed and automatically raises Z to 25 mm when homed and safe. No repeated approval boxes.</p>
+</div>
  <div class="buttons">
   <label for="cxmNativeSelectedTool">Target hotend <select id="cxmNativeSelectedTool"><option value="">Choose a hotend</option></select></label>
  </div>
@@ -268,8 +289,11 @@
 </div>
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
  <div class="panel-heading"><h3>Native Klipper toolchange test</h3><span class="panel-label">CXM_SELECT_TOOL · supervised XY mechanical testing</span></div>
- <p class="helper">Pick up and drop off each selected dock-calibrated hotend once per complete cycle, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating, extrusion or Z moves. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
- <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
+ <p class="helper">Pick up and drop off each selected dock-calibrated hotend once per complete cycle, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating or extrusion. Z is automatically raised to 25 mm during verified carriage setup when needed. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
+ 
+<label class="cxm-simple-profile" for="cxmSpeedSimple"><strong>Movement speed</strong>
+<select id="cxmSpeedSimple"><option value="standard">Standard · 10 / 4 / 3 mm/s</option><option value="faster">Faster · 30 / 4 / 3 mm/s</option><option value="performance">Performance · 80 / 8 / 3 mm/s</option></select></label>
+<div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
  <label class="cxm-multi-repeat" for="cxmMultiRepeats">
   <span><strong>Repeat complete tool cycles</strong><small id="cxmMultiRepeatHelp">One cycle = each selected hotend picked up and dropped off once. Set 1–20 for T0/T1/T2. Maximum 240 movements per run.</small></span>
   <input type="number" id="cxmMultiRepeats" min="1" max="20" step="1" value="1" inputmode="numeric" aria-label="Number of complete tool cycles">
@@ -888,8 +912,8 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-lineux.js?v=0.9.14" defer></script>
 
 
-<script src="cxm-multi.js?v=1.0.0" defer></script>
-<script src="cxm-native-control.js?v=1.0.0" defer></script>
+<script src="cxm-multi.js?v=1.1.0" defer></script>
+<script src="cxm-native-control.js?v=1.1.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>

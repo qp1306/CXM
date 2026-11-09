@@ -20,7 +20,7 @@ def _native_status():
     native=result.get('gcode_macro _CXM_NATIVE',{})
     test=result.get('gcode_macro _CXM_TEST_STATE',{})
     signal=result.get('gcode_button cxm_tool_detect',{}).get('state')
-    if native.get('protocol')!=1 or not test:
+    if native.get('protocol') not in (1,2) or not test:
         raise NativeError('Install and load CXM native Klipper macro before using toolchanges')
     return native,test,signal
 
@@ -58,6 +58,7 @@ def status(store):
             'current_cycle':test.get('completed',0)+1 if running else None,
             'current_action':'native_macro_pair' if running else None,
             'stop_requested':bool(test.get('stop')),
+            'native_protocol':native.get('protocol'),
             'current_tool':native.get('current_tool'),
             'sensor':signal,'native_ready':bool(native.get('ready')),
             'fault':native.get('fault'),
@@ -65,7 +66,7 @@ def status(store):
             'error':None,'results':[],
             'revision':store.read()['revision']}
 
-def sync(store,expected_revision):
+def sync(store,expected_revision,*,declared_tool=None):
     """Explicit idle-only runtime geometry synchronization; invalidates tool state."""
     saved=store.read()
     if saved['migration_required'] or saved['revision']!=expected_revision:
@@ -74,8 +75,14 @@ def sync(store,expected_revision):
     if test.get('running')==1:
         raise NativeError('Cannot change geometry during a running native tool test')
     # Never silently resynchronize while a physical hotend may be attached.
-    if signal!='RELEASED' or native.get('current_tool') not in (-2,-1):
-        raise NativeError('Physically inspect and clear carriage before geometry synchronization')
+    if type(declared_tool) is not int or declared_tool < -1 or declared_tool >= saved['config']['globals']['tool_count']:
+        if declared_tool is not None:
+            raise NativeError('Invalid declared carriage identity')
+    expected='RELEASED' if declared_tool in (None,-1) else 'PRESSED'
+    if signal!=expected:
+        raise NativeError('Carriage sensor disagrees with declared physical identity; do not retry blindly')
+    if native.get('current_tool') not in (-2,-1,declared_tool):
+        raise NativeError('Existing known mounted tool differs; refuse to overwrite identity')
     if not MOVE_LOCK.acquire(blocking=False):
         raise NativeError('CXM calibration or motion operation already running')
     try:
@@ -120,6 +127,32 @@ def sync(store,expected_revision):
                 'note':'No XY motion. Klipper-native tool identity intentionally invalidated.'}
     finally:
         MOVE_LOCK.release()
+
+def initialize(store,expected_revision,carriage_tool):
+    """One explicit declaration. Sync if needed, then Klipper verifies and lifts Z safely."""
+    if type(carriage_tool) is not int or not -1<=carriage_tool<store.read()['config']['globals']['tool_count']:
+        raise NativeError('Choose EMPTY or a configured tool number')
+    if store.read()['revision']!=expected_revision:
+        raise NativeError('CXM calibration changed; reload tools before declaring the carriage')
+    native,test,signal=_native_status()
+    if native.get('protocol')!=2:
+        raise NativeError('Install the updated CXM native Klipper macro and restart Klipper before using one-click setup')
+    if test.get('running'):
+        raise NativeError('Tool cycle still running; inspect and stop before declaring tool identity')
+    if signal!=('RELEASED' if carriage_tool==-1 else 'PRESSED'):
+        raise NativeError('Physical carriage sensor disagrees: '+('EMPTY needs RELEASED' if carriage_tool==-1 else 'mounted T'+str(carriage_tool)+' needs PRESSED'))
+    if carriage_tool>=0:
+        tool=store.read()['config']['tools'][carriage_tool]
+        if tool['maintenance_lockout'] or not tool['dock_reference_accepted']:
+            raise NativeError('Declared mounted tool is not an accepted, unlocked dock')
+    if native.get('ready')!=1:
+        sync(store,expected_revision,declared_tool=carriage_tool)
+    _rpc('/printer/gcode/script',{'script':'CXM_DECLARE_CARRIAGE TOOL='+str(carriage_tool)})
+    after,_,sensor=_native_status()
+    if after.get('ready')!=1 or after.get('fault')!=0 or after.get('current_tool')!=carriage_tool or sensor!=('RELEASED' if carriage_tool==-1 else 'PRESSED'):
+        raise NativeError('Carriage declaration not verified; inspect machine before any toolchange')
+    return {'ready':True,'current_tool':carriage_tool,'sensor':sensor,
+            'note':'Geometry and carriage identity checked; Klipper raises Z to 25 mm only if needed and safe'}
 
 def invalidate_for_config_edit():
     """No movement. Invalidate previous Klipper geometry BEFORE on-disk changes."""

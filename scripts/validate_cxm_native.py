@@ -58,6 +58,22 @@ def check():
     assert pickup.index('G1 Y{safe}') < pickup.index('G1 X{x}')
     test_start=blocks['CXM_TEST_START']
     assert 'printer.toolhead.position.y|float < ([y_a,y_b,y_c]|max) - 1.0' in test_start
+    assert '_CXM_PREPARE_CLEARANCE' in blocks
+    assert 'CXM_DECLARE_CARRIAGE' in blocks
+    lift=blocks['_CXM_PREPARE_CLEARANCE']
+    assert 'XYZ not homed; automatic clearance lift refused' in lift
+    assert 'carriage sensor disagrees' in lift
+    assert 'G1 Z25 F600' in lift
+    assert lift.index('G1 Z25 F600') < lift.index('CXM_FAST_VERIFY EXPECT={expected}')
+    declare=blocks['CXM_DECLARE_CARRIAGE']
+    assert declare.count('CXM_FAST_VERIFY EXPECT=RELEASED') == 4
+    assert declare.count('CXM_FAST_VERIFY EXPECT=PRESSED') == 4
+    assert 'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE={t}' in declare
+    assert 'CXM_DECLARE_CARRIAGE TOOL=-1' in blocks['CXM_CONFIRM_EMPTY']
+    service=(ROOT/'server/cxm_service.py').read_text('utf8')
+    assert "'/v1/native/initialize'" in service
+    native=(ROOT/'server/cxm_native.py').read_text('utf8')
+    assert 'def initialize(store,expected_revision,carriage_tool):' in native
     verify=blocks['_CXM_VERIFY']
     assert verify.count('CXM_FAST_VERIFY EXPECT={expect}')==4
     assert blocks['CXM_SELECT_TOOL'].count('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=1')==2

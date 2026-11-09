@@ -24,14 +24,14 @@ async function post(action,body){
 }
 function controls(){
  const target=Number($('cxmNativeSelectedTool').value);
- const approved=$('cxmNativeToolAck').checked;
+ const approved=true;
  const eligible=state?.candidates?.some(t=>t.tool===target&&t.eligible);
  const ready=state?.native_ready===true&&state?.fault===0&&!state?.running;
  const current=state?.current_tool;
  const canPickup=ready&&eligible&&$('cxmNativeSelectedTool').value!==''&&Number.isInteger(target)&&current>=-1&&current!==target;
  const canUnload=ready&&Number.isInteger(current)&&current>=0;
- $('cxmNativeSelect').disabled=busy||!approved||!canPickup;
- $('cxmNativeUnload').disabled=busy||!approved||!canUnload;
+ $('cxmNativeSelect').disabled=busy||!canPickup;
+ $('cxmNativeUnload').disabled=busy||!canUnload;
  $('cxmNativeSelectedTool').disabled=busy||state?.running===true;
  $('cxmNativeToolAck').disabled=busy||!ready||(!canPickup&&!canUnload);
  text('cxmNativeSelect',current>=0&&current!==target?'Change to T'+target:'Pick up T'+(Number.isInteger(target)?target:'—'));
@@ -75,7 +75,7 @@ async function refresh(){
  }
 }
 async function selectTool(tool){
- if(busy||!state||!$('cxmNativeToolAck').checked)return;
+ if(busy||!state)return;
  const revision=state.revision;
  busy=true;$('cxmNativeToolAck').checked=false;controls();
  text('cxmNativeToolStatus','Submitting CXM_SELECT_TOOL TOOL='+tool+' · supervise the physical machine.');
