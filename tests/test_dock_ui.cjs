@@ -67,7 +67,7 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
 test('manual motor-on calibration is gated and preserves independent save',()=>{
  const manual=fs.readFileSync(path.join(__dirname,'../web/cxm-manual.js'),'utf8');
  assert.match(html,/<h3>Manual dock alignment<\/h3>/);
- assert.match(html,/cxm-manual\.js\?v=1\.0\.1/);
+ assert.match(html,/cxm-manual\.js\?v=1\.0\.2/);
  for(const id of ['cxmManualApproval','cxmManualStep','cxmManualCapture',
                   'cxmManualReadiness','cxmManualCaptureAck','cxmManualFeedback',
                   'cxmManualX','cxmManualY','cxmManualSensor'])

@@ -23,22 +23,34 @@ function controls(){
   el('cxmManualCapture').disabled=!allowed||!el('cxmManualCaptureAck').checked;
   el('cxmManualRefresh').disabled=busy;
 }
-async function refresh(){
+async function refresh(silent=false){
   if(busy)return;
   busy=true;controls();
+  const previous=live,oldTool=tool,oldRevision=config?.revision;
   try{
-    config=await request('/config');
-    tool=selected();live=await request('/manual/status?tool='+tool);
+    const latestConfig=await request('/config');
+    const selectedTool=selected();
+    const latest=await request('/manual/status?tool='+selectedTool);
+    // An identity/config change revokes the previous operator approval.
+    if((oldTool>=0&&selectedTool!==oldTool) ||
+       (oldRevision&&oldRevision!==latestConfig.revision) ||
+       (previous&&previous.native_tool_identity!==latest.native_tool_identity)) {
+      el('cxmManualApproval').checked=false;
+      el('cxmManualCaptureAck').checked=false;
+    }
+    config=latestConfig;tool=selectedTool;live=latest;
     el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
     el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
     el('cxmManualZ').textContent=live.z.toFixed(2)+' mm';
     el('cxmManualSensor').textContent=live.sensor;
     el('cxmManualReadiness').textContent='READY · T'+tool+' selected by operator · XYZ homed · motors on · hotend MOUNTED';
-    say('READY: sensor confirms MOUNTED, not tool identity. Verify the mounted hotend is physically T'+tool+' before approving any jog.');
+    if(!silent) say('READY: sensor confirms MOUNTED, not tool identity. Verify the mounted hotend is physically T'+tool+' before approving any jog.');
   }catch(e){
     live=null;
+    el('cxmManualApproval').checked=false;
+    el('cxmManualCaptureAck').checked=false;
     el('cxmManualReadiness').textContent='NOT READY · '+e.message;
-    say('Jog/capture blocked: '+e.message,true);
+    say('Jog/capture blocked: '+e.message+'. Inspect and refresh after restoring safe state.',true);
   }finally{busy=false;controls();}
 }
 async function jog(button){
@@ -80,7 +92,7 @@ async function capture(){
   finally{busy=false;controls();}
 }
 root.querySelectorAll('[data-manual-axis]').forEach(b=>b.addEventListener('click',()=>jog(b)));
-el('cxmManualRefresh').addEventListener('click',refresh);
+el('cxmManualRefresh').addEventListener('click',()=>refresh(false));
 el('cxmManualCapture').addEventListener('click',capture);
 el('cxmManualApproval').addEventListener('change',controls);
 el('cxmManualCaptureAck').addEventListener('change',controls);
@@ -91,5 +103,12 @@ el('cxmDockTool').addEventListener('change',()=>{
 });
 window.addEventListener('cxm-dock-saved',()=>{live=null;refresh();});
 window.addEventListener('cxm-config-migrated',()=>{live=null;refresh();});
-setTimeout(refresh,400);
+// Read-only Klipper position/state refresh, not a movement command. Do not poll
+// while a jog/capture is in flight; any failed preflight revokes approval.
+setInterval(()=>{
+  if(!busy && document.visibilityState!=='hidden' &&
+     !document.querySelector('[data-panel="calibration"]')?.hidden)
+    refresh(true);
+},1500);
+setTimeout(()=>refresh(false),400);
 })();

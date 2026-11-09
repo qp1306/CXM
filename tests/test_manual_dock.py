@@ -54,6 +54,54 @@ class ManualDockTests(unittest.TestCase):
         self.assertAlmostEqual(d['position']['x'],309.5)
         self.assertIn('SAVE_GCODE_STATE NAME=CXM_MANUAL_JOG',self.command_log[0])
         self.assertIn('RESTORE_GCODE_STATE NAME=CXM_MANUAL_JOG MOVE=0',self.command_log[0])
+    def test_transient_post_jog_busy_settles_without_repeat_motion(self):
+        original=m._check
+        calls=[0]
+        def check(*args):
+            calls[0]+=1
+            if calls[0] in (2,3):
+                raise m.ManualDockError('Printer is busy; manual dock motion disabled')
+            return original(*args)
+        with patch.object(m,'_check',side_effect=check),patch.object(m.time,'sleep'):
+            result=m.jog(tool=0,axis='x',distance=0.1,expected_revision='a'*64,
+                acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG',store=self.store)
+        self.assertTrue(result['jogged'])
+        self.assertEqual(len(self.command_log),1)
+        self.assertEqual(calls[0],4)
+    def test_busy_before_jog_is_not_retried_or_moved(self):
+        self.state['idle_timeout']['state']='Printing'
+        with self.assertRaisesRegex(m.ManualDockError,'Printer is busy'):
+            m.jog(tool=0,axis='x',distance=0.1,expected_revision='a'*64,
+                  acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG',store=self.store)
+        self.assertEqual(self.command_log,[])
+    def test_transient_post_capture_busy_settles_without_repeat_capture(self):
+        original=m._check
+        calls=[0]
+        def check(*args):
+            calls[0]+=1
+            if calls[0]==2:
+                raise m.ManualDockError('Printer is busy; manual dock motion disabled')
+            return original(*args)
+        with patch.object(m,'_check',side_effect=check),patch.object(m.time,'sleep'):
+            result=m.capture(tool=0,expected_revision='a'*64,
+                acknowledgement='I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON',store=self.store)
+        self.assertTrue(result['captured'])
+        self.assertEqual(self.command_log,['M400'])
+    def test_nonbusy_sensor_fault_after_jog_never_retries(self):
+        original=m._check
+        calls=[0]
+        def check(*args):
+            calls[0]+=1
+            if calls[0]==2:
+                self.state['gcode_button cxm_tool_detect']['state']='RELEASED'
+            return original(*args)
+        with patch.object(m,'_check',side_effect=check):
+            with self.assertRaisesRegex(m.ManualDockError,'MOUNTED hotend'):
+                m.jog(tool=0,axis='x',distance=0.1,expected_revision='a'*64,
+                      acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG',store=self.store)
+        self.assertEqual(len(self.command_log),1)
+        self.assertEqual(calls[0],2)
+
     def test_no_motion_when_carriage_empty(self):
         self.state['gcode_button cxm_tool_detect']['state']='RELEASED'
         with self.assertRaisesRegex(m.ManualDockError,'requires a MOUNTED hotend'):

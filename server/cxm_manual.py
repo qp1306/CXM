@@ -4,6 +4,7 @@ No motor release, automatic search, calibration homing, Lineux, or pickup motion
 Only the existing native CxChanger Klipper macros perform tool changes.
 """
 import math
+import time
 import urllib.parse
 
 from cxm_runtime import MOVE_LOCK, _rpc
@@ -73,6 +74,26 @@ def _check(tool, saved):
             'sensor':'PRESSED','identity_source':'operator_selected',
             'native_tool_identity':identity,'revision':saved['revision'],'ready':True}
 
+def _check_after_own_command(tool, store):
+    """Wait for Klipper's transient idle_timeout=Printing after our own M400.
+
+    This is ONLY used after a successfully submitted manual jog/capture command.
+    Do not send another movement while waiting. Revalidate all other guards
+    on every sample. Fail closed after a short bounded deadline.
+    """
+    deadline=time.monotonic()+3.0
+    while True:
+        try:
+            return _check(tool,store.read())
+        except ManualDockError as exc:
+            if str(exc)!='Printer is busy; manual dock motion disabled':
+                raise
+            if time.monotonic()>=deadline:
+                raise ManualDockError(
+                    'Klipper did not return to idle after commanded movement; '
+                    'motion result uncertain. Inspect before retrying') from exc
+            time.sleep(0.15)
+
 def status(tool,store):
     return _check(tool,store.read())
 
@@ -98,7 +119,7 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
                  'G91\nG1 '+axis.upper()+('%.4f'%distance)+' F300\n'
                  'M400\nRESTORE_GCODE_STATE NAME=CXM_MANUAL_JOG MOVE=0')
         _rpc('/printer/gcode/script',{'script':command})
-        after=_check(tool,store.read())
+        after=_check_after_own_command(tool,store)
         if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:
             raise ManualDockError('Carriage state changed during jog; inspect printer')
         if abs(after['xy'][axis]-next_value)>0.08:
@@ -117,7 +138,7 @@ def capture(*,tool,expected_revision,acknowledgement,store):
         if expected_revision!=before['revision']:
             raise ManualDockError('Settings changed; refresh before capture')
         _rpc('/printer/gcode/script',{'script':'M400'})
-        after=_check(tool,store.read())
+        after=_check_after_own_command(tool,store)
         if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:
             raise ManualDockError('Mounted carriage state changed during capture')
         if after['revision']!=before['revision']:
