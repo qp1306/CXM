@@ -26,11 +26,7 @@ function repeatCount(){
  return Number.isSafeInteger(count)&&count<=repeatMaximum()?count:null;
 }
 function selectedProfile(){
- return $('cxmMultiBoost').checked?'boost':
-   $('cxmMultiRace').checked?'race':
-   $('cxmMultiSprint').checked?'sprint':
-   $('cxmMultiPerformance').checked?'performance':
-   $('cxmMultiFastTransfer').checked?'faster':'standard';
+ return $('cxmSpeedSimple').value;
 }
 function selectedMode(){return 'native';}
 function profileLabel(profile){
@@ -63,7 +59,7 @@ function chooseControls(){
    current?.native_ready===true&&current?.current_tool===-1&&current?.fault===0&&!!current?.revision;
  $('cxmMultiAck').disabled=!ready;
  if(!ready)$('cxmMultiAck').checked=false;
- $('cxmMultiStart').disabled=!ready||!$('cxmMultiAck').checked;
+ $('cxmMultiStart').disabled=!ready;
  $('cxmMultiStop').disabled=!running||current?.stop_requested===true||requestBusy;
  text('cxmMultiStop','Stop after current tool');
  $('cxmMultiRefresh').disabled=requestBusy;
@@ -205,6 +201,15 @@ async function refresh(){
    }
    snapshotRevision=next.revision;
    current=next;
+   const carrier=$('cxmCarriageIdentity');
+   if(carrier.options.length!==next.candidates.length+2){
+     const prev=carrier.value;
+     carrier.replaceChildren(new Option('Choose EMPTY or mounted tool',''),new Option('EMPTY — no hotend fitted','-1'));
+     for(const t of next.candidates){
+       carrier.append(new Option('T'+t.tool+(t.eligible?'':' · not calibrated'),String(t.tool)));
+     }
+     carrier.value=prev;
+   }
    text('cxmNativeStatus',next.native_ready&&next.fault===0&&next.current_tool===-1
      ?'Native Klipper READY · carriage confirmed EMPTY'
      :next.native_ready?'Native geometry synced · EMPTY confirmation or recovery required'
@@ -223,7 +228,7 @@ async function refresh(){
  }finally{polling=false;}
 }
 async function start(){
- if(requestBusy||!current||current.running||!$('cxmMultiAck').checked)return;
+ if(requestBusy||!current||current.running)return;
  const list=selection();
  if(list.length<2||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
  const cycles=repeatCount();
@@ -313,6 +318,38 @@ async function recoverNativeEmpty(){
  }catch(e){text('cxmNativeStatus','RECOVERY BLOCKED: '+e.message);}
  finally{requestBusy=false;await refresh();}
 }
+async function setCarriageState(){
+ if(requestBusy||!current||current.running)return;
+ const value=$('cxmCarriageIdentity').value;
+ if(value===''||!(/^-?(?:0|[1-9][0-9]*)$/.test(value))){
+   lastError='Select EMPTY or the actual fitted tool number first.';
+   text('cxmMultiStatus',lastError);return;
+ }
+ const tool=Number(value);
+ if(!Number.isInteger(tool)||tool<-1||tool>=current.candidates.length){
+   lastError='Invalid fitted tool number';text('cxmMultiStatus',lastError);return;
+ }
+ requestBusy=true;chooseControls();
+ $('cxmDeclareCarriage').disabled=true;
+ text('cxmNativeStatus','Checking declared carriage and preparing Z clearance automatically…');
+ try{
+   const result=await nativePost('initialize',{expected_revision:current.revision,carriage_tool:tool});
+   if(!result.ready)throw Error('Klipper did not verify carriage state');
+   lastError='';
+ }catch(e){
+   lastError='CARRIAGE NOT READY: '+e.message;
+ }finally{
+   requestBusy=false;
+   $('cxmDeclareCarriage').disabled=false;
+   await refresh();
+   if(lastError)text('cxmMultiStatus',lastError);
+ }
+}
+$('cxmDeclareCarriage').addEventListener('click',setCarriageState);
+$('cxmSpeedSimple').addEventListener('change',()=>{
+ $('cxmMultiAck').checked=false;
+ chooseControls();
+});
 $('cxmNativeRecover').addEventListener('click',recoverNativeEmpty);
 $('cxmNativeEmptyAck').addEventListener('change',chooseControls);
 $('cxmNativeSync').addEventListener('click',synchronizeNative);
