@@ -53,6 +53,13 @@ def check():
         assert p['pickup']==[(x,y+14),(x-3,y+14),(x-3,y),(x,y),(x,y+60)]
         assert p['dropoff']==[(x,y),(x,y+60)]
     controller=blocks['CXM_SELECT_TOOL']
+    # A mounted tool already at the saved locked XY can unload directly
+    # through the dedicated Y-only release, while all other in-corridor
+    # starts remain blocked by the standard approach guard.
+    assert 'and not at_locked_dock' in controller
+    assert 'CXM_CALIBRATION_RELEASE TOOL={old} CONFIRM=1' in controller
+    assert '(pos.x|float - st["t" ~ old ~ "_x"]|float)|abs <= 0.15' in controller
+    assert '(pos.y|float - st["t" ~ old ~ "_y"]|float)|abs <= 0.15' in controller
     assert 'pos.y|float < target_safe - 1.0' in controller
     pickup=blocks['_CXM_PICKUP_MOTION']
     assert '_CXM_CLEAR_TRANSFER X={x} Y={safe} MIN_Y={safe} EXPECT=RELEASED' in pickup
