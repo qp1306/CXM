@@ -14,6 +14,9 @@ from cxm_service import Handler, printer_safe
 
 class TestAPI(unittest.TestCase):
     def setUp(self):
+        # Disk/API tests isolate the not-yet-installed Klipper macro controller.
+        self.native_patcher=patch('cxm_service.native_invalidate',return_value={'invalidated':False})
+        self.native_patcher.start()
         self.dir=tempfile.TemporaryDirectory()
         self.store=Store(self.dir.name)
         self.store.initialize()
@@ -25,6 +28,7 @@ class TestAPI(unittest.TestCase):
     def tearDown(self):
         self.server.shutdown();self.server.server_close();self.thread.join()
         self.dir.cleanup()
+        self.native_patcher.stop()
     def call(self,path,body=None,headers=None):
         payload=json.dumps(body).encode() if body is not None else None
         req=urllib.request.Request(f'http://127.0.0.1:{self.port}{path}',data=payload,headers=headers or {})
