@@ -35,23 +35,57 @@ def check():
         try:env.parse(body)
         except TemplateSyntaxError as exc:
             raise AssertionError(name+' Jinja syntax error: '+str(exc)) from exc
-    # The original user-supplied toolchange-EN.cfg movement order:
-    # Pickup: dodge, X shift, dock entry, X clamp, retract to safe Y.
-    # Release: approach fully locked dock XY, withdraw Y+ without X movement.
+    # Verified manual T0 baseline: release X304.60 Y65.60,
+    # mounted X309.00, retreat Y165.60; both operations F6000.
     from cxm_cxchanger import plan
     tools=[]
     for n in range(12):
         tools.append({'dock_x':150.0+n*3,'dock_y':100.0,
                       'dock_reference_accepted':True})
     saved={'config':{'globals':{'tool_count':12,
-                               'cxm_shift_x':-3.0,
+                               'cxm_shift_x':4.4,
                                'cxm_dodge_y':14.0,
-                               'cxm_safe_clearance_y':60.0},'tools':tools}}
+                               'cxm_safe_clearance_y':100.0},'tools':tools}}
     for n in range(12):
         p=plan(saved,tool=n)
         x=150.0+n*3;y=100.0
-        assert p['pickup']==[(x,y+14),(x-3,y+14),(x-3,y),(x,y),(x,y+60)]
-        assert p['dropoff']==[(x,y),(x,y+60)]
+        assert p['pickup']==[(x,y),(x+4.4,y),(x+4.4,y+100)]
+        assert p['dropoff']==[(x+4.4,y),(x,y),(x,y+100)]
+    t0={'config':{'globals':saved['config']['globals'],
+                 'tools':[{'dock_x':304.60,'dock_y':65.60,
+                           'dock_reference_accepted':True}]}}
+    t0['config']['globals']=dict(t0['config']['globals'],tool_count=1)
+    path=plan(t0)
+    assert path['pickup']==[(304.60,65.60),(309.0,65.60),(309.0,165.6)]
+    assert path['dropoff']==[(309.0,65.60),(304.60,65.60),(304.60,165.6)]
+
+    # Render the ACTUAL Klipper macro bodies with the measured saved T0
+    # datum. Verify the exact three G1 commands and their feed rates,
+    # not merely a separate Python planner approximation.
+    fake_native={'t0_x':304.60625,'t0_y':65.6,'shift_x':4.4,
+                 'clearance_y':100.0,'travel_feed':6000,
+                 'approach_feed':6000,'latch_feed':6000}
+    printer={'gcode_macro _CXM_NATIVE':fake_native}
+    def actual_g1(name):
+        # Klipper's gcode templates use {expression}, whereas vanilla
+        # Jinja2 uses {{expression}}. Expand single-brace Klipper output
+        # expressions while preserving {% statements %}.
+        body=blocks[name].split('gcode:',1)[1]
+        jinja_body=re.sub(r'(?<![{%])\{([^{}%#\n]+)\}(?!})',
+                          lambda m:'{{'+m.group(1)+'}}',body)
+        rendered=env.from_string(jinja_body).render(
+            printer=printer,params={'TOOL':0})
+        return [line.strip() for line in rendered.splitlines()
+                if line.strip().startswith('G1 ')]
+    assert actual_g1('_CXM_PICKUP_MOTION')==[
+        'G1 X304.60625 Y65.6 F6000',
+        'G1 X309.00625 Y65.6 F6000',
+        'G1 X309.00625 Y165.6 F6000'], repr(actual_g1('_CXM_PICKUP_MOTION'))
+    assert actual_g1('_CXM_RELEASE_MOTION')==[
+        'G1 X309.00625 Y65.6 F6000',
+        'G1 X304.60625 Y65.6 F6000',
+        'G1 X304.60625 Y165.6 F6000'], repr(actual_g1('_CXM_RELEASE_MOTION'))
+
     controller=blocks['CXM_SELECT_TOOL']
     # A mounted tool already at the saved locked XY can unload directly
     # through the dedicated Y-only release, while all other in-corridor
@@ -62,12 +96,22 @@ def check():
     assert '(pos.y|float - st["t" ~ old ~ "_y"]|float)|abs <= 0.15' in controller
     assert 'pos.y|float < target_safe - 1.0' in controller
     pickup=blocks['_CXM_PICKUP_MOTION']
-    assert '_CXM_CLEAR_TRANSFER X={x} Y={safe} MIN_Y={safe} EXPECT=RELEASED' in pickup
     release=blocks['_CXM_RELEASE_MOTION']
-    assert '_CXM_CLEAR_TRANSFER X={x} Y={safe} MIN_Y={safe} EXPECT=PRESSED' in release
-    assert 'G1 X{x} Y{y} F{st.approach_feed}' in release
-    assert 'G1 X{x} Y{safe} F{st.approach_feed}' in release
-    assert 'G1 X{x+shift}' not in release
+    assert '_CXM_CLEAR_TRANSFER X={x} Y={safe} MIN_Y={safe} EXPECT=RELEASED' in pickup
+    assert '_CXM_CLEAR_TRANSFER X={mounted} Y={safe} MIN_Y={safe} EXPECT=PRESSED' in release
+    for block,steps in ((pickup,('G1 X{x} Y{y}', 'G1 X{mounted} Y{y}',
+                                'G1 X{mounted} Y{safe}')),
+                        (release,('G1 X{mounted} Y{y}', 'G1 X{x} Y{y}',
+                                  'G1 X{x} Y{safe}'))):
+        assert block.index(steps[0]) < block.index(steps[1]) < block.index(steps[2])
+        assert block.count('G1 X{')==3, 'Unexpected extra X/Y waypoints'
+    verify=blocks['_CXM_VERIFY']
+    assert 'final_x=(x+st.shift_x|float)|round(5) if expect == "PRESSED" else x' in verify
+    assert verify.count('X={final_x} Y={y}')==2
+    commit=blocks['_CXM_COMMIT_STATE']
+    assert 'X={(st["t" ~ t ~ "_x"]|float+st.shift_x|float)|round(5)}' in commit
+    check=blocks['_CXM_CHECK_TOOL']
+    assert 'x+st.shift_x|float>325' in check
     calibration=blocks['CXM_CALIBRATION_RELEASE']
     assert 'G1 X{x} Y{safe} F{st.approach_feed}' in calibration
     assert 'G1 X{x+shift}' not in calibration

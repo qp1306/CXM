@@ -115,7 +115,7 @@ def sync(store,expected_revision,*,declared_tool=None):
                 lines.append('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=t'+str(i)+
                              '_'+suffix+' VALUE='+str(value))
         # Fixed baseline only. New speed profiles must be validated independently.
-        for field,val in [('travel_feed',600),('approach_feed',240),('latch_feed',180),
+        for field,val in [('travel_feed',6000),('approach_feed',6000),('latch_feed',6000),
                           ('segmented',0),('margin_y',15.0)]:
             lines.append('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE='+field+' VALUE='+str(val))
         lines.append('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=profile VALUE="\'standard\'"')
