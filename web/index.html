@@ -285,7 +285,14 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
   <button class="btn primary" id="cxmNativeSelect" disabled>Pick up selected hotend</button>
   <button class="btn" id="cxmNativeUnload" disabled>UNTOOL · Drop off current hotend</button>
  </div>
- <p class="helper" id="cxmNativeToolStatus" role="status" aria-live="polite">Reading live Klipper tool state…</p>
+ <div class="cxm-step" id="cxmCalibrationReleasePanel">
+ <div class="panel-heading"><h3>Release from calibration position</h3><span class="panel-label">SUPERVISED · DOCK-ENGAGED ONLY</span></div>
+ <p class="helper">Only when the selected mounted hotend is also fully engaged in its own dock at the saved XY. Completes the remaining CxChanger release waypoints without a staging approach. Not a general recovery command.</p>
+ <label class="cxm-capture-ack"><input type="checkbox" id="cxmCalibrationReleaseAck"><span class="cxm-approval-copy"><strong>Approve release from dock-engaged position</strong><small>I inspected the correct mounted hotend, dock engagement, motor power, unobstructed release path and emergency stop.</small></span></label>
+ <div class="buttons"><button class="btn primary" id="cxmCalibrationRelease" disabled>Release mounted hotend from dock</button></div>
+ <p class="helper" id="cxmCalibrationReleaseStatus" role="status">Requires an accepted native mounted tool and approved mechanical dock engagement.</p>
+</div>
+<p class="helper" id="cxmNativeToolStatus" role="status" aria-live="polite">Reading live Klipper tool state…</p>
 </div>
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
  <div class="panel-heading"><h3>Native Klipper toolchange test</h3><span class="panel-label">CXM_SELECT_TOOL · supervised XY mechanical testing</span></div>
@@ -865,7 +872,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 
 
 <script src="cxm-multi.js?v=1.4.0" defer></script>
-<script src="cxm-native-control.js?v=1.1.0" defer></script>
+<script src="cxm-native-control.js?v=1.1.1" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 
