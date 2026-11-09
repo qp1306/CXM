@@ -58,6 +58,8 @@ def check():
     assert pickup.index('G1 Y{safe}') < pickup.index('G1 X{x}')
     test_start=blocks['CXM_TEST_START']
     assert 'printer.toolhead.position.y|float < ([y_a,y_b,y_c]|max) - 1.0' in test_start
+    assert '_CXM_PREPARE_CLEARANCE EXPECT=RELEASED' in test_start
+    assert '_CXM_PREPARE_CLEARANCE EXPECT={' in controller
     assert '_CXM_PREPARE_CLEARANCE' in blocks
     assert 'CXM_DECLARE_CARRIAGE' in blocks
     lift=blocks['_CXM_PREPARE_CLEARANCE']
