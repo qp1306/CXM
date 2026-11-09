@@ -436,6 +436,11 @@ def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standa
     if type(cycles) is not int or not 1<=cycles<=MAX_REPEAT_CYCLES:
         raise MultiToolError('Choose a whole number of complete cycles from 1 to '+
                              str(MAX_REPEAT_CYCLES))
+    # These stages are new physical load cases, not yet commissioned for
+    # repeated unsupervised tool changes. The first observed trial must
+    # include only one complete pass; other proven modes remain unchanged.
+    if travel_profile in ('sprint','race') and cycles!=1:
+        raise MultiToolError('Experimental Sprint/Race requires exactly one supervised cycle')
     if type(tools) is list and cycles*len(tools)*2>MAX_TOTAL_MOVEMENTS:
         raise MultiToolError('Batch exceeds the '+str(MAX_TOTAL_MOVEMENTS)+
                              '-movement safety limit; select fewer cycles or tools')
