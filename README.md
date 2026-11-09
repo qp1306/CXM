@@ -26,6 +26,47 @@ override. Old schema-3 `lineux_raw_x/y` and X/Y correction settings remain on di
 **only for backward-compatible loading**; manual capture does not use them and a new
 save clears the old raw values.
 
+## First T0 release from the captured engaged dock position
+
+Manual alignment may end with a mounted hotend already seated in its dock at
+the saved locking-hole X/Y. Normal UNTOOL intentionally rejects that starting
+position to avoid an unsafe approach. Use **Tools → Release from calibration
+position** only for this special commissioning state.
+
+The release uses a separate guarded Klipper macro `CXM_CALIBRATION_RELEASE`.
+It requires the native T identity to match the selected mounted hotend, sensor
+PRESSED, XYZ homed, all XY and quad Z motors powered, at least Z20, no active
+test/print, accepted geometry, and physical current X/Y within **0.15 mm**
+of the synchronised dock coordinates. The operator must physically verify the
+mounted hotend is ALSO engaged in its own dock and approve the movement.
+Then it performs only the existing CxChanger release tail:
+X to latch-shift → Y dodge → X reset → Y safe staging.
+Sensor RELEASED must verify before native tool identity becomes EMPTY.
+Normal `CXM_SELECT_TOOL` and its inside-approach guard remain unchanged.
+
+**Install one-time updated native Klipper macro before this button can work:**
+
+```bash
+cd ~/CXM
+git pull
+sudo systemctl restart cxm-config.service
+python3 scripts/cxm_native_install.py       # dry-run and backup preflight
+python3 scripts/cxm_native_install.py --apply
+```
+
+The installer backs up the previously installed native macro, checks duplicate
+definitions and prints a diff. **Do not apply or RESTART while a hotend is
+trapped between the carriage and dock or if the gantry is not mechanically
+supported.** Restart can de-energise Z motors and move the gantry, especially
+on a machine with an unresolved Z drive issue. Install/activate this feature
+only after physically securing the machine and resolving that risk. After a
+safe `RESTART`, Klipper resets native RAM tool identity to UNKNOWN; use the
+existing native initialization with the physically mounted tool again and
+verify the accepted geometry before any movement. This macro has not been
+physically validated; supervise its first use with emergency stop accessible.
+On an error, leave the machine untouched and inspect actual physical state
+before re-enabling any automatic movement.
+
 ## New dock calibration procedure
 
 - Home XYZ with the existing tested Y-first homing override. Keep ALL X/Y and four Z motors
