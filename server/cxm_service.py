@@ -18,7 +18,7 @@ from cxm_lineux import (query_readiness, perform_measurement, perform_known_chec
 from cxm_native import (status as multi_status, start as multi_start,
                         stop as multi_stop, sync as native_sync,
                         select as native_select, confirm_empty as native_confirm_empty,
-                        recover_empty as native_recover_empty,
+                        recover_empty as native_recover_empty, initialize as native_initialize,
                         invalidate_for_config_edit as native_invalidate,
                         NativeError)
 from urllib.parse import parse_qs, urlsplit
@@ -168,8 +168,15 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/lineux/measure','/v1/lineux/known-check','/v1/lineux/release-xy','/v1/lineux/home','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/native/initialize':
+                if set(body)!={'expected_revision','carriage_tool'}:
+                    raise ValueError('Expected saved revision and explicit EMPTY or T0–T11 identity')
+                if not printer_safe():
+                    raise NativeError('Printer must be idle; no automatic homing or state recovery during prints')
+                self.output(200,native_initialize(self.server.store,**body))
                 return
             if self.path == '/v1/native/sync':
                 if set(body)!={'expected_revision'}:
