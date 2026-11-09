@@ -16,7 +16,8 @@ import re
 import shutil
 import tempfile
 
-ORIGINAL_SHA = 'b243104c0d711720802424ddc8c89b44f878577516f09058fc47a8c312632d8d'
+ORIGINAL_SHA = 'b243104c0d711720802424ddc8c89b44f878577516f09058fc47a8c312632d8d'  # previously installed Lineux module
+UPDATED_GIT_BLOB_SHA = '9e4cb8adda6f6f008e5e57649e830d95fbdabb6f'  # optional no-X-jog build
 
 def section(raw, name):
     pattern=r'(?ms)^\['+re.escape(name)+r'\][ \t]*$\n(.*?)(?=^\[|\Z)'
@@ -79,8 +80,9 @@ def main():
     if not original.is_file() or not destination.parent.is_dir() or not printer.is_file():
         raise RuntimeError('CXM repository, Klipper extras, or printer.cfg not present')
     src=original.read_bytes()
-    if hashlib.sha256(src).hexdigest()!=ORIGINAL_SHA:
-        raise RuntimeError('Original Lineux module hash mismatch; refusing installation')
+    blob=b'blob '+str(len(src)).encode('ascii')+b'\0'+src
+    if hashlib.sha1(blob).hexdigest()!=UPDATED_GIT_BLOB_SHA:
+        raise RuntimeError('Reviewed Lineux no-jog module blob mismatch; refusing installation')
     conf=printer.read_text('utf-8')
     x,y=section(conf,'stepper_x'),section(conf,'stepper_y')
     # The tested override may live in an included file; never modify it.
@@ -98,9 +100,12 @@ def main():
         raise RuntimeError('Expected X/Y endstops at positive limits')
     if not (0.002 < resolution < 0.03 and xstop>0 and ystop>0):
         raise RuntimeError('Unexpected motor resolution or endstops')
-    content=('''# CXM Control Centre - Lineux calibrated measurement engine\n# Original Python module unchanged (SHA256 verified by installer).\n# Measurement must be initiated only after checking the dock clearance.\n[dock_locate_calibrate]\nxy_resolution: %.8f\nx_endstop: %.5f\ny_endstop: %.5f\ncalibrate_move_x: 3.0\n\n[gcode_macro DOCK_CALIBRATION]\ndescription: Lineux provisional dock XY measurement - supervised only\ngcode:\n    DOCK_LOCATE_CALIBRATE\n'''%(resolution,xstop,ystop)).encode('utf-8')
+    content=('''# CXM Control Centre - Lineux calibrated measurement engine\n# Reviewed Lineux module supports SKIP_MOVE=1; old default behaviour preserved.\n# Measurement must be initiated only after checking the dock clearance.\n[dock_locate_calibrate]\nxy_resolution: %.8f\nx_endstop: %.5f\ny_endstop: %.5f\ncalibrate_move_x: 3.0\n\n[gcode_macro DOCK_CALIBRATION]\ndescription: Lineux provisional dock XY measurement - supervised only\ngcode:\n    DOCK_LOCATE_CALIBRATE\n'''%(resolution,xstop,ystop)).encode('utf-8')
+    module_upgrade=False
     if destination.exists() and destination.read_bytes()!=src:
-        raise RuntimeError('Another dock_locate_calibrate.py exists; refusing overwrite')
+        if hashlib.sha256(destination.read_bytes()).hexdigest()!=ORIGINAL_SHA:
+            raise RuntimeError('Unexpected existing dock_locate_calibrate.py; refusing overwrite')
+        module_upgrade=True
     cfg_preserved=False
     if cfg.exists():
         # Existing CXM installation may have different explanatory comments.
@@ -114,7 +119,8 @@ def main():
     target='[include dock_locate_calibrate.cfg]'
     count=conf.count(target)
     if count>1:raise RuntimeError('Duplicate dock_locate_calibrate.cfg includes')
-    print('Original Lineux SHA256 verified:',ORIGINAL_SHA)
+    print('Reviewed Lineux module Git blob verified:',UPDATED_GIT_BLOB_SHA)
+    print('Klipper module update:', 'upgrade original to no-jog build' if module_upgrade else 'already current / new install')
     print('Active printer.cfg:',printer)
     print('Klipper module:',destination)
     print('Calibration settings:',{'resolution':resolution,'x_endstop':xstop,'y_endstop':ystop})
@@ -131,7 +137,7 @@ def main():
     if destination.exists():shutil.copy2(destination,backupdir/'dock_locate_calibrate.py')
     if cfg.exists():shutil.copy2(cfg,backupdir/'dock_locate_calibrate.cfg')
     try:
-        if not destination.exists():atomically_write(destination,src)
+        if not destination.exists() or module_upgrade:atomically_write(destination,src)
         if not cfg.exists():atomically_write(cfg,content)
         if count==0:
             marker='#*# <---------------------- SAVE_CONFIG'

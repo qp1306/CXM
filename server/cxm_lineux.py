@@ -310,7 +310,7 @@ def _run_original_lineux(pre):
     start='CXM_LINEUX_'+nonce+'_START'
     end='CXM_LINEUX_'+nonce+'_END'
     _rpc('/printer/gcode/script',{'script':
-        'RESPOND TYPE=echo MSG='+start+'\nDOCK_LOCATE_CALIBRATE\nRESPOND TYPE=echo MSG='+end})
+        'RESPOND TYPE=echo MSG='+start+'\nDOCK_LOCATE_CALIBRATE SKIP_MOVE=1\nRESPOND TYPE=echo MSG='+end})
     entries = _rpc('/server/gcode_store?count=1000').get('gcode_store', [])
     if not isinstance(entries,list):
         raise MeasurementError('Moonraker G-code response log missing')

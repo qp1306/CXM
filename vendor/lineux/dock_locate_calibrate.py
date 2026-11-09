@@ -154,17 +154,16 @@ class DockLocateCalibrate:
         #  -3.0  -> G1 X-3
         # ----------------------------------------------------
 
-        self.gcode.run_script_from_command(
-            'G91'
-        )
-
-        self.gcode.run_script_from_command(
-            'G1 X%.3f F3000' % self.calibrate_move_x
-        )
-
-        self.gcode.run_script_from_command(
-            'G90'
-        )
+        # Control Centre may suppress the otherwise fixed 3 mm X jog.
+        # The standard Lineux command without SKIP_MOVE retains original behaviour.
+        skip_move = gcmd.get_int('SKIP_MOVE', 0, minval=0, maxval=1)
+        actual_move = 0.0 if skip_move else self.calibrate_move_x
+        if not skip_move:
+            self.gcode.run_script_from_command('G91')
+            self.gcode.run_script_from_command(
+                'G1 X%.3f F3000' % actual_move
+            )
+            self.gcode.run_script_from_command('G90')
 
         # ----------------------------------------------------
         # Home Y
@@ -270,7 +269,7 @@ class DockLocateCalibrate:
                 self.xy_resolution,
                 self.x_endstop,
                 self.y_endstop,
-                self.calibrate_move_x,
+                actual_move,
                 raw_dock_x,
                 raw_dock_y,
                 dock_x,

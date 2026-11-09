@@ -74,6 +74,19 @@ class LineuxBridgeTests(unittest.TestCase):
         self.assertAlmostEqual(step,0.00625)
         settings['dock_locate_calibrate']['xy_resolution']=0.0125
         with self.assertRaises(c.MeasurementError):c._endstop_settings(settings)
+    def test_control_centre_skips_lineux_three_mm_calibration_jog(self):
+        from pathlib import Path
+        root=Path(__file__).resolve().parents[1]
+        bridge=(root/'server/cxm_lineux.py').read_text()
+        module=(root/'vendor/lineux/dock_locate_calibrate.py').read_text()
+        installer=(root/'scripts/cxm_lineux_install.py').read_text()
+        self.assertIn('DOCK_LOCATE_CALIBRATE SKIP_MOVE=1',bridge)
+        self.assertIn("skip_move = gcmd.get_int('SKIP_MOVE', 0, minval=0, maxval=1)",module)
+        self.assertIn('if not skip_move:',module)
+        self.assertIn("actual_move = 0.0 if skip_move else self.calibrate_move_x",module)
+        self.assertIn('UPDATED_GIT_BLOB_SHA',installer)
+        self.assertIn('module_upgrade=True',installer)
+
     def test_fails_closed_without_ack(self):
         with self.assertRaises(c.MeasurementError):
             c.perform_measurement(tool=0, expected_revision='a'*64,
