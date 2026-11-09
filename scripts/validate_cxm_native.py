@@ -25,7 +25,7 @@ def check():
     blocks=macro_sections()
     required=('CXM_SELECT_TOOL','_CXM_PICKUP_MOTION','_CXM_RELEASE_MOTION',
               '_CXM_VERIFY','CXM_CONFIRM_EMPTY','CXM_TEST_START','CXM_TEST_STOP',
-              'CXM_NATIVE_TEST_STEP','CXM_TEST_RESET')
+              'CXM_NATIVE_TEST_STEP','CXM_TEST_RESET','CXM_RECOVER')
     for name in required:
         assert name in blocks, 'missing native macro '+name
     env=Environment()
@@ -67,6 +67,15 @@ def check():
     assert clear.index('SET_VELOCITY_LIMIT ACCEL=4000') < clear.index('CXM_FAST_VERIFY EXPECT={expect} X={target_x} Y={target_y}')
     assert 'CXM_ACCEL_RESTORE' in blocks
     assert 'SET_VELOCITY_LIMIT ACCEL=4000' in blocks['CXM_ACCEL_RESTORE']
+    recover=blocks['CXM_RECOVER']
+    assert 'confirmed != "EMPTY"' in recover
+    assert 'native.current_tool|int != -1' in recover
+    assert 'state != "RELEASED"' in recover
+    assert 'CXM_TEST_RESET' in recover and 'CXM_DECLARE_CARRIAGE TOOL=-1' in recover
+    assert recover.index('CXM_TEST_RESET') < recover.index('CXM_DECLARE_CARRIAGE TOOL=-1')
+    assert 'SET_VELOCITY_LIMIT ACCEL=4000' in recover
+    assert 'UPDATE_DELAYED_GCODE ID=CXM_NATIVE_TEST_STEP DURATION=0' in recover
+    assert 'UPDATE_DELAYED_GCODE ID=CXM_ACCEL_RESTORE DURATION=0' in recover
     test_start=blocks['CXM_TEST_START']
     assert '_CXM_STAGE_TEST Y={([y_a,y_b,y_c]|max)}' in test_start
     assert '_CXM_STAGE_TEST' in blocks
