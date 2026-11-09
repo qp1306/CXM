@@ -33,8 +33,8 @@ async function refresh(){
     el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
     el('cxmManualZ').textContent=live.z.toFixed(2)+' mm';
     el('cxmManualSensor').textContent=live.sensor;
-    el('cxmManualReadiness').textContent='READY · T'+tool+' · XYZ homed · all motors on · carriage empty';
-    say('Ready to jog T'+tool+' using the selected step. The machine will physically move.');
+    el('cxmManualReadiness').textContent='READY · T'+tool+' selected by operator · XYZ homed · motors on · hotend MOUNTED';
+    say('READY: sensor confirms MOUNTED, not tool identity. Verify the mounted hotend is physically T'+tool+' before approving any jog.');
   }catch(e){
     live=null;
     el('cxmManualReadiness').textContent='NOT READY · '+e.message;
