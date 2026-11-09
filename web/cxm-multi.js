@@ -38,7 +38,7 @@ function customSpeeds(){
 function selectedMode(){return 'native';}
 function profileLabel(profile){
  const names={
-   standard:'STANDARD (10 / 4 / 3 mm/s)',
+   standard:'STANDARD (100 / 100 / 100 mm/s)',
    faster:'FASTER (30 / 4 / 3 mm/s)',
    performance:'PERFORMANCE (80 / 8 / 3 mm/s)',
    sprint:'SPRINT (200 / 40 / 10 mm/s)',
