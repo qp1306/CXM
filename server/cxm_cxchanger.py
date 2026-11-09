@@ -83,7 +83,8 @@ DOCK_CLEARANCE_MARGIN_Y=10.0 # stay 10 mm outside the Y-dodge point at speed
 
 def faster_cycle_script(path,kind,*,at_stage,travel_feed=FAST_TRANSFER_FEED,
                         test_feed=240,latch_feed=180,
-                        margin_y=DOCK_CLEARANCE_MARGIN_Y):
+                        margin_y=DOCK_CLEARANCE_MARGIN_Y,
+                        _performance_limits=False):
     """Same final docking geometry, faster ONLY when safely clear of dock.
 
     Entry is slowed at Y=dock_y+dodge_y+margin_y, before the coupling can
@@ -93,8 +94,13 @@ def faster_cycle_script(path,kind,*,at_stage,travel_feed=FAST_TRANSFER_FEED,
     """
     if kind not in ('pickup','dropoff'):
         raise ValueError('Select pickup or dropoff for faster travel')
-    travel=finite(travel_feed,'Fast clear-corridor feed',600,1800)
-    test=finite(test_feed,'Dock approach feed',120,240)
+    # Separate opt-in performance envelope; the physically proven Faster
+    # mode retains its original strict 30/4/3 mm/s limits and behaviour.
+    # A 15mm approach margin protects the coupling from 80mm/s travel.
+    travel=finite(travel_feed,'Fast clear-corridor feed',600,
+                  4800 if _performance_limits else 1800)
+    test=finite(test_feed,'Dock approach feed',120,
+                480 if _performance_limits else 240)
     latch=finite(latch_feed,'Dock latch feed',90,180)
     margin=finite(margin_y,'Dock approach safety margin',8,15)
     x=path['dock_reference_xy']['x']
@@ -130,3 +136,21 @@ def faster_cycle_script(path,kind,*,at_stage,travel_feed=FAST_TRANSFER_FEED,
     move(x,safe,travel)   # speed up only after verified Y clearance
     lines.append('M400')
     return '\n'.join(lines)
+
+# Performance trial: open corridor 80mm/s; guided approach 8mm/s;
+# latch / release lever stays at the original physically proven 3mm/s.
+# Distinct opt-in only. Never applied to T0/T1+ single-tool controls,
+# existing Standard, or original 30mm/s Faster profile.
+PERFORMANCE_TRAVEL_FEED=4800
+PERFORMANCE_APPROACH_FEED=480
+PERFORMANCE_LATCH_FEED=180
+PERFORMANCE_MARGIN_Y=15.0
+
+def performance_cycle_script(path,kind,*,at_stage):
+    """Explicit performance profile preserving exact CxChanger path & latch."""
+    return faster_cycle_script(path,kind,at_stage=at_stage,
+                               travel_feed=PERFORMANCE_TRAVEL_FEED,
+                               test_feed=PERFORMANCE_APPROACH_FEED,
+                               latch_feed=PERFORMANCE_LATCH_FEED,
+                               margin_y=PERFORMANCE_MARGIN_Y,
+                               _performance_limits=True)
