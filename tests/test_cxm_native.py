@@ -113,7 +113,8 @@ class NativeBridgeTests(unittest.TestCase):
                     'gcode_macro _CXM_NATIVE':{'protocol':2,'ready':ready,'fault':fault,'current_tool':identity},
                     'gcode_macro _CXM_TEST_STATE':{'running':0,'state':'idle'},
                     'gcode_button cxm_tool_detect':{'state':'PRESSED'}}}
-            with patch.object(native,'_rpc',side_effect=rpc):
+            with patch.object(native,'_rpc',side_effect=rpc), \
+                 patch('cxm_manual.status',return_value={'ready':True}):
                 with self.assertRaises(native.NativeError):
                     native.invalidate_for_config_edit(
                         permit_mounted_provisional_dock=True,store=self.store,tool=0)
