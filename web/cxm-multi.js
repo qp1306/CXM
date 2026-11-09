@@ -350,6 +350,9 @@ async function setCarriageState(){
 $('cxmDeclareCarriage').addEventListener('click',setCarriageState);
 $('cxmSpeedSimple').addEventListener('change',()=>{
  $('cxmMultiAck').checked=false;
+ if(['sprint','race','boost'].includes(selectedProfile())){
+   $('cxmMultiRepeats').value='1';
+ }
  chooseControls();
 });
 $('cxmNativeRecover').addEventListener('click',recoverNativeEmpty);
