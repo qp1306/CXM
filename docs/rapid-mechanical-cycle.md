@@ -92,3 +92,45 @@ revision, and holds the existing CXM movement lock.
 For any unexpectedly slow pair, inspect the per-pair time in the
 Multi-tool panel, and report the exact error/event. Do not increase
 clearance speed merely to conceal a sensor or G-code problem.
+
+
+## Performance speed profile (opt-in; November 2026)
+
+Rapid and movement speed are **independent settings**:
+
+| Profile | Clear corridor / between docks | Guided approach / retract | Latch / release |
+| --- | ---: | ---: | ---: |
+| Standard (original) | 10 mm/s | 4 mm/s | 3 mm/s |
+| Faster (original) | 30 mm/s | 4 mm/s | 3 mm/s |
+| Performance (new) | **80 mm/s** | **8 mm/s** | **3 mm/s** |
+
+The new Performance mode uses the same stored Lineux XY datum and the
+same CxChanger pickup/dropoff geometry; it inserts the existing segmented
+clear-corridor waypoints, with the clear travel ending **15 mm before**
+the Y-dodge position (the Faster profile ends at 10 mm). The 3 mm/s
+latch/unlatch movement is never accelerated. The four Klipper-local
+sensor assertions and their M400-separated dwell intervals are
+unchanged in Rapid mode. No Z/heater/extruder movements are added.
+
+**This speed profile is software tested but NOT physically tested.**
+Do not go directly from the old 10 mm/s commissioning profile to this
+speed. Run one supervised 30 mm/s Faster pass at T0/T1 and inspect
+all motion, nozzle seating, latch engagement, deposits and missed
+steps. Only if that passes, run one T0/T1 Performance pass with **Rapid
+Klipper** enabled and a clear emergency-stop route. Keep repeat=1.
+Then expand to T2. If there is scraping, impact, a dropped tool, lost
+steps, or an invalid sensor confirmation, STOP and revert to Faster.
+Do not adjust feed rates in an existing Klipper macro to bypass this.
+
+Performance profile is delivered entirely in the CXM Python service
+and the Control Centre UI. If the **native rapid guard was already
+installed** successfully, performance profile source updates do **NOT**
+require another `printer.cfg` edit or Klipper RESTART. Update the
+web source and reload the page; CXM Python service monitors its
+changed source files and reloads outside of active multi-tool tests.
+
+The previously reported ~21.73 second multi-step timer is **not a
+measured mechanical travel benchmark**. For comparison, record actual
+wall-clock duration and both switch states across the complete run.
+Motion gains depend on the actual move distances, acceleration,
+feedrate override and dock geometry.

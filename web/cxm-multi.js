@@ -41,6 +41,7 @@ function chooseControls(){
  $('cxmMultiStop').disabled=!running||current?.stop_requested===true||requestBusy;
  $('cxmMultiRefresh').disabled=requestBusy;
  $('cxmMultiFastTransfer').disabled=requestBusy||running;
+ $('cxmMultiPerformance').disabled=requestBusy||running;
  $('cxmMultiRapid').disabled=requestBusy||running;
  $('cxmMultiRepeats').disabled=requestBusy||running;
  text('cxmMultiStart',running?'Cycle test running…':
@@ -109,7 +110,8 @@ function showStatus(){
    text('cxmMultiStatus',lastError);
  }else if(run.running){
    const speed=(run.execution_mode==='rapid'?'RAPID KLIPPER · ':'')+
-     (run.travel_profile==='faster'?'FASTER CLEAR TRAVEL (30 mm/s)':'STANDARD TRAVEL (10 mm/s)');
+     (run.travel_profile==='performance'?'PERFORMANCE (80 mm/s clear, 8 mm/s approach)':
+      run.travel_profile==='faster'?'FASTER CLEAR TRAVEL (30 mm/s)':'STANDARD TRAVEL (10 mm/s)');
    text('cxmMultiStatus',run.stop_requested
       ?'STOP REQUESTED · current tool pair must complete, or use physical E-stop for immediate danger.'
       :'RUNNING · '+speed+' · '+run.last_event+' · supervise all movement');
@@ -175,7 +177,8 @@ async function start(){
  if(list.length<2||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
  const cycles=repeatCount();
  if(cycles===null)return;
- const travelProfile=$('cxmMultiFastTransfer').checked?'faster':'standard';
+ const travelProfile=$('cxmMultiPerformance').checked?'performance':
+   $('cxmMultiFastTransfer').checked?'faster':'standard';
  const rapid=$('cxmMultiRapid').checked;
  requestBusy=true;$('cxmMultiAck').checked=false;chooseControls();
  text('cxmMultiStatus','Checking live Klipper readiness, real EMPTY carriage, and all '+list.length+' docks…');
@@ -219,11 +222,20 @@ $('cxmMultiRepeats').addEventListener('input',()=>{
  }
 });
 $('cxmMultiFastTransfer').addEventListener('change',()=>{
+ if($('cxmMultiFastTransfer').checked)$('cxmMultiPerformance').checked=false;
  $('cxmMultiAck').checked=false;
  chooseControls();
  if(!current?.running)text('cxmMultiStatus',$('cxmMultiFastTransfer').checked
    ?'FASTER MODE selected · 30 mm/s clear corridor only. Inspect the path, approve, then start.'
    :'STANDARD MODE selected · original 10 mm/s staging and existing dock approach.');
+});
+$('cxmMultiPerformance').addEventListener('change',()=>{
+ if($('cxmMultiPerformance').checked)$('cxmMultiFastTransfer').checked=false;
+ $('cxmMultiAck').checked=false;
+ chooseControls();
+ if(!current?.running)text('cxmMultiStatus',$('cxmMultiPerformance').checked
+   ?'EXPERIMENTAL PERFORMANCE: 80 mm/s clear corridor, 8 mm/s approach, unchanged 3 mm/s latch. One supervised T0/T1 cycle ONLY after Faster succeeds.'
+   :'Performance disabled · select Standard or 30 mm/s Faster for proven movement.');
 });
 $('cxmMultiRapid').addEventListener('change',()=>{
  $('cxmMultiAck').checked=false;

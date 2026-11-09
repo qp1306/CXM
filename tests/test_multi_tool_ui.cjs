@@ -46,7 +46,7 @@ function harness({lockedTwo=false}={}){
      const body=JSON.parse(options.body);
      assert.equal(body.acknowledgement,'I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH');
      assert.equal(body.expected_revision,'a'.repeat(64));
-     assert.ok(['standard','faster'].includes(body.travel_profile));
+     assert.ok(['standard','faster','performance'].includes(body.travel_profile));
      assert.ok(Number.isInteger(body.cycles)&&body.cycles>=1&&body.cycles<=20);
      requestedCycles=body.cycles;currentCycle=1;completedCycles=0;
      travelProfile=body.travel_profile;
@@ -92,7 +92,8 @@ test('Tools page exposes explicit one-pass mechanical test, not a printing readi
  assert.match(html,/id="cxmMultiPanel"/);
  assert.match(html,/id="cxmMultiAck" type="checkbox" disabled/);
  assert.match(html,/id="cxmMultiStop" disabled/);
- assert.match(html,/src="cxm-multi\.js\?v=0\.2\.0"/);
+ assert.match(html,/src="cxm-multi\.js\?v=0\.2\.1"/);
+ assert.match(html,/id="cxmMultiPerformance" type="checkbox"/);
   assert.match(html,/id="cxmMultiRapid" type="checkbox"/);
  assert.match(html,/NOT READY.*printing commissioning is incomplete/);
  assert.match(html,/physical emergency stop/);
@@ -120,6 +121,42 @@ test('existing standard mode never sends execution_mode or silently enables rapi
   await h.click('cxmMultiStart');
   const p=h.calls.find(x=>x.url.endsWith('/multi/start'));
   assert.equal('execution_mode' in JSON.parse(p.options.body),false);
+});
+
+test('Performance mode is opt-in and mutually exclusive with Faster, with renewed approval',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ assert.equal(h.get('cxmMultiPerformance').checked,false);
+ h.get('cxmMultiFastTransfer').checked=true;
+ h.get('cxmMultiFastTransfer').listeners.change();
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ h.get('cxmMultiPerformance').checked=true;
+ h.get('cxmMultiPerformance').listeners.change();
+ assert.equal(h.get('cxmMultiAck').checked,false);
+ assert.equal(h.get('cxmMultiFastTransfer').checked,false);
+ assert.equal(h.get('cxmMultiStart').disabled,true);
+ assert.match(h.get('cxmMultiStatus').textContent,/80 mm\/s/);
+ h.get('cxmMultiRapid').checked=true;
+ h.get('cxmMultiRapid').listeners.change();
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const post=h.calls.find(c=>c.url.endsWith('/multi/start'));
+ const body=JSON.parse(post.options.body);
+ assert.equal(body.travel_profile,'performance');
+ assert.equal(body.execution_mode,'rapid');
+ assert.equal(h.get('cxmMultiPerformance').disabled,true);
+ assert.match(h.get('cxmMultiStatus').textContent,/PERFORMANCE/);
+});
+
+test('Faster override clears performance option and keeps speed at 30mm per second',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ h.get('cxmMultiPerformance').checked=true;h.get('cxmMultiPerformance').listeners.change();
+ h.get('cxmMultiFastTransfer').checked=true;h.get('cxmMultiFastTransfer').listeners.change();
+ assert.equal(h.get('cxmMultiPerformance').checked,false);
+ assert.equal(h.get('cxmMultiFastTransfer').checked,true);
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const post=h.calls.find(c=>c.url.endsWith('/multi/start'));
+ assert.equal(JSON.parse(post.options.body).travel_profile,'faster');
 });
 
 test('three eligible docks are shown selected with saved coordinates and no motion until approval',async()=>{

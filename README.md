@@ -757,3 +757,28 @@ printer for multi-hotend printing.
 
 **Read the full safe installation and supervised T0/T1 first-test
 procedure:** [Rapid mechanical cycle](docs/rapid-mechanical-cycle.md).
+
+
+## Faster mechanical motion without increasing latch speed
+
+After proving Rapid Klipper-local verification, the Tools page now
+offers an **experimental, opt-in Performance movement** checkbox:
+**80 mm/s clear corridor, 8 mm/s guided approach/retreat, unchanged
+3 mm/s latch/unlatch.** The new clear-travel section ends 15 mm before
+the Y-dodge location; path coordinates and CxChanger coupling
+geometry remain identical. Performance is mutually exclusive with the
+existing Faster 30 mm/s checkbox, and changing either speed option
+revokes the current movement approval. Rapid Klipper execution is a
+separate checkbox.
+
+Existing Standard (10 / 4 / 3 mm/s), Faster (30 / 4 / 3 mm/s), direct
+T0 and T1+ controls are unchanged. The new speed has only been validated
+by automated tests, **not by the physical CXM**. Progress only after
+one successful supervised Faster pass, then one Performance pass with
+T0/T1 and one repeat, inspect physically, then add T2. The
+Klipper-native safety guard remains at 4 confirmed samples after every
+motion. **No additional Klipper restart** is required for this
+UI/Python-only update when the rapid guard has already been installed
+and loaded.
+
+Full procedure: [Rapid mechanical test and Performance](docs/rapid-mechanical-cycle.md).
