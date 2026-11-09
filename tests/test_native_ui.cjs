@@ -14,7 +14,7 @@ test('native CXM Control Centre offers only the new toolchange controller',()=>{
    assert.match(html,new RegExp('id="'+id+'"'));
  }
  assert.match(html,/src="cxm-native-control\.js\?v=/);
- assert.match(html,/src="cxm-multi\.js\?v=1\.3\.0"/);
+ assert.match(html,/src="cxm-multi\.js\?v=1\.4\.0"/);
  assert.doesNotMatch(html,/src="cxm-t0-auto\.js/);
  assert.doesNotMatch(html,/src="cxm-tools\.js/);
 });
@@ -44,6 +44,16 @@ test('custom three-speed controls are present and used',()=>{
  assert.match(html,/<option value="custom">/);
  assert.match(multi,/custom_speeds=values/);
  assert.match(multi,/function customSpeeds\(\)/);
+});
+
+test('custom speed limits increase without dropping native safety checks',()=>{
+ const cfg=fs.readFileSync(path.join(__dirname,'../vendor/cxm/cxm_native_toolchange.cfg'),'utf8');
+ assert.match(cfg,/travel > 1200 or approach < 1 or approach > 600 or latch < 1 or latch > 300/);
+ assert.match(cfg,/G4 P30/);
+ assert.match(cfg,/DURATION=0\.01/);
+ assert.match(html,/id="cxmCustomTravel" min="10" max="1200"/);
+ assert.match(html,/id="cxmCustomApproach" min="1" max="600"/);
+ assert.match(html,/id="cxmCustomLatch" min="1" max="300"/);
 });
 
 test('selected hotend UI only requests named Klipper macros through native API',()=>{
