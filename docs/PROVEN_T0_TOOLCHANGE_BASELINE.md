@@ -50,6 +50,37 @@ The saved `X304.60625` is the measured step-resolution datum; the native target 
 
 The safe-Y staging value is calculated **per tool** from `dock_y + cxm_safe_clearance_y`. Other tools' XY datums are not inferred from T0. The operator should not overwrite existing saved dock XY based on the rounded manual values.
 
+## Dock calibration for T1–T11 (one Save operation)
+
+The Control Centre's visible Dock XY flow now uses one **Save dock position**
+button. Select the physical tool Tn, keep the nozzle/carriage at the tool's
+release-side dock datum with the presence sensor PRESSED, home XYZ with the
+motors energised, align X/Y and click Save. The server:
+
+1. Acquires the shared CXM operation lock
+2. Reads the selected tool's live XY, executes M400, rereads and checks drift
+3. Invalidates previously armed native toolchange geometry, without axis motion
+4. Rereads live XY to exclude motion during invalidation
+5. Atomically writes the selected tool's XY with a previous-file backup
+6. Rereads and verifies exact saved X/Y and accepted metadata
+
+Sensor PRESSED confirms a hotend is mounted, **not its T number**. The selected
+Tn in the UI is the operator's physical identity declaration for calibration
+only. Native toolchange motion still requires identity and sensor consistency.
+The previous legacy duplicate Save area is hidden. Existing tool XY for all
+other tools is preserved.
+
+Native LOAD and UNLOAD keep the original positional and sensor guards, but
+an empty carriage detected after an independent Mainsail unload can be
+re-declared EMPTY without repeatedly entering native recovery controls.
+The server polls post-motion status read-only and never resends motion to
+resolve stale status. A CXM operation lock covers physical dispatch.
+
+**Limits:** T0's path and motion were physically verified; T1–T11 have not
+yet been individually verified on hardware. A tool whose release X, mounted X
+or retreat Y would exceed the guarded travel limits remains ineligible for
+automatic movement, even if its physical coordinate was captured.
+
 ## Deploy
 
 ```bash
