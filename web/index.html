@@ -299,6 +299,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <label>Latch / release mm/s<input type="number" id="cxmCustomLatch" min="1" max="300" step="1" value="10"></label>
  <small>Permitted: travel 10–1200, approach 1–600, latch 1–300 mm/s; travel ≥ approach ≥ latch. Custom requires 1 supervised cycle.</small>
 </div>
+<p class="helper">Clear transfer: temporary 9,000 mm/s² acceleration with diagonal XY movement where the safe corridor allows. Dock approach/latch: 4,000 mm/s². Restored to 4,000 after each transfer.</p>
 <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
  <label class="cxm-multi-repeat" for="cxmMultiRepeats">
   <span><strong>Repeat complete tool cycles</strong><small id="cxmMultiRepeatHelp">One cycle = each selected hotend picked up and dropped off once. Set 1–20 for T0/T1/T2. Maximum 240 movements per run.</small></span>

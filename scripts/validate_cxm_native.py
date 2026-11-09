@@ -55,7 +55,18 @@ def check():
     controller=blocks['CXM_SELECT_TOOL']
     assert 'pos.y|float < target_safe - 1.0' in controller
     pickup=blocks['_CXM_PICKUP_MOTION']
-    assert pickup.index('G1 Y{safe}') < pickup.index('G1 X{x}')
+    assert '_CXM_CLEAR_TRANSFER X={x} Y={safe} MIN_Y={safe} EXPECT=RELEASED' in pickup
+    release=blocks['_CXM_RELEASE_MOTION']
+    assert '_CXM_CLEAR_TRANSFER X={x} Y={safe} MIN_Y={safe} EXPECT=PRESSED' in release
+    assert '_CXM_CLEAR_TRANSFER' in blocks
+    clear=blocks['_CXM_CLEAR_TRANSFER']
+    assert 'diagonal path would enter dock corridor' in clear
+    assert 'G1 X{target_x} Y{target_y} F{st.travel_feed}' in clear
+    assert clear.index('SET_VELOCITY_LIMIT ACCEL=9000') < clear.index('G1 X{target_x} Y{target_y}')
+    assert clear.index('G1 X{target_x} Y{target_y}') < clear.index('SET_VELOCITY_LIMIT ACCEL=4000')
+    assert clear.index('SET_VELOCITY_LIMIT ACCEL=4000') < clear.index('CXM_FAST_VERIFY EXPECT={expect} X={target_x} Y={target_y}')
+    assert 'CXM_ACCEL_RESTORE' in blocks
+    assert 'SET_VELOCITY_LIMIT ACCEL=4000' in blocks['CXM_ACCEL_RESTORE']
     test_start=blocks['CXM_TEST_START']
     assert '_CXM_STAGE_TEST Y={([y_a,y_b,y_c]|max)}' in test_start
     assert '_CXM_STAGE_TEST' in blocks

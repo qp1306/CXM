@@ -11,7 +11,7 @@ import tempfile
 
 INCLUDE = '[include cxm_native_toolchange.cfg]'
 MACROS = ('CXM_SELECT_TOOL', '_CXM_NATIVE', '_CXM_PREPARE_CLEARANCE', '_CXM_STAGE_TEST',
-          'CXM_DECLARE_CARRIAGE', '_CXM_CHECK_TOOL',
+          'CXM_DECLARE_CARRIAGE', '_CXM_CLEAR_TRANSFER', '_CXM_CHECK_TOOL',
           '_CXM_PICKUP_MOTION', '_CXM_RELEASE_MOTION',
           '_CXM_VERIFY', '_CXM_COMMIT_STATE', 'CXM_CONFIRM_EMPTY',
           '_CXM_TEST_STATE', 'CXM_TEST_START', 'CXM_TEST_STOP',
@@ -81,6 +81,8 @@ def main():
             raise RuntimeError('Missing or duplicate native macro: ' + name)
     if content.count(b'[delayed_gcode CXM_NATIVE_TEST_STEP]') != 1:
         raise RuntimeError('Missing delayed native test controller')
+    if content.count(b'[delayed_gcode CXM_ACCEL_RESTORE]') != 1:
+        raise RuntimeError('Missing acceleration restoration watchdog')
     collisions = included_macro_collisions(printer, MACROS)
     if collisions:
         raise RuntimeError('Existing macro definitions collide with native CXM: ' +
