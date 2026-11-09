@@ -23,7 +23,7 @@ def macro_sections():
 def check():
     from jinja2 import Environment, TemplateSyntaxError
     blocks=macro_sections()
-    required=('CXM_SELECT_TOOL','_CXM_PICKUP_MOTION','_CXM_RELEASE_MOTION',
+    required=('CXM_MANUAL_DOCK_JOG','CXM_SELECT_TOOL','_CXM_PICKUP_MOTION','_CXM_RELEASE_MOTION',
               '_CXM_VERIFY','CXM_CONFIRM_EMPTY','CXM_TEST_START','CXM_TEST_STOP',
               'CXM_NATIVE_TEST_STEP','CXM_TEST_RESET','CXM_RECOVER')
     for name in required:

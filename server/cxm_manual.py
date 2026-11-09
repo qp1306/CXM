@@ -113,10 +113,10 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
         lo,hi=before['limits'][axis]
         if not lo <= next_value <= hi:
             raise ManualDockError('Jog would exceed guarded physical travel')
-        # Save and restore the prior modal state: never leave the printer in G91.
-        command=('SAVE_GCODE_STATE NAME=CXM_MANUAL_JOG\n'
-                 'G91\nG1 '+axis.upper()+('%.4f'%distance)+' F300\n'
-                 'M400\nRESTORE_GCODE_STATE NAME=CXM_MANUAL_JOG MOVE=0')
+        # Klipper alone owns all physical movement and modal G-code.
+        # The service only requests the named, independently guarded macro.
+        command='CXM_MANUAL_DOCK_JOG TOOL=%d AXIS=%s DIST=%.4f' % (
+            tool,axis.upper(),distance)
         _rpc('/printer/gcode/script',{'script':command})
         after=_check_after_own_command(tool,store)
         if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:

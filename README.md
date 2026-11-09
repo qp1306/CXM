@@ -1,5 +1,24 @@
 # CXM Control Centre
 
+> **Current commissioning baseline — 10 November 2026**
+>
+> Pickup/drop-off use the repeatedly proven three-axis-commands-per-operation
+> sequence, with T0 release-side X304.60625/Y65.60000, engagement X+4.4,
+> Y clearance +100 and F6000. Klipper macros own ALL physical XY movement,
+> including supervised manual jogging (`CXM_MANUAL_DOCK_JOG`).
+> CXM Python only stores/rechecks coordinates and dispatches named macros.
+>
+> **Clean-install proof:** Run `python3 -m unittest discover -s tests -p
+> test_clean_install.py -v` to exercise a temporary empty CXM datastore,
+> first-time saves for T0–T11, and both macro installers without modifying a
+> live printer. See [safe clean install checklist](docs/CXM_CLEAN_INSTALL_CHECKLIST.md).
+> Do **not** delete `printer.cfg` or live CXM calibration to run these tests.
+> Real automatic hardware movement still requires supervised commissioning.
+>
+> Sections below contain historical migration notes and may describe earlier
+> control paths. Use the current checklist and proven baseline for new installs.
+
+
 **Current scope: supervised motor-on manual dock XY commissioning with the original CxChanger native pickup/dropoff motion.**
 
 The original Lineux auto measurement and MCU-step recalculation have been retired from the
