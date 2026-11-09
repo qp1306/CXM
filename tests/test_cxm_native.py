@@ -86,7 +86,7 @@ class NativeBridgeTests(unittest.TestCase):
         with patch.object(native,'_native_status',return_value=(
             {'ready':1,'fault':0,'current_tool':0},
             {'running':1},'RELEASED')):
-            with self.assertRaisesRegex(native.NativeError,'running native test'):
+            with self.assertRaisesRegex(native.NativeError,'during native test'):
                 native.invalidate_for_config_edit()
 
     def test_mounted_provisional_save_only_when_native_already_invalidated(self):
