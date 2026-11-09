@@ -269,7 +269,10 @@ class Handler(BaseHTTPRequestHandler):
             # Block stale Klipper geometry before any disk configuration change.
             # Invalidate only when the native macros are actually installed.
             try:
-                native_invalidate()
+                native_invalidate(
+                    permit_mounted_provisional_dock=(self.path == '/v1/dock'),
+                    store=self.server.store,
+                    tool=body.get('tool') if self.path == '/v1/dock' else None)
             except NativeError as exc:
                 if 'Install and load CXM native Klipper macro' not in str(exc):
                     raise
