@@ -42,6 +42,8 @@ function chooseControls(){
  $('cxmMultiRefresh').disabled=requestBusy;
  $('cxmMultiFastTransfer').disabled=requestBusy||running;
  $('cxmMultiPerformance').disabled=requestBusy||running;
+ $('cxmMultiSprint').disabled=requestBusy||running;
+ $('cxmMultiRace').disabled=requestBusy||running;
  $('cxmMultiRapid').disabled=requestBusy||running;
  $('cxmMultiRepeats').disabled=requestBusy||running;
  text('cxmMultiStart',running?'Cycle test running…':
@@ -110,7 +112,9 @@ function showStatus(){
    text('cxmMultiStatus',lastError);
  }else if(run.running){
    const speed=(run.execution_mode==='rapid'?'RAPID KLIPPER · ':'')+
-     (run.travel_profile==='performance'?'PERFORMANCE (80 mm/s clear, 8 mm/s approach)':
+     (run.travel_profile==='race'?'STAGE 2 RACE (400 / 80 / 20 mm/s)':
+      run.travel_profile==='sprint'?'STAGE 1 SPRINT (200 / 40 / 10 mm/s)':
+      run.travel_profile==='performance'?'PERFORMANCE (80 / 8 / 3 mm/s)':
       run.travel_profile==='faster'?'FASTER CLEAR TRAVEL (30 mm/s)':'STANDARD TRAVEL (10 mm/s)');
    text('cxmMultiStatus',run.stop_requested
       ?'STOP REQUESTED · current tool pair must complete, or use physical E-stop for immediate danger.'
@@ -177,7 +181,9 @@ async function start(){
  if(list.length<2||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
  const cycles=repeatCount();
  if(cycles===null)return;
- const travelProfile=$('cxmMultiPerformance').checked?'performance':
+ const travelProfile=$('cxmMultiRace').checked?'race':
+   $('cxmMultiSprint').checked?'sprint':
+   $('cxmMultiPerformance').checked?'performance':
    $('cxmMultiFastTransfer').checked?'faster':'standard';
  const rapid=$('cxmMultiRapid').checked;
  requestBusy=true;$('cxmMultiAck').checked=false;chooseControls();
@@ -221,8 +227,13 @@ $('cxmMultiRepeats').addEventListener('input',()=>{
       '. Verify the machine, approve, then start.');
  }
 });
+function clearOtherSpeedModes(active){
+ for(const id of ['cxmMultiFastTransfer','cxmMultiPerformance','cxmMultiSprint','cxmMultiRace']){
+   if(id!==active)$(id).checked=false;
+ }
+}
 $('cxmMultiFastTransfer').addEventListener('change',()=>{
- if($('cxmMultiFastTransfer').checked)$('cxmMultiPerformance').checked=false;
+ if($('cxmMultiFastTransfer').checked)clearOtherSpeedModes('cxmMultiFastTransfer');
  $('cxmMultiAck').checked=false;
  chooseControls();
  if(!current?.running)text('cxmMultiStatus',$('cxmMultiFastTransfer').checked
@@ -230,12 +241,26 @@ $('cxmMultiFastTransfer').addEventListener('change',()=>{
    :'STANDARD MODE selected · original 10 mm/s staging and existing dock approach.');
 });
 $('cxmMultiPerformance').addEventListener('change',()=>{
- if($('cxmMultiPerformance').checked)$('cxmMultiFastTransfer').checked=false;
+ if($('cxmMultiPerformance').checked)clearOtherSpeedModes('cxmMultiPerformance');
  $('cxmMultiAck').checked=false;
  chooseControls();
  if(!current?.running)text('cxmMultiStatus',$('cxmMultiPerformance').checked
    ?'EXPERIMENTAL PERFORMANCE: 80 mm/s clear corridor, 8 mm/s approach, unchanged 3 mm/s latch. One supervised T0/T1 cycle ONLY after Faster succeeds.'
    :'Performance disabled · select Standard or 30 mm/s Faster for proven movement.');
+});
+$('cxmMultiSprint').addEventListener('change',()=>{
+ if($('cxmMultiSprint').checked)clearOtherSpeedModes('cxmMultiSprint');
+ $('cxmMultiAck').checked=false;chooseControls();
+ if(!current?.running)text('cxmMultiStatus',$('cxmMultiSprint').checked
+   ?'STAGE 1 SPRINT selected: 200 clear / 40 guided / 10 latch mm/s. Experimental; inspect the dock and test one T0/T1 cycle before Race.'
+   :'Sprint disabled · choose an individually verified movement profile.');
+});
+$('cxmMultiRace').addEventListener('change',()=>{
+ if($('cxmMultiRace').checked)clearOtherSpeedModes('cxmMultiRace');
+ $('cxmMultiAck').checked=false;chooseControls();
+ if(!current?.running)text('cxmMultiStatus',$('cxmMultiRace').checked
+   ?'STAGE 2 RACE selected: 400 clear / 80 guided / 20 latch mm/s. HIGH-LOAD trial only after physical Sprint pass; one supervised T0/T1 cycle.'
+   :'Race disabled · choose an individually verified movement profile.');
 });
 $('cxmMultiRapid').addEventListener('change',()=>{
  $('cxmMultiAck').checked=false;
