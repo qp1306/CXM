@@ -265,6 +265,56 @@ def calibration_release(store,tool,expected_revision,acknowledgement):
     finally:
         MOVE_LOCK.release()
 
+def simple_change(store, tool, expected_revision, *, mounted_tool=None):
+    """Single operator action: sync stored XY, declare sensor-matched identity
+    when necessary, then use the proven native CxChanger toolchange macro.
+
+    PRESSSED can prove presence but not identity. On UNKNOWN state, the operator
+    must select the actual mounted T-number; no tool is guessed from the sensor.
+    Refuse to auto-clear any fault on a known tool or an active native test.
+    """
+    saved=store.read()
+    count=saved['config']['globals']['tool_count']
+    if saved['migration_required'] or saved['revision']!=expected_revision:
+        raise NativeError('Saved dock changed; refresh tool selection')
+    if type(tool) is not int or tool < -1 or tool >= count:
+        raise NativeError('Select a valid tool number or UNLOAD')
+    if type(mounted_tool) is not int or mounted_tool < -1 or mounted_tool >= count:
+        raise NativeError('Select the currently mounted hotend, or EMPTY')
+    native,test,signal=_native_status()
+    if test.get('running'):
+        raise NativeError('Native tool test active')
+    expected='RELEASED' if mounted_tool==-1 else 'PRESSED'
+    if signal!=expected:
+        raise NativeError('Carriage sensor does not match selected mounted/empty state')
+    identity=native.get('current_tool')
+    if identity not in (-2,mounted_tool):
+        raise NativeError('Klipper reports a different mounted tool; inspect identity')
+    if native.get('fault')==1 and identity!=-2:
+        raise NativeError('Native toolchange fault with known identity; inspect motion before recovery')
+    if native.get('ready')!=1 or identity==-2 or native.get('fault')!=0:
+        # Re-establish state using accepted geometry and existing Klipper
+        # carriage declaration, never direct XY movement from Python.
+        initialize(store,expected_revision,mounted_tool)
+    if tool==-1 and mounted_tool==-1:
+        return {'already_empty':True,'current_tool':-1}
+    if tool==mounted_tool:
+        return {'already_mounted':True,'current_tool':tool}
+    # Refuse an unavailable dock before calling a physical motion macro.
+    if tool>=0:
+        t=saved['config']['tools'][tool]
+        if t['maintenance_lockout'] or not t['dock_reference_accepted']:
+            raise NativeError('Destination dock not calibrated or in maintenance lockout')
+    if store.read()['revision']!=expected_revision:
+        raise NativeError('Dock coordinates changed; refresh before toolchange')
+    _rpc('/printer/gcode/script',{'script':'CXM_SELECT_TOOL TOOL='+str(tool)})
+    after,_,after_sensor=_native_status()
+    if (after.get('ready')!=1 or after.get('fault')!=0
+        or after.get('current_tool')!=tool or
+        after_sensor!=('RELEASED' if tool==-1 else 'PRESSED')):
+        raise NativeError('Toolchange outcome not confirmed; inspect carriage before retrying')
+    return {'changed':True,'current_tool':tool,'sensor':after_sensor}
+
 def select(store,tool,expected_revision):
     saved=store.read()
     if saved['revision']!=expected_revision:
