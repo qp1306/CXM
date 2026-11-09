@@ -21,18 +21,15 @@ test('Testing diagnostics remain available without old MCU capture UI',()=>{
  assert.match(tests,/getJSON\('\/cxm\/api\/v1\/config'\)/);
  assert.match(tests,/getJSON\('\/printer\/info'\)/);
 });
-test('capture is linked to provisional dock draft, never silent AutoSave',()=>{
- assert.match(html,/id="cxmManualCapture" disabled/);
- assert.match(html,/<input type="checkbox" id="cxmManualCaptureAck"/);
+test('dock Save is one action: capture, backed-up store and verification',()=>{
+ assert.match(html,/id="cxmManualCapture" disabled>Save aligned dock XY/);
  assert.match(manual,/\/manual\/capture/);
- assert.match(manual,/source:'motor-on-capture'/);
- assert.doesNotMatch(manual,/\/dock'|\/native\/select|CXМ_SELECT_TOOL/);
- assert.match(dock,/cxm-dock-provisional-xy/);
- assert.match(dock,/proposal\.source!=='motor-on-capture'/);
- assert.match(dock,/if \(busy\|\|!canEdit\(\)\)/);
- assert.match(dock,/xInput\.value=Number\(proposal\.x\)\.toFixed\(5\)/);
- assert.match(dock,/yInput\.value=Number\(proposal\.y\)\.toFixed\(5\)/);
- assert.match(dock,/markDraft\(\)/);
+ assert.match(manual,/request\('\/dock'/);
+ assert.match(manual,/if\(!saved\.saved\)/);
+ assert.match(manual,/actual\.dock_x!==result\.xy\.x/);
+ assert.match(manual,/cxm-dock-save-completed/);
+ assert.match(dock,/cxm-dock-save-completed/);
+ assert.doesNotMatch(manual,/CXМ_SELECT_TOOL/);
 });
 test('manual jog is approved per operator and restored to prior modal state by backend',()=>{
  const backend=fs.readFileSync(path.join(__dirname,'../server/cxm_manual.py'),'utf8');
