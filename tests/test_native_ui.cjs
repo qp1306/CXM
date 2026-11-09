@@ -33,7 +33,7 @@ test('high-speed profiles exposed with one-cycle limiter',()=>{
  for(const mode of ['sprint','race','boost']){
   assert.match(html,new RegExp('<option value="'+mode+'">'));
  }
- assert.match(multi,/\['sprint','race','boost'\]\.includes\(selectedProfile\(\)\)/);
+ assert.match(multi,/\['sprint','race','boost','custom'\]\.includes\(selectedProfile\(\)\)/);
  assert.match(multi,/\$\('cxmMultiRepeats'\)\.value='1'/);
 });
 
