@@ -264,6 +264,17 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <div class="panel" id="cxmNativeToolPanel">
  <div class="panel-heading"><h3>Klipper-native tool control</h3><span class="panel-label">CXM_SELECT_TOOL · T0–T11 · XY only</span></div>
  <p class="helper">Dock XY measurement remains in Dock Calibration. Klipper controls pickup and release using the accepted geometry and carriage-switch interlocks.</p>
+<div class="cxm-simple-setup">
+ <label for="cxmCarriageIdentity"><strong>What is currently fitted to the carriage?</strong></label>
+ <div class="buttons">
+  <select id="cxmCarriageIdentity" aria-label="Current physically inspected carriage identity">
+   <option value="">Choose EMPTY or mounted tool</option>
+   <option value="-1">EMPTY — no hotend fitted</option>
+  </select>
+  <button class="btn primary" id="cxmDeclareCarriage">Set carriage state</button>
+ </div>
+ <p class="helper">This is your one physical declaration. Klipper checks the sensor, synchronises saved XY if needed and automatically raises Z to 25 mm when homed and safe. No repeated approval boxes.</p>
+</div>
  <div class="buttons">
   <label for="cxmNativeSelectedTool">Target hotend <select id="cxmNativeSelectedTool"><option value="">Choose a hotend</option></select></label>
  </div>
@@ -279,17 +290,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
  <div class="panel-heading"><h3>Native Klipper toolchange test</h3><span class="panel-label">CXM_SELECT_TOOL · supervised XY mechanical testing</span></div>
  <p class="helper">Pick up and drop off each selected dock-calibrated hotend once per complete cycle, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating or extrusion. Z is automatically raised to 25 mm during verified carriage setup when needed. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
- <div class="cxm-simple-setup">
- <label for="cxmCarriageIdentity"><strong>What is currently fitted to the carriage?</strong></label>
- <div class="buttons">
-  <select id="cxmCarriageIdentity" aria-label="Current physically inspected carriage identity">
-   <option value="">Choose EMPTY or mounted tool</option>
-   <option value="-1">EMPTY — no hotend fitted</option>
-  </select>
-  <button class="btn primary" id="cxmDeclareCarriage">Set carriage state</button>
- </div>
- <p class="helper">This is your one physical declaration. Klipper checks the sensor, synchronises saved XY if needed and automatically raises Z to 25 mm when homed and safe. No repeated approval boxes.</p>
-</div>
+ 
 <label class="cxm-simple-profile" for="cxmSpeedSimple"><strong>Movement speed</strong>
 <select id="cxmSpeedSimple"><option value="standard">Standard · 10 / 4 / 3 mm/s</option><option value="faster">Faster · 30 / 4 / 3 mm/s</option><option value="performance">Performance · 80 / 8 / 3 mm/s</option></select></label>
 <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
