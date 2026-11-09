@@ -18,6 +18,7 @@ from cxm_lineux import (query_readiness, perform_measurement, perform_known_chec
 from cxm_native import (status as multi_status, start as multi_start,
                         stop as multi_stop, sync as native_sync,
                         select as native_select, confirm_empty as native_confirm_empty,
+                        invalidate_for_config_edit as native_invalidate,
                         NativeError)
 from urllib.parse import parse_qs, urlsplit
 
@@ -280,6 +281,13 @@ class Handler(BaseHTTPRequestHandler):
             if not printer_safe():
                 self.output(409,{'error':'Klipper status not confirmed idle/halted; save blocked'})
                 return
+            # Block stale Klipper geometry before any disk configuration change.
+            # Invalidate only when the native macros are actually installed.
+            try:
+                native_invalidate()
+            except NativeError as exc:
+                if 'Install and load CXM native Klipper macro' not in str(exc):
+                    raise
             if self.path=='/v1/setting':
                 if set(body) != {'tool','key','value','expected_revision'}:
                     raise ValueError('Unexpected setting parameters')
