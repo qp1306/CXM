@@ -29,6 +29,19 @@ The operator manually ran BOTH sequences in Mainsail at **F6000 mm/min** and rep
 3. `G1 X304.60 F6000` — release T0 into dock.
 4. `G1 Y165.60 F6000` — withdraw with empty carriage, sensor RELEASED.
 
+## Repeatability and speed-factor evidence
+
+On 10 November 2026 the operator repeated the full pickup/drop-off G-code
+many times while varying the Mainsail `M220` speed factor through
+**200%, 300%, 400%, 500%, 600% and 700%**, reporting smooth motion and
+alternating `FILAMENT PRESENT` / `FILAMENT ABSENT` events without a
+reported pickup/dropoff failure. The log contains command timestamps and
+speed-factor changes, not measured toolchange durations or a guaranteed
+per-move applied feed rate. Consequently **F6000** is the commissioned
+command baseline. The operator should set `M220 S100` before initial
+automatic-macro verification, then raise the factor independently if desired,
+so the first automated comparison is reproducible.
+
 ## Configuration translation
 
 Global `cxm_shift_x = +4.4` and `cxm_safe_clearance_y = 100.0`. Standard profile travel, approach, latch `F6000`. Native geometry uses **saved dock X as the release-side X**, not the mounted-side X.
