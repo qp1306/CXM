@@ -32,7 +32,7 @@ test('multi-test UI preserves profile selection and stop-at-pair request',()=>{
  assert.match(multi,/function selectedMode\(\)\{return 'native';\}/);
  assert.match(multi,/requestBody\.execution_mode='native'/);
  assert.match(multi,/execution_mode==='stream'/); // historic status message fallback only
- assert.match(multi,/post\('?/); // only backend request path
+ assert.match(multi,/async function nativePost\(/);
  assert.match(multi,/STOP_AFTER_CURRENT_TOOL_PAIR/);
  assert.match(multi,/nativePost\('sync'/);
  assert.match(multi,/nativePost\('confirm-empty'/);
