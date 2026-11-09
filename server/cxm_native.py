@@ -4,6 +4,7 @@ Python validates/synchronizes accepted calibration and dispatches macro names.
 It NEVER generates, sends or coordinates XY motion G-code.
 """
 import urllib.parse
+import math
 
 from cxm_lineux import _rpc, MOVE_LOCK
 from cxm_cxchanger import plan as geometry_plan
@@ -206,16 +207,27 @@ def select(store,tool,expected_revision):
     return {'requested_tool':tool,'execution':'native_klipper','result':'check live native status'}
 
 def start(store,tools,expected_revision,acknowledgement,travel_profile='standard',
-          cycles=1,execution_mode='native'):
+          cycles=1,execution_mode='native',custom_speeds=None):
     if acknowledgement!='I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH':
         raise NativeError('Physical carriage and dock inspection required')
     if type(tools) is not list or not 2<=len(tools)<=3 or any(type(n) is not int for n in tools) or tools != sorted(set(tools)):
         raise NativeError('Native commissioning requires 2–3 ascending accepted tools')
-    profiles=('standard','faster','performance','sprint','race','boost')
+    profiles=('standard','faster','performance','sprint','race','boost','custom')
     if travel_profile not in profiles:
         raise NativeError('Unknown CXM speed profile')
-    if travel_profile in ('sprint','race','boost') and cycles!=1:
-        raise NativeError('Experimental high-speed profiles require exactly one supervised cycle')
+    if travel_profile=='custom':
+        if type(custom_speeds) is not dict or set(custom_speeds)!={'travel','approach','latch'}:
+            raise NativeError('Enter all three custom speeds: travel, approach and latch')
+        values=[custom_speeds[k] for k in ('travel','approach','latch')]
+        if any(type(v) not in (int,float) or not math.isfinite(v) for v in values):
+            raise NativeError('Custom speeds must be finite numeric values')
+        travel,approach,latch=values
+        if not (10<=travel<=600 and 1<=approach<=120 and 1<=latch<=40 and travel>=approach>=latch):
+            raise NativeError('Custom limits: travel 10–600, approach 1–120, latch 1–40 mm/s; travel ≥ approach ≥ latch')
+    elif custom_speeds is not None:
+        raise NativeError('Custom speeds are only accepted with Custom profile')
+    if travel_profile in ('sprint','race','boost','custom') and cycles!=1:
+        raise NativeError('High-speed/custom profiles require exactly one supervised cycle')
     if type(cycles) is not int or not 1<=cycles<=20:
         raise NativeError('Cycles must be 1–20')
     saved=store.read()
@@ -230,12 +242,16 @@ def start(store,tools,expected_revision,acknowledgement,travel_profile='standard
         raise NativeError('Native state is not verified EMPTY, ready and fault-free')
     if test.get('running'):
         raise NativeError('Native test already running')
-    script='CXM_SET_PROFILE PROFILE='+travel_profile+'\nCXM_TEST_START A='+str(tools[0])+' B='+str(tools[1])
+    script='CXM_SET_PROFILE PROFILE='+travel_profile
+    if travel_profile=='custom':
+        script+=' TRAVEL='+str(travel)+' APPROACH='+str(approach)+' LATCH='+str(latch)
+    script+='\nCXM_TEST_START A='+str(tools[0])+' B='+str(tools[1])
     if len(tools)==3:
         script+=' C='+str(tools[2])
     script+=' CYCLES='+str(cycles)
     _rpc('/printer/gcode/script',{'script':script})
     return {'started':True,'tools':tools,'cycles':cycles,'execution_mode':'native','travel_profile':travel_profile,
+            'custom_speeds':custom_speeds,
             'note':'Klipper controls tool pairs and checks sensor after each pickup and dropoff'}
 
 def stop(acknowledgement):

@@ -204,7 +204,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if self.path == '/v1/tools/multi/start':
                 required={'tools','expected_revision','acknowledgement'}
-                allowed=required|{'travel_profile','cycles','execution_mode'}
+                allowed=required|{'travel_profile','cycles','execution_mode','custom_speeds'}
                 if not required.issubset(body) or not set(body).issubset(allowed):
                     raise ValueError('Unexpected multi-tool pass request')
                 self.output(200,multi_start(store=self.server.store,**body))
