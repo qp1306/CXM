@@ -377,10 +377,7 @@ class Store:
             'lineux_raw_y': None,
         }
         if raw_xy is not None:
-            if type(raw_xy) is not dict or set(raw_xy)!={'x','y'}:
-                raise ValueError('Lineux reference requires raw X and Y')
-            values['lineux_raw_x']=check_value('lineux_raw_x',raw_xy['x'],FIELDS['lineux_raw_x'])
-            values['lineux_raw_y']=check_value('lineux_raw_y',raw_xy['y'],FIELDS['lineux_raw_y'])
+            raise ValueError('Legacy MCU-derived XY provenance retired; use motor-on capture')
         with self.lock.open('a+') as f:
             fcntl.flock(f, fcntl.LOCK_EX)
             data, old = self._current()
@@ -390,16 +387,6 @@ class Store:
                 raise RuntimeError('Explicit configuration migration required before editing')
             if tool >= data['globals']['tool_count'] or data['tools'][tool]['maintenance_lockout']:
                 raise ValueError('Tool outside count or in maintenance lockout')
-            if raw_xy is not None:
-                for axis in ('x','y'):
-                    # Lineux no-jog commissioning applies ZERO X datum correction.
-                    # Keep the legacy persisted X offset for rollback, but do not
-                    # require it when accepting a fresh measured raw X coordinate.
-                    offset=0.0 if axis == 'x' else data['globals']['y_docking_adjust']
-                    expected=round(values['lineux_raw_'+axis]+offset,4)
-                    if abs(values['dock_'+axis]-expected)>0.005:
-                        raise ValueError('CxChanger dock '+axis.upper()+' must equal Lineux '+axis.upper()+
-                                         ' plus the currently applied calibration offset')
             data = copy.deepcopy(data)
             entry = data['tools'][tool]
             changed = any(entry[k] != v for k, v in values.items())
