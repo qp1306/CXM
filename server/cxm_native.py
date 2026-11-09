@@ -212,6 +212,41 @@ def recover_empty():
     finally:
         MOVE_LOCK.release()
 
+def calibration_release(store,tool,expected_revision,acknowledgement):
+    """Operator-supervised release from the EXACT engaged dock position.
+
+    No Python-generated XY G-code. Klipper validates machine/tool/sensor and
+    executes the original CxChanger release waypoints from engagement onward.
+    """
+    if acknowledgement!='I_VERIFIED_MOUNTED_TOOL_ENGAGED_IN_CORRECT_DOCK_AND_APPROVE_RELEASE':
+        raise NativeError('Physically inspect T number, dock engagement, clearance and emergency stop')
+    saved=store.read()
+    if saved['migration_required'] or saved['revision']!=expected_revision:
+        raise NativeError('CXM configuration changed; refresh before release')
+    if type(tool) is not int or tool<0 or tool>=saved['config']['globals']['tool_count']:
+        raise NativeError('Invalid calibrated tool number')
+    config=saved['config']['tools'][tool]
+    if config['maintenance_lockout'] or config['dock_reference_accepted'] is not True:
+        raise NativeError('Selected hotend has no accepted unlocked dock coordinates')
+    native,test,signal=_native_status()
+    if native.get('protocol')!=2 or native.get('ready')!=1 or native.get('fault')!=0:
+        raise NativeError('Native Klipper geometry/identity not READY')
+    if test.get('running') or native.get('current_tool')!=tool or signal!='PRESSED':
+        raise NativeError('Mounted hotend, native identity, sensor or active test mismatch')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise NativeError('Another CXM operation is in progress')
+    try:
+        if _rpc('/printer/info').get('state')!='ready':
+            raise NativeError('Klipper not ready')
+        if store.read()['revision']!=expected_revision:
+            raise NativeError('Saved calibration changed during release preflight')
+        _rpc('/printer/gcode/script',{
+            'script':'CXM_CALIBRATION_RELEASE TOOL='+str(tool)+' CONFIRM=1'})
+        return {'requested_release':tool,'execution':'native_klipper',
+                'result':'inspect carriage EMPTY and hotend docked; verify native status'}
+    finally:
+        MOVE_LOCK.release()
+
 def select(store,tool,expected_revision):
     saved=store.read()
     if saved['revision']!=expected_revision:
