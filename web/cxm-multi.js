@@ -28,6 +28,13 @@ function repeatCount(){
 function selectedProfile(){
  return $('cxmSpeedSimple').value;
 }
+function customSpeeds(){
+ const values=['cxmCustomTravel','cxmCustomApproach','cxmCustomLatch'].map(id=>Number($(id).value));
+ if(values.some((v,i)=>!Number.isFinite(v)||$( ['cxmCustomTravel','cxmCustomApproach','cxmCustomLatch'][i] ).value.trim()===''))return null;
+ const [travel,approach,latch]=values;
+ return travel>=10&&travel<=600&&approach>=1&&approach<=120&&latch>=1&&latch<=40&&travel>=approach&&approach>=latch
+   ? {travel,approach,latch}:null;
+}
 function selectedMode(){return 'native';}
 function profileLabel(profile){
  const names={
@@ -36,7 +43,8 @@ function profileLabel(profile){
    performance:'PERFORMANCE (80 / 8 / 3 mm/s)',
    sprint:'SPRINT (200 / 40 / 10 mm/s)',
    race:'RACE (400 / 80 / 20 mm/s)',
-   boost:'BOOST requested (600 / 120 / 40 mm/s)'
+   boost:'BOOST requested (600 / 120 / 40 mm/s)',
+   custom:'CUSTOM ('+(customSpeeds()?Object.values(customSpeeds()).join(' / '):'INVALID')+' mm/s)'
  };
  return names[profile]||'UNKNOWN PROFILE';
 }
@@ -54,8 +62,9 @@ function chooseControls(){
  text('cxmMultiPlanned','NEXT TEST (not previous run): '+
    modeLabel(selectedMode())+' · '+profileLabel(selectedProfile())+
    ' · '+(cycles??'INVALID')+' cycle(s) · '+selection().length+' tools');
- const experimental=['sprint','race','boost'].includes(selectedProfile());
- const ready=!requestBusy&&!running&&valid&&cycles!==null&&(!experimental||cycles===1)&&
+ const experimental=['sprint','race','boost','custom'].includes(selectedProfile());
+ const customValid=selectedProfile()!=='custom'||customSpeeds()!==null;
+ const ready=!requestBusy&&!running&&valid&&cycles!==null&&customValid&&(!experimental||cycles===1)&&
    current?.native_ready===true&&current?.current_tool===-1&&current?.fault===0&&!!current?.revision;
  $('cxmMultiAck').disabled=!ready;
  if(!ready)$('cxmMultiAck').checked=false;
@@ -236,8 +245,8 @@ async function start(){
  const cycles=repeatCount();
  if(cycles===null)return;
  const travelProfile=selectedProfile();
- if((travelProfile==='sprint'||travelProfile==='race'||travelProfile==='boost')&&cycles!==1){
-  text('cxmMultiStatus','Experimental Sprint/Race/Boost requires exactly one supervised cycle. Set repeats to 1.');
+ if(['sprint','race','boost','custom'].includes(travelProfile)&&cycles!==1){
+  text('cxmMultiStatus','High-speed and Custom profiles require exactly one supervised cycle.');
   return;
  }
  const streaming=$('cxmMultiStream').checked;
@@ -254,6 +263,11 @@ async function start(){
    const requestBody={tools:list,expected_revision:current.revision,
      acknowledgement:ack,travel_profile:travelProfile,cycles};
    requestBody.execution_mode='native';
+   if(travelProfile==='custom'){
+     const values=customSpeeds();
+     if(!values)throw Error('Custom speeds are invalid; check three speed limits and ordering');
+     requestBody.custom_speeds=values;
+   }
    const reply=await request('/start',requestBody);
    if(!reply.started)throw Error('Backend did not confirm a started run');
    lastError='';
@@ -350,11 +364,16 @@ async function setCarriageState(){
 $('cxmDeclareCarriage').addEventListener('click',setCarriageState);
 $('cxmSpeedSimple').addEventListener('change',()=>{
  $('cxmMultiAck').checked=false;
- if(['sprint','race','boost'].includes(selectedProfile())){
+ $('cxmCustomSpeedFields').hidden=selectedProfile()!=='custom';
+ if(['sprint','race','boost','custom'].includes(selectedProfile())){
    $('cxmMultiRepeats').value='1';
  }
  chooseControls();
 });
+for(const id of ['cxmCustomTravel','cxmCustomApproach','cxmCustomLatch']){
+ $(id).addEventListener('input',chooseControls);
+}
+$('cxmCustomSpeedFields').hidden=selectedProfile()!=='custom';
 $('cxmNativeRecover').addEventListener('click',recoverNativeEmpty);
 $('cxmNativeEmptyAck').addEventListener('change',chooseControls);
 $('cxmNativeSync').addEventListener('click',synchronizeNative);
