@@ -42,6 +42,6 @@ test('manual jog is approved per operator and restored to prior modal state by b
  assert.match(backend,/M400/);
  assert.match(backend,/stepper_z3/);
  assert.match(backend,/print_stats/);
- assert.match(backend,/RELEASED/);
+ assert.match(backend,/PRESSED/);
  assert.doesNotMatch(backend,/SET_KINEMATIC_POSITION|DOCK_LOCATE_CALIBRATE/);
 });
