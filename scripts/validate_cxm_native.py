@@ -71,7 +71,7 @@ def check():
         # Jinja2 uses {{expression}}. Expand single-brace Klipper output
         # expressions while preserving {% statements %}.
         body=blocks[name].split('gcode:',1)[1]
-        jinja_body=re.sub(r'(?<![{%])\\{([^{}%#\\n]+)\\}(?!})',
+        jinja_body=re.sub(r'(?<![{%])\{([^{}%#\n]+)\}(?!})',
                           lambda m:'{{'+m.group(1)+'}}',body)
         rendered=env.from_string(jinja_body).render(
             printer=printer,params={'TOOL':0})
