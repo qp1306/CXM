@@ -13,8 +13,8 @@ class NativeError(RuntimeError):
 
 def _native_status():
     q=urllib.parse.urlencode({
-        'gcode_macro _CXM_NATIVE':'protocol,ready,current_tool,fault,tool_count',
-        'gcode_macro _CXM_TEST_STATE':'running,stop,index,cycles,completed,tool_a,tool_b',
+        'gcode_macro _CXM_NATIVE':'protocol,ready,current_tool,fault,tool_count,profile',
+        'gcode_macro _CXM_TEST_STATE':'running,stop,index,cycles,completed,tool_a,tool_b,tool_c,state',
         'gcode_button cxm_tool_detect':'state'})
     result=_rpc('/printer/objects/query?'+q).get('status',{})
     native=result.get('gcode_macro _CXM_NATIVE',{})
@@ -27,12 +27,18 @@ def _native_status():
 def status(store):
     native,test,signal=_native_status()
     running=test.get('running')==1
-    return {'state':'running' if running else 'idle',
+    selected=[x for x in (test.get('tool_a'),test.get('tool_b'),test.get('tool_c')) if type(x) is int and x >= 0]
+    count=len(selected)
+    return {'state':'running' if running else test.get('state','idle'),
             'running':running,'execution_mode':'native',
-            'travel_profile':'standard',
-            'tools':[test.get('tool_a'),test.get('tool_b')] if running else [],
+            'travel_profile':native.get('profile','standard'),
+            'tools':selected,
             'requested_cycles':test.get('cycles',0),
             'completed_cycles':test.get('completed',0),
+            'total_steps':2*count*test.get('cycles',0),
+            'completed_steps':2*(count*test.get('completed',0)+test.get('index',0)),
+            'current_cycle':test.get('completed',0)+1 if running else None,
+            'current_action':'native_macro_pair' if running else None,
             'stop_requested':bool(test.get('stop')),
             'current_tool':native.get('current_tool'),
             'sensor':signal,'native_ready':bool(native.get('ready')),
@@ -121,10 +127,13 @@ def start(store,tools,expected_revision,acknowledgement,travel_profile='standard
           cycles=1,execution_mode='native'):
     if acknowledgement!='I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH':
         raise NativeError('Physical carriage and dock inspection required')
-    if type(tools) is not list or len(tools)!=2 or any(type(n) is not int for n in tools) or tools[0]>=tools[1]:
-        raise NativeError('Native commissioning currently supports two ordered accepted tools only')
-    if travel_profile!='standard':
-        raise NativeError('Native baseline is Standard only until it passes mechanical validation')
+    if type(tools) is not list or not 2<=len(tools)<=3 or any(type(n) is not int for n in tools) or tools != sorted(set(tools)):
+        raise NativeError('Native commissioning requires 2–3 ascending accepted tools')
+    profiles=('standard','faster','performance','sprint','race','boost')
+    if travel_profile not in profiles:
+        raise NativeError('Unknown CXM speed profile')
+    if travel_profile in ('sprint','race','boost') and cycles!=1:
+        raise NativeError('Experimental high-speed profiles require exactly one supervised cycle')
     if type(cycles) is not int or not 1<=cycles<=20:
         raise NativeError('Cycles must be 1–20')
     saved=store.read()
@@ -139,8 +148,12 @@ def start(store,tools,expected_revision,acknowledgement,travel_profile='standard
         raise NativeError('Native state is not verified EMPTY, ready and fault-free')
     if test.get('running'):
         raise NativeError('Native test already running')
-    _rpc('/printer/gcode/script',{'script':'CXM_TEST_START A='+str(tools[0])+' B='+str(tools[1])+' CYCLES='+str(cycles)})
-    return {'started':True,'tools':tools,'cycles':cycles,'execution_mode':'native','travel_profile':'standard',
+    script='CXM_SET_PROFILE PROFILE='+travel_profile+'\nCXM_TEST_START A='+str(tools[0])+' B='+str(tools[1])
+    if len(tools)==3:
+        script+=' C='+str(tools[2])
+    script+=' CYCLES='+str(cycles)
+    _rpc('/printer/gcode/script',{'script':script})
+    return {'started':True,'tools':tools,'cycles':cycles,'execution_mode':'native','travel_profile':travel_profile,
             'note':'Klipper controls tool pairs and checks sensor after each pickup and dropoff'}
 
 def stop(acknowledgement):
