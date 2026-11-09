@@ -117,13 +117,16 @@ class ManualDockTests(unittest.TestCase):
         self.assertEqual(self.command_log,[])
 
     def test_one_click_atomic_save_for_all_selected_tools(self):
-        for selected in range(3):
+        for selected in range(12):
             self.command_log.clear()
             class SavingStore(Store):
                 def __init__(self):
                     self.stored={}
                 def read(self):
                     d=super().read()
+                    d['config']['globals']['tool_count']=12
+                    d['config']['tools'].extend(
+                        {'maintenance_lockout':False} for _ in range(9))
                     if self.stored:
                         d['revision']='b'*64
                         d['config']['tools'][selected].update(self.stored)
