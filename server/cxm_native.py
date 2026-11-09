@@ -173,10 +173,13 @@ def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False, store=N
         from cxm_manual import status as manual_dock_status
         manual_dock_status(tool,store)
         identity=native.get('current_tool')
+        # A mounted calibration can legitimately follow a rejected native
+        # toolchange. A fault latch is not proof that the mounted hotend changed.
+        # Never accept a different positively-known tool identity, or any
+        # active native test. Save is disk-only; mark live geometry UNKNOWN.
+        if identity not in (-2, tool):
+            raise NativeError('Mounted tool identity conflicts with selected dock')
         invalid=(native.get('ready')==0 and native.get('fault')==1 and identity==-2)
-        verified=(native.get('ready')==1 and native.get('fault')==0 and identity==tool)
-        if not (invalid or verified):
-            raise NativeError('Mounted dock save refused: native identity or fault state conflicts with selected tool')
         if invalid:
             return {'invalidated':True,'already_invalidated':True,
                     'needs_native_sync':True}
