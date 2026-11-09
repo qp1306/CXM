@@ -22,7 +22,8 @@ import urllib.parse
 from cxm_lineux import MOVE_LOCK, _rpc
 from cxm_rapid import pair_script
 from cxm_cxchanger import (plan as cxchanger_plan, automatic_script,
-                           faster_cycle_script, performance_cycle_script)
+                           faster_cycle_script, performance_cycle_script,
+                           sprint_cycle_script, race_cycle_script)
 from cxm_t0 import (_safe_context, _wait_for_idle_after_move, _sensor_value,
                     AUTO_SENSOR, AUTO_MOUNTED, AUTO_EMPTY, AUTO_STATE,
                     SESSION_LOCK, SAFE_FEED, TEST_FEED, LATCH_FEED,
@@ -43,7 +44,7 @@ RUN={'running':False,'run_id':None,'state':'idle','tools':[],
 
 START_ACK='I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH'
 STOP_ACK='STOP_AFTER_CURRENT_TOOL_PAIR'
-TRAVEL_PROFILES=('standard','faster','performance')
+TRAVEL_PROFILES=('standard','faster','performance','sprint','race')
 EXECUTION_MODES=('legacy','rapid')
 RAPID_MACRO='gcode_macro CXM_FAST_VERIFY'
 MAX_REPEAT_CYCLES=20
@@ -274,6 +275,10 @@ def _step(store,tool,kind,expected_revision,expected_pid,paths,travel_profile='s
                                   test_feed=TEST_FEED,latch_feed=LATCH_FEED)
     elif travel_profile=='performance':
         script=performance_cycle_script(p,kind,at_stage=at_stage)
+    elif travel_profile=='sprint':
+        script=sprint_cycle_script(p,kind,at_stage=at_stage)
+    elif travel_profile=='race':
+        script=race_cycle_script(p,kind,at_stage=at_stage)
     elif travel_profile=='standard':
         # Exact existing physical-test baseline, no code or speed changes.
         script=automatic_script(p,kind,at_stage=at_stage,
@@ -425,12 +430,17 @@ def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standa
     if acknowledgement!=START_ACK:
         raise MultiToolError('Confirm the real carriage is EMPTY, all selected docks are safe and the XY path is clear')
     if type(travel_profile) is not str or travel_profile not in TRAVEL_PROFILES:
-        raise MultiToolError('Invalid travel profile: choose standard, faster, or performance')
+        raise MultiToolError('Invalid travel profile: choose standard, faster, performance, sprint or race')
     if type(execution_mode) is not str or execution_mode not in EXECUTION_MODES:
         raise MultiToolError('Invalid execution mode: legacy or rapid')
     if type(cycles) is not int or not 1<=cycles<=MAX_REPEAT_CYCLES:
         raise MultiToolError('Choose a whole number of complete cycles from 1 to '+
                              str(MAX_REPEAT_CYCLES))
+    # These stages are new physical load cases, not yet commissioned for
+    # repeated unsupervised tool changes. The first observed trial must
+    # include only one complete pass; other proven modes remain unchanged.
+    if travel_profile in ('sprint','race') and cycles!=1:
+        raise MultiToolError('Experimental Sprint/Race requires exactly one supervised cycle')
     if type(tools) is list and cycles*len(tools)*2>MAX_TOTAL_MOVEMENTS:
         raise MultiToolError('Batch exceeds the '+str(MAX_TOTAL_MOVEMENTS)+
                              '-movement safety limit; select fewer cycles or tools')

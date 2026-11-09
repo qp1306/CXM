@@ -84,7 +84,7 @@ DOCK_CLEARANCE_MARGIN_Y=10.0 # stay 10 mm outside the Y-dodge point at speed
 def faster_cycle_script(path,kind,*,at_stage,travel_feed=FAST_TRANSFER_FEED,
                         test_feed=240,latch_feed=180,
                         margin_y=DOCK_CLEARANCE_MARGIN_Y,
-                        _performance_limits=False):
+                        _performance_limits=False, _trial_limits=False):
     """Same final docking geometry, faster ONLY when safely clear of dock.
 
     Entry is slowed at Y=dock_y+dodge_y+margin_y, before the coupling can
@@ -98,10 +98,10 @@ def faster_cycle_script(path,kind,*,at_stage,travel_feed=FAST_TRANSFER_FEED,
     # mode retains its original strict 30/4/3 mm/s limits and behaviour.
     # A 15mm approach margin protects the coupling from 80mm/s travel.
     travel=finite(travel_feed,'Fast clear-corridor feed',600,
-                  4800 if _performance_limits else 1800)
+                  24000 if _trial_limits else 4800 if _performance_limits else 1800)
     test=finite(test_feed,'Dock approach feed',120,
-                480 if _performance_limits else 240)
-    latch=finite(latch_feed,'Dock latch feed',90,180)
+                4800 if _trial_limits else 480 if _performance_limits else 240)
+    latch=finite(latch_feed,'Dock latch feed',90,1200 if _trial_limits else 180)
     margin=finite(margin_y,'Dock approach safety margin',8,15)
     x=path['dock_reference_xy']['x']
     y=path['dock_reference_xy']['y']
@@ -154,3 +154,37 @@ def performance_cycle_script(path,kind,*,at_stage):
                                latch_feed=PERFORMANCE_LATCH_FEED,
                                margin_y=PERFORMANCE_MARGIN_Y,
                                _performance_limits=True)
+
+# Two strictly opt-in SPEED TRIALS based on the validated CxChanger
+# motion geometry. These feed rates are NOT commissioned for the
+# assembled CXM. Advance one profile per supervised, witnessed pass;
+# stop on impact, missed steps, latch trouble or unexpected tool state.
+#
+# Original CxChanger normal mode is considerably faster (~400 mm/s
+# clear travel, ~83.3 mm/s coupling), but do not assume that the user's
+# printed mechanism and XY acceleration can safely match it.
+SPRINT_TRAVEL_FEED=12000     # Stage 1: 200 mm/s open corridor
+SPRINT_APPROACH_FEED=2400    # Stage 1: 40 mm/s guided dock movement
+SPRINT_LATCH_FEED=600        # Stage 1: 10 mm/s lever / latch action
+RACE_TRAVEL_FEED=24000      # Stage 2: 400 mm/s open corridor (above F19000)
+RACE_APPROACH_FEED=4800     # Stage 2: 80 mm/s guided dock movement
+RACE_LATCH_FEED=1200        # Stage 2: 20 mm/s lever / latch action
+TRIAL_MARGIN_Y=15.0        # enter slow zone 15 mm outside Y dodge point
+
+def sprint_cycle_script(path,kind,*,at_stage):
+    """First-stage speed trial: never alters accepted docking positions."""
+    return faster_cycle_script(path,kind,at_stage=at_stage,
+                               travel_feed=SPRINT_TRAVEL_FEED,
+                               test_feed=SPRINT_APPROACH_FEED,
+                               latch_feed=SPRINT_LATCH_FEED,
+                               margin_y=TRIAL_MARGIN_Y,
+                               _trial_limits=True)
+
+def race_cycle_script(path,kind,*,at_stage):
+    """Second-stage speed trial: only after supervised Sprint passes."""
+    return faster_cycle_script(path,kind,at_stage=at_stage,
+                               travel_feed=RACE_TRAVEL_FEED,
+                               test_feed=RACE_APPROACH_FEED,
+                               latch_feed=RACE_LATCH_FEED,
+                               margin_y=TRIAL_MARGIN_Y,
+                               _trial_limits=True)
