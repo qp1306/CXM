@@ -67,7 +67,13 @@ def check():
                  'approach_feed':6000,'latch_feed':6000}
     printer={'gcode_macro _CXM_NATIVE':fake_native}
     def actual_g1(name):
-        rendered=env.from_string(blocks[name].split('gcode:',1)[1]).render(
+        # Klipper's gcode templates use {expression}, whereas vanilla
+        # Jinja2 uses {{expression}}. Expand single-brace Klipper output
+        # expressions while preserving {% statements %}.
+        body=blocks[name].split('gcode:',1)[1]
+        jinja_body=re.sub(r'(?<![{%])\\{([^{}%#\\n]+)\\}(?!})',
+                          lambda m:'{{'+m.group(1)+'}}',body)
+        rendered=env.from_string(jinja_body).render(
             printer=printer,params={'TOOL':0})
         return [line.strip() for line in rendered.splitlines()
                 if line.strip().startswith('G1 ')]
