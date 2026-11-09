@@ -292,7 +292,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <p class="helper">Pick up and drop off each selected dock-calibrated hotend once per complete cycle, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating or extrusion. Z is automatically raised to 25 mm during verified carriage setup when needed. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
  
 <label class="cxm-simple-profile" for="cxmSpeedSimple"><strong>Movement speed</strong>
-<select id="cxmSpeedSimple"><option value="standard">Standard · 10 / 4 / 3 mm/s</option><option value="faster">Faster · 30 / 4 / 3 mm/s</option><option value="performance">Performance · 80 / 8 / 3 mm/s</option></select></label>
+<select id="cxmSpeedSimple"><option value="standard">Standard · 10 / 4 / 3 mm/s</option><option value="faster">Faster · 30 / 4 / 3 mm/s</option><option value="performance">Performance · 80 / 8 / 3 mm/s</option><option value="sprint">Sprint · 200 / 40 / 10 mm/s — fast docking</option><option value="race">Race · 400 / 80 / 20 mm/s — experimental</option></select></label>
 <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
  <label class="cxm-multi-repeat" for="cxmMultiRepeats">
   <span><strong>Repeat complete tool cycles</strong><small id="cxmMultiRepeatHelp">One cycle = each selected hotend picked up and dropped off once. Set 1–20 for T0/T1/T2. Maximum 240 movements per run.</small></span>
@@ -912,7 +912,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-lineux.js?v=0.9.14" defer></script>
 
 
-<script src="cxm-multi.js?v=1.1.0" defer></script>
+<script src="cxm-multi.js?v=1.2.0" defer></script>
 <script src="cxm-native-control.js?v=1.1.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
