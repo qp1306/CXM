@@ -37,7 +37,7 @@ def check():
             raise AssertionError(name+' Jinja syntax error: '+str(exc)) from exc
     # The original user-supplied toolchange-EN.cfg movement order:
     # Pickup: dodge, X shift, dock entry, X clamp, retract to safe Y.
-    # Release: dock entry, X shift, dodge, X reset, retract to safe Y.
+    # Release: approach fully locked dock XY, withdraw Y+ without X movement.
     from cxm_cxchanger import plan
     tools=[]
     for n in range(12):
@@ -51,13 +51,19 @@ def check():
         p=plan(saved,tool=n)
         x=150.0+n*3;y=100.0
         assert p['pickup']==[(x,y+14),(x-3,y+14),(x-3,y),(x,y),(x,y+60)]
-        assert p['dropoff']==[(x,y),(x-3,y),(x-3,y+14),(x,y+14),(x,y+60)]
+        assert p['dropoff']==[(x,y),(x,y+60)]
     controller=blocks['CXM_SELECT_TOOL']
     assert 'pos.y|float < target_safe - 1.0' in controller
     pickup=blocks['_CXM_PICKUP_MOTION']
     assert '_CXM_CLEAR_TRANSFER X={x} Y={safe} MIN_Y={safe} EXPECT=RELEASED' in pickup
     release=blocks['_CXM_RELEASE_MOTION']
     assert '_CXM_CLEAR_TRANSFER X={x} Y={safe} MIN_Y={safe} EXPECT=PRESSED' in release
+    assert 'G1 X{x} Y{y} F{st.approach_feed}' in release
+    assert 'G1 X{x} Y{safe} F{st.approach_feed}' in release
+    assert 'G1 X{x+shift}' not in release
+    calibration=blocks['CXM_CALIBRATION_RELEASE']
+    assert 'G1 X{x} Y{safe} F{st.approach_feed}' in calibration
+    assert 'G1 X{x+shift}' not in calibration
     assert '_CXM_CLEAR_TRANSFER' in blocks
     clear=blocks['_CXM_CLEAR_TRANSFER']
     assert 'diagonal path would enter dock corridor' in clear
