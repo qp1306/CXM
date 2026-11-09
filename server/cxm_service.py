@@ -13,7 +13,7 @@ import urllib.request
 from cxm_config import Store
 from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
                     confirm_staging as t0_confirm_staging, T0Error)
-from cxm_manual import status as manual_status, jog as manual_jog, capture as manual_capture, ManualDockError
+from cxm_manual import status as manual_status, jog as manual_jog, capture as manual_capture, save as manual_save, ManualDockError
 from cxm_native import (status as multi_status, start as multi_start,
                         stop as multi_stop, sync as native_sync,
                         select as native_select, simple_change as native_simple_change,
@@ -164,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
                 return
             if self.path == '/v1/native/initialize':
@@ -277,6 +277,13 @@ class Handler(BaseHTTPRequestHandler):
                 if set(body)!={'tool','axis','distance','expected_revision','acknowledgement'}:
                     raise ValueError('Invalid supervised XY jog request')
                 self.output(200,manual_jog(store=self.server.store,**body))
+                return
+            if self.path == '/v1/manual/save':
+                if set(body)!={'tool','expected_revision','acknowledgement'}:
+                    raise ValueError('Select tool, revision and confirmed physical alignment')
+                if not printer_safe():
+                    raise ManualDockError('Printer not confirmed idle; dock save blocked')
+                self.output(200,manual_save(store=self.server.store,**body))
                 return
             if self.path == '/v1/manual/capture':
                 if set(body)!={'tool','expected_revision','acknowledgement'}:

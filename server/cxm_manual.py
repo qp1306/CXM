@@ -51,11 +51,10 @@ def _check(tool, saved):
     if test.get('running')==1:
         raise ManualDockError('Native tool test running; alignment blocked')
     identity=native.get('current_tool')
-    if identity not in (-2,tool):
-        raise ManualDockError('Native carriage identity conflicts with selected tool; inspect before alignment')
-    # -2 is expected after configuration invalidation; it is NOT a declaration
-    # that the mounted tool identity has been verified. The operator must
-    # explicitly confirm the selected physical hotend for each motion.
+    # For MANUAL alignment only, the selected tool is an operator declaration:
+    # the presence switch cannot identify a hotend and native identity may be
+    # stale after a physical change. We invalidate it before any disk save.
+    # Automatic toolchanges still require confirmed identity and sensor state.
     limits=state.get('configfile',{}).get('settings',{})
     xy={}
     for i,ax in enumerate('xy'):
@@ -128,26 +127,71 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
     finally:
         MOVE_LOCK.release()
 
+def _capture_locked(tool,expected_revision,store):
+    """Capture stable XY after M400; caller holds MOVE_LOCK."""
+    before=_check(tool,store.read())
+    if expected_revision!=before['revision']:
+        raise ManualDockError('Settings changed; refresh before capture')
+    _rpc('/printer/gcode/script',{'script':'M400'})
+    after=_check_after_own_command(tool,store)
+    if after['sensor']!='PRESSED':
+        raise ManualDockError('Mounted sensor changed during capture')
+    if after['revision']!=before['revision']:
+        raise ManualDockError('Settings changed during capture')
+    for axis in 'xy':
+        if abs(after['xy'][axis]-before['xy'][axis])>0.02:
+            raise ManualDockError('Position moved during capture; repeat alignment')
+    return after
+
+
 def capture(*,tool,expected_revision,acknowledgement,store):
     if acknowledgement!='I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON':
         raise ManualDockError('Physical alignment confirmation required')
     if not MOVE_LOCK.acquire(blocking=False):
         raise ManualDockError('Another CXM operation is running')
     try:
-        before=_check(tool,store.read())
-        if expected_revision!=before['revision']:
-            raise ManualDockError('Settings changed; refresh before capture')
-        _rpc('/printer/gcode/script',{'script':'M400'})
-        after=_check_after_own_command(tool,store)
-        if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:
-            raise ManualDockError('Mounted carriage state changed during capture')
-        if after['revision']!=before['revision']:
-            raise ManualDockError('Settings changed during capture')
-        for axis in 'xy':
-            if abs(after['xy'][axis]-before['xy'][axis])>0.02:
-                raise ManualDockError('Position moved during capture; repeat alignment')
+        after=_capture_locked(tool,expected_revision,store)
         return {'captured':True,'tool':tool,'xy':after['xy'],
                 'expected_revision':after['revision'],'saved':False,
-                'verified':False,'note':'Provisional motor-on XY only. Inspect, save, then test native pickup/dropoff.'}
+                'verified':False,'note':'Stationary capture only; use Save to persist.'}
+    finally:
+        MOVE_LOCK.release()
+
+
+def save(*,tool,expected_revision,acknowledgement,store):
+    """ONE atomic operator workflow: live capture -> invalidation -> disk save.
+
+    The motion lock spans capture, native invalidation and file confirmation.
+    The config Store uses its own revision-checked atomic write and backup.
+    Never send X/Y/Z motion. The operator-selected tool is the identity source;
+    the switch confirms PRESENT only, not tool number.
+    """
+    if acknowledgement!='I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON':
+        raise ManualDockError('Confirm which tool is physically aligned in its dock')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise ManualDockError('Another CXM operation is running')
+    try:
+        from cxm_native import invalidate_for_config_edit
+        after=_capture_locked(tool,expected_revision,store)
+        xy=dict(after['xy'])
+        invalidate_for_config_edit(
+            permit_mounted_provisional_dock=True,store=store,tool=tool)
+        # Recheck after runtime invalidation: no external Mainsail command
+        # must move the tool between the measured capture and persistent save.
+        final=_check_after_own_command(tool,store)
+        if final['revision']!=expected_revision or final['sensor']!='PRESSED':
+            raise ManualDockError('Dock state changed before Save; coordinates NOT written')
+        if any(abs(final['xy'][axis]-xy[axis])>0.02 for axis in 'xy'):
+            raise ManualDockError('Dock moved after capture; coordinates NOT written')
+        result=store.save_dock(tool,xy,expected_revision)
+        verified=store.read()
+        stored=verified['config']['tools'][tool]
+        if (stored['dock_x']!=xy['x'] or stored['dock_y']!=xy['y']
+            or stored['dock_reference_accepted'] is not True
+            or stored['dock_z'] is not None):
+            raise ManualDockError('Disk read-back does not match captured dock XY')
+        return {'saved':True,'verified':True,'tool':tool,'xy':xy,
+                'backup':result.get('backup'),'revision':verified['revision'],
+                'needs_native_sync':True}
     finally:
         MOVE_LOCK.release()

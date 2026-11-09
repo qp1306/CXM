@@ -108,11 +108,64 @@ class ManualDockTests(unittest.TestCase):
             m.jog(tool=0,axis='x',distance=0.1,expected_revision='a'*64,
               acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG',store=self.store)
         self.assertEqual(self.command_log,[])
-    def test_block_wrong_native_tool_identity(self):
+    def test_stale_native_identity_is_not_tool_identity_during_manual_alignment(self):
         self.state['gcode_macro _CXM_NATIVE']['current_tool']=1
-        with self.assertRaisesRegex(m.ManualDockError,'identity conflicts'):
-            m.status(0,self.store)
+        result=m.status(0,self.store)
+        self.assertTrue(result['ready'])
+        self.assertEqual(result['identity_source'],'operator_selected')
+        self.assertEqual(result['native_tool_identity'],1)
         self.assertEqual(self.command_log,[])
+
+    def test_one_click_atomic_save_for_all_selected_tools(self):
+        for selected in range(12):
+            self.command_log.clear()
+            class SavingStore(Store):
+                def __init__(self):
+                    self.stored={}
+                def read(self):
+                    d=super().read()
+                    d['config']['globals']['tool_count']=12
+                    d['config']['tools'].extend(
+                        {'maintenance_lockout':False} for _ in range(9))
+                    if self.stored:
+                        d['revision']='b'*64
+                        d['config']['tools'][selected].update(self.stored)
+                    return d
+                def save_dock(self,tool,xy,expected_revision):
+                    self.stored={'dock_x':xy['x'],'dock_y':xy['y'],
+                                 'dock_z':None,'dock_reference_accepted':True}
+                    return {'saved':True,'backup':'verified.cfg'}
+            store=SavingStore()
+            self.state['gcode_macro _CXM_NATIVE']['current_tool']=0
+            with patch('cxm_native.invalidate_for_config_edit') as invalidate:
+                result=m.save(tool=selected,expected_revision='a'*64,
+                    acknowledgement='I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON',store=store)
+            self.assertTrue(result['saved'])
+            self.assertTrue(result['verified'])
+            self.assertEqual(result['tool'],selected)
+            self.assertEqual(result['xy'],{'x':309.4,'y':66.0})
+            self.assertEqual(result['backup'],'verified.cfg')
+            self.assertEqual(self.command_log,['M400'])
+            invalidate.assert_called_once_with(
+                permit_mounted_provisional_dock=True,store=store,tool=selected)
+
+    def test_one_click_save_rejects_empty_sensor_without_side_effects(self):
+        self.state['gcode_button cxm_tool_detect']['state']='RELEASED'
+        with patch('cxm_native.invalidate_for_config_edit') as invalidate:
+            with self.assertRaises(m.ManualDockError):
+                m.save(tool=1,expected_revision='a'*64,
+                    acknowledgement='I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON',store=self.store)
+        invalidate.assert_not_called()
+        self.assertEqual(self.command_log,[])
+
+    def test_one_click_save_rejects_stale_revision_before_motion(self):
+        with patch('cxm_native.invalidate_for_config_edit') as invalidate:
+            with self.assertRaisesRegex(m.ManualDockError,'Settings changed'):
+                m.save(tool=1,expected_revision='f'*64,
+                    acknowledgement='I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON',store=self.store)
+        invalidate.assert_not_called()
+        self.assertEqual(self.command_log,[])
+
     def test_allow_unknown_native_identity_after_invalidation(self):
         self.state['gcode_macro _CXM_NATIVE']['current_tool']=-2
         self.state['gcode_macro _CXM_NATIVE']['ready']=0

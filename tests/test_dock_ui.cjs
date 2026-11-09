@@ -64,32 +64,31 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
  assert.match(dock,/window\.CXMToolState\?\.classify\(option\.tool/);
 });
 
-test('manual motor-on calibration is gated and preserves independent save',()=>{
+test('primary calibration has one Save button, advanced duplicate is hidden',()=>{
  const manual=fs.readFileSync(path.join(__dirname,'../web/cxm-manual.js'),'utf8');
- assert.match(html,/<h3>Manual dock alignment<\/h3>/);
- assert.match(html,/cxm-manual\.js\?v=2\.0\.0/);
+ assert.match(html,/<h3>Set dock location<\/h3>/);
+ assert.match(html,/cxm-manual\.js\?v=3\.0\.0/);
+ assert.match(html,/id="cxmManualCapture" disabled>Save dock position/);
+ assert.match(html,/<div class="dock-columns" hidden style="display:none!important" aria-hidden="true">/);
  for(const id of ['cxmManualApproval','cxmManualStep','cxmManualCapture',
                   'cxmManualReadiness','cxmManualCaptureAck','cxmManualFeedback',
                   'cxmManualX','cxmManualY','cxmManualSensor'])
    assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/id="cxmManualCapture" disabled/);
- assert.match(html,/data-manual-axis="x"/);
- assert.match(html,/data-manual-axis="y"/);
  assert.match(manual,/I_APPROVE_SUPERVISED_MOTOR_ON_JOG/);
  assert.match(manual,/I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON/);
- assert.match(manual,/request\('\/dock'/);
- assert.match(dock,/proposal\.source!=='motor-on-capture'/);
+ assert.match(manual,/request\('\/manual\/save'/);
+ assert.doesNotMatch(manual,/request\('\/dock'/);
  assert.match(dock,/postJSON\('\/dock',\{tool:selected,xy,expected_revision:snapshot\.revision/);
  assert.doesNotMatch(manual,/DOCK_LOCATE_CALIBRATE|SET_KINEMATIC_POSITION/);
- assert.doesNotMatch(html,/id="cxmLineuxStart"|id="cxmLineuxReleaseXY"/);
 });
-test('dock layout has manual align then provisional save and native toolchange',()=>{
+test('dock layout shows selected tool and one motor-on Save',()=>{
  const section=html.split('<section data-panel="calibration" hidden>')[1].split('</section>')[0];
- const align=section.indexOf('<h3>Manual dock alignment</h3>');
- const save=section.indexOf('<h3>Save dock XY</h3>');
- const native=section.indexOf('T0 · Pickup / Dropoff');
- assert.ok(align>=0 && save>align && native>save);
- assert.match(section,/Review X\/Y before saving/);
+ const align=section.indexOf('<h3>Set dock location</h3>');
+ const save=section.indexOf('<h3>2 · Save dock position</h3>');
+ const advanced=section.indexOf('<div class="dock-columns" hidden');
+ assert.ok(align>=0 && save>align && advanced>save);
+ assert.match(section,/id="cxmDockTool"/);
+ assert.match(section,/id="cxmManualCapture" disabled>Save dock position/);
  for(const id of ['cxmDockTool','cxmDockAccept','cxmDockReset','cxmDockBackups','cxmDockFeedback'])
    assert.equal(section.split('id="'+id+'"').length-1,1);
 });

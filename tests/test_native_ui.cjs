@@ -62,7 +62,8 @@ test('selected hotend UI only requests named Klipper macros through native API',
  assert.match(native,/post\('simple-change'/);
  assert.match(native,/expected_revision:state.revision/);
  assert.match(native,/cxmNativeToolAck/);
- assert.match(native,/current>=-1/);
+ assert.match(native,/state\.sensor==='RELEASED'\?-1/);
+ assert.match(native,/current>=0/);
  assert.doesNotMatch(native,/\/printer\/gcode\/script|\bG1 [XYZ]|\bG0 [XYZ]/);
 });
 

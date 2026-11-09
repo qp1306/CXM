@@ -21,12 +21,13 @@ test('Testing diagnostics remain available without old MCU capture UI',()=>{
  assert.match(tests,/getJSON\('\/cxm\/api\/v1\/config'\)/);
  assert.match(tests,/getJSON\('\/printer\/info'\)/);
 });
-test('dock Save is one action: capture, backed-up store and verification',()=>{
- assert.match(html,/id="cxmManualCapture" disabled>Save aligned dock XY/);
- assert.match(manual,/\/manual\/capture/);
- assert.match(manual,/request\('\/dock'/);
- assert.match(manual,/if\(!saved\.saved\)/);
- assert.match(manual,/actual\.dock_x!==result\.xy\.x/);
+test('dock Save uses one atomic server request, no browser capture/save split',()=>{
+ assert.match(html,/id="cxmManualCapture" disabled>Save dock position/);
+ assert.match(manual,/request\('\/manual\/save'/);
+ assert.doesNotMatch(manual,/request\('\/manual\/capture'/);
+ assert.doesNotMatch(manual,/request\('\/dock'/);
+ assert.match(manual,/!saved\.saved\|\|!saved\.verified/);
+ assert.match(manual,/actual\.dock_x!==saved\.xy\.x/);
  assert.match(manual,/cxm-dock-save-completed/);
  assert.match(dock,/cxm-dock-save-completed/);
  assert.doesNotMatch(manual,/CXМ_SELECT_TOOL/);

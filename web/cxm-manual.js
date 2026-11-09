@@ -77,32 +77,27 @@ async function jog(button){
 async function capture(){
  if(busy||!live?.ready)return;
  busy=true;controls();
- say('Capturing and saving dock T'+tool+'…');
+ say('Saving T'+tool+' dock X/Y…');
  try{
-   const result=await request('/manual/capture',{
+   const saved=await request('/manual/save',{
      tool,expected_revision:live.revision,
      acknowledgement:'I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON'});
-   if(!result.captured||result.tool!==selected()||result.expected_revision!==live.revision)
-     throw Error('Captured position or config revision changed');
-   const saved=await request('/dock',{
-     tool,xy:result.xy,expected_revision:result.expected_revision});
-   if(!saved.saved)throw Error('Configuration store did not confirm save');
+   if(!saved.saved||!saved.verified||saved.tool!==tool)
+     throw Error('Dock Save was not verified');
    const check=await request('/config');
    const actual=check.config.tools[tool];
-   if(actual.dock_x!==result.xy.x||actual.dock_y!==result.xy.y)
-     throw Error('Saved XY does not match measured coordinates');
-   config=check;
-   live=null;
+   if(!actual||actual.dock_x!==saved.xy.x||actual.dock_y!==saved.xy.y
+      ||actual.dock_reference_accepted!==true)
+     throw Error('Stored dock differs from captured position');
+   config=check;live=null;
    window.dispatchEvent(new CustomEvent('cxm-dock-save-completed',{
      detail:{tool,x:actual.dock_x,y:actual.dock_y}}));
-   say('SAVED T'+tool+' · X'+actual.dock_x.toFixed(3)+
-     ' Y'+actual.dock_y.toFixed(3)+' mm. Backup created. Select LOAD or UNLOAD on Tools.');
+   say('SAVED T'+tool+' — X'+actual.dock_x.toFixed(5)+
+     ' Y'+actual.dock_y.toFixed(5)+' mm · '+(saved.backup?'backup created':'already saved')+
+     '. Ready to calibrate another tool.');
  }catch(e){
-   say('Save not confirmed: '+e.message+
-     '. No new motion was requested. Refresh before retrying.',true);
- }finally{
-   busy=false;controls();refresh(true);
- }
+   say('SAVE FAILED — '+e.message+'. Existing dock coordinates unchanged if no save was confirmed.',true);
+ }finally{busy=false;controls();refresh(true);}
 }
 root.querySelectorAll('[data-manual-axis]').forEach(b=>b.addEventListener('click',()=>jog(b)));
 el('cxmManualRefresh').addEventListener('click',()=>refresh(false));

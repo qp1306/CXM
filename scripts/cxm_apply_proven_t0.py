@@ -31,6 +31,25 @@ def main():
     proposed=store.read()
     proposed['config']['globals']['cxm_shift_x']=4.4
     proposed['config']['globals']['cxm_safe_clearance_y']=100.0
+    # Validate every accepted tool with the NEW global geometry before
+    # changing any settings. A stale accepted dock near an axis limit must
+    # never become an armed, out-of-bounds pickup/dropoff path.
+    active=proposed['config']['globals']['tool_count']
+    invalid=[]
+    for number in range(active):
+        candidate=proposed['config']['tools'][number]
+        if candidate['maintenance_lockout'] or not candidate['dock_reference_accepted']:
+            continue
+        try:
+            candidate_plan=plan(proposed,tool=number)
+        except (ValueError,KeyError,TypeError) as exc:
+            invalid.append('T%d: %s'%(number,exc))
+            continue
+        print('T%d verified geometric envelope: pickup %s, dropoff %s'%(
+            number,candidate_plan['pickup'],candidate_plan['dropoff']))
+    if invalid:
+        raise SystemExit('STOP: accepted tool geometry incompatible with proven motion; '
+                         'no changes made. '+ '; '.join(invalid))
     geometry=plan(proposed,tool=0)
     print('T0 accepted dock (untouched): X%.5f Y%.5f'%(x,y))
     print('Pickup path:',geometry['pickup'])

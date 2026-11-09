@@ -385,7 +385,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <p class="helper" id="cxmDockLiveUpdated" role="status" aria-live="polite">Read-only Moonraker status check pending. This does not validate physical clearances, stepper directions or the dock position.</p></details>
 </div>
 <div class="panel cxm-xy-lab" id="cxmManualDock">
- <div class="panel-heading"><h3>Manual dock alignment</h3><span class="panel-label">MOTORS ON · LIVE XY</span></div>
+ <div class="panel-heading"><h3>Set dock location</h3><span class="panel-label">MOTORS ON · LIVE XY</span></div>
  <p class="helper">Home XYZ normally, mount the selected hotend on the carriage and keep all motors energised. Jog into the selected dock alignment at low speed. This never calls Lineux, changes homing, releases motors or executes pickup/dropoff.</p>
  <div class="dock-warning">SUPERVISED MOTION. Check gantry clearance, all dock hardware and selected hotend before each jog. Stop on any contact or misalignment. Motor-on position is commanded position, not independent proof of mechanical engagement.</div>
  <p id="cxmManualReadiness" class="helper" role="status">Checking live Klipper motor-on readiness…</p>
@@ -404,12 +404,12 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
   <div class="panel-heading"><h3>2 · Save dock position</h3><span class="panel-label">Capture + Save</span></div>
   <p class="helper">Align the mounted hotend with the dock, then press Save. CXM captures live X/Y and writes the verified coordinates with a backup. No extra confirmation step.</p>
   <label class="cxm-capture-ack" hidden><input type="checkbox" id="cxmManualCaptureAck"><span class="cxm-approval-copy"><strong>Alignment inspected</strong><small>I visually confirmed the mounted hotend is the selected T number, aligned its locking screw with the dock and never released motors</small></span></label>
-  <div class="buttons"><button class="btn primary" id="cxmManualCapture" disabled>Save aligned dock XY</button></div>
+  <div class="buttons"><button class="btn primary" id="cxmManualCapture" disabled>Save dock position</button></div>
   <p class="helper" id="cxmManualFeedback" role="status">Awaiting operator alignment.</p>
  </div>
  <p class="helper">Dock position is saved in one step. Use Tools → LOAD / UNLOAD to operate the CxChanger.</p>
 </div>
-<div class="dock-columns">
+<div class="dock-columns" hidden style="display:none!important" aria-hidden="true">
 <div class="panel">
  <div class="panel-heading"><h3>Save dock XY</h3><span class="panel-label">No Z coordinate required</span></div>
 
@@ -868,11 +868,11 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.5" defer></script>
 <script src="cxm-dock.js?v=1.0.0" defer></script>
-<script src="cxm-manual.js?v=2.0.0" defer></script>
+<script src="cxm-manual.js?v=3.0.0" defer></script>
 
 
 <script src="cxm-multi.js?v=1.4.0" defer></script>
-<script src="cxm-native-control.js?v=2.0.0" defer></script>
+<script src="cxm-native-control.js?v=3.0.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 
