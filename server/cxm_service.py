@@ -12,10 +12,7 @@ import urllib.error
 import urllib.request
 from cxm_config import Store
 from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
-                    motion as t0_motion, confirm_staging as t0_confirm_staging,
-                    automatic_toolchange as t0_automatic, clear_automatic_fault as t0_clear_fault,
-                    repeat_t0_cycles as t0_repeat, cycle_status as t0_cycle_status,
-                    stop_cycles as t0_stop_cycles, T0Error)
+                    confirm_staging as t0_confirm_staging, T0Error)
 from cxm_lineux import (query_readiness, perform_measurement, perform_known_check,
                         release_xy_for_dock, home_and_lift_for_dock, MeasurementError)
 from cxm_native import (status as multi_status, start as multi_start,
@@ -133,7 +130,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Select one tool number T1–T11')
                 self.output(200,{'tool':int(params['tool'][0]),'ready':False,'blockers':['Native Klipper tool-state interface: use /v1/native/status after accepted geometry sync']})
             elif self.path == '/v1/t0/cycles/status':
-                self.output(200,t0_cycle_status())
+                self.output(200,{'running':False,'phase':'retired','error':'Python toolchange cycles removed; use native Klipper cycle'})
             elif self.path.startswith('/v1/lineux/status?'):
                 url=urlsplit(self.path)
                 args=parse_qs(url.query)
@@ -338,8 +335,13 @@ def main():
                 if [p.stat().st_mtime_ns for p in watched] != before:
                     # Never intentionally interrupt an active multi-tool pass
                     # to reload CXM Python source while a tool may be attached.
-                    while multi_status(store)['running']:
-                        time.sleep(1)
+                    try:
+                        while multi_status(store)['running']:
+                            time.sleep(1)
+                    except (NativeError, OSError, KeyError, ValueError):
+                        # Native macro not yet installed or Klipper in reload.
+                        # Never block source reload indefinitely.
+                        pass
                     os._exit(1)
             except OSError:
                 os._exit(1)
