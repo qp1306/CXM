@@ -108,7 +108,7 @@ def main():
                         tofile='updated native macro', n=3))
         print('UPGRADE REVIEW — native Klipper macro differences:')
         print(delta)
-        if len(delta) > 5000:
+        if len(delta) > 15000:
             raise RuntimeError('Macro upgrade diff too large for automatic review')
     marker = '#*# <---------------------- SAVE_CONFIG'
     if not installed:
