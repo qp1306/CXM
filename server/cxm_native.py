@@ -5,6 +5,7 @@ It NEVER generates, sends or coordinates XY motion G-code.
 """
 import urllib.parse
 import math
+import time
 
 from cxm_runtime import _rpc, MOVE_LOCK
 from cxm_cxchanger import plan as geometry_plan
@@ -321,12 +322,19 @@ def simple_change(store, tool, expected_revision, *, mounted_tool=None):
     if store.read()['revision']!=expected_revision:
         raise NativeError('Dock coordinates changed; refresh before toolchange')
     _rpc('/printer/gcode/script',{'script':'CXM_SELECT_TOOL TOOL='+str(tool)})
-    after,_,after_sensor=_native_status()
-    if (after.get('ready')!=1 or after.get('fault')!=0
-        or after.get('current_tool')!=tool or
-        after_sensor!=('RELEASED' if tool==-1 else 'PRESSED')):
-        raise NativeError('Toolchange outcome not confirmed; inspect carriage before retrying')
-    return {'changed':True,'current_tool':tool,'sensor':after_sensor}
+    # Moonraker can acknowledge the macro before all post-motion state
+    # queries reflect completion. Poll status only; NEVER resend movement.
+    desired_sensor='RELEASED' if tool==-1 else 'PRESSED'
+    deadline=time.monotonic()+5.0
+    while True:
+        after,after_test,after_sensor=_native_status()
+        if (after.get('ready')==1 and after.get('fault')==0
+            and after.get('current_tool')==tool
+            and after_sensor==desired_sensor):
+            return {'changed':True,'current_tool':tool,'sensor':after_sensor}
+        if time.monotonic()>=deadline:
+            raise NativeError('Toolchange outcome not confirmed; inspect carriage before retrying')
+        time.sleep(0.15)
 
 def select(store,tool,expected_revision):
     saved=store.read()
