@@ -90,11 +90,25 @@ def main():
     installed = re.findall(r'(?mi)^\s*\[include\s+cxm_native_toolchange\.cfg\s*\]\s*$', original)
     if len(installed) > 1:
         raise RuntimeError('Duplicate native include')
-    if target.exists() and target.read_bytes() != content:
-        raise RuntimeError('Installed native macro differs: manual review required')
-    if installed and target.exists():
+    upgrading = target.exists() and target.read_bytes() != content
+    if installed and target.exists() and not upgrading:
         print('Already installed and identical. No changes.')
         return
+    if upgrading and not installed:
+        raise RuntimeError('Native macro file exists but is not included: review manually')
+    if installed and not target.exists():
+        raise RuntimeError('Native macro is included but missing from disk: review manually')
+    if upgrading:
+        import difflib
+        old_lines = target.read_text('utf8').splitlines(keepends=True)
+        new_lines = content.decode('utf8').splitlines(keepends=True)
+        delta = ''.join(difflib.unified_diff(old_lines, new_lines,
+                        fromfile='installed native macro',
+                        tofile='updated native macro', n=3))
+        print('UPGRADE REVIEW — native Klipper macro differences:')
+        print(delta)
+        if len(delta) > 5000:
+            raise RuntimeError('Macro upgrade diff too large for automatic review')
     marker = '#*# <---------------------- SAVE_CONFIG'
     if not installed:
         revised = (original.replace(marker, INCLUDE + '\n\n' + marker, 1)
@@ -106,6 +120,7 @@ def main():
     print('Source:', source)
     print('Destination:', target)
     print('New include required:', not bool(installed))
+    print('Update installed macro required:', upgrading)
     print('No printer motion, no restart, no accepted XY changes.')
     if not args.apply:
         print('DRY RUN. Review before rerunning with --apply.')
@@ -118,7 +133,7 @@ def main():
         shutil.copy2(target, backup / target.name)
     created = not target.exists()
     try:
-        if created:
+        if created or upgrading:
             atomic_write(target, content)
         if revised != original:
             atomic_write(printer, revised.encode('utf8'))
@@ -126,6 +141,8 @@ def main():
         atomic_write(printer, (backup / 'printer.cfg').read_bytes())
         if created:
             target.unlink(missing_ok=True)
+        elif upgrading:
+            atomic_write(target, (backup / target.name).read_bytes())
         raise
     print('Installed. Backups:', backup)
     print('One deliberate Klipper RESTART is required after inspection.')
