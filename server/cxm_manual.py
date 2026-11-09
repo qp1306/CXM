@@ -176,6 +176,13 @@ def save(*,tool,expected_revision,acknowledgement,store):
         xy=dict(after['xy'])
         invalidate_for_config_edit(
             permit_mounted_provisional_dock=True,store=store,tool=tool)
+        # Recheck after runtime invalidation: no external Mainsail command
+        # must move the tool between the measured capture and persistent save.
+        final=_check_after_own_command(tool,store)
+        if final['revision']!=expected_revision or final['sensor']!='PRESSED':
+            raise ManualDockError('Dock state changed before Save; coordinates NOT written')
+        if any(abs(final['xy'][axis]-xy[axis])>0.02 for axis in 'xy'):
+            raise ManualDockError('Dock moved after capture; coordinates NOT written')
         result=store.save_dock(tool,xy,expected_revision)
         verified=store.read()
         stored=verified['config']['tools'][tool]
