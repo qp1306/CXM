@@ -87,7 +87,7 @@ test('dock layout has manual align then provisional save and native toolchange',
  const section=html.split('<section data-panel="calibration" hidden>')[1].split('</section>')[0];
  const align=section.indexOf('<h3>Manual dock alignment</h3>');
  const save=section.indexOf('<h3>Save dock XY</h3>');
- const native=section.indexOf('cxmNativeToolPanel');
+ const native=section.indexOf('T0 · Pickup / Dropoff');
  assert.ok(align>=0 && save>align && native>save);
  assert.match(section,/Review X\/Y before saving/);
  for(const id of ['cxmDockTool','cxmDockAccept','cxmDockReset','cxmDockBackups','cxmDockFeedback'])
