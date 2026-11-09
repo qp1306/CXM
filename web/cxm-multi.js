@@ -32,10 +32,7 @@ function selectedProfile(){
    $('cxmMultiPerformance').checked?'performance':
    $('cxmMultiFastTransfer').checked?'faster':'standard';
 }
-function selectedMode(){
- return $('cxmMultiStream').checked?'stream':
-   $('cxmMultiRapid').checked?'rapid':'legacy';
-}
+function selectedMode(){return 'native';}
 function profileLabel(profile){
  const names={
    standard:'STANDARD (10 / 4 / 3 mm/s)',
@@ -47,32 +44,28 @@ function profileLabel(profile){
  };
  return names[profile]||'UNKNOWN PROFILE';
 }
-function modeLabel(mode){
- return mode==='stream'?'UNINTERRUPTED STREAM':
-   mode==='rapid'?'RAPID KLIPPER':'ORIGINAL';
-}
+function modeLabel(mode){return mode==='native'?'NATIVE KLIPPER':String(mode||'UNKNOWN').toUpperCase();}
 function chooseControls(){
  const running=current?.running===true;
- const valid=selection().length>=2&&
+ const valid=selection().length>=2&&selection().length<=3&&
    selection().every(n=>current.candidates.some(t=>t.tool===n&&t.eligible));
  const maxRepeat=repeatMaximum();
  $('cxmMultiRepeats').max=String(maxRepeat);
  text('cxmMultiRepeatHelp','Allowed 1–'+maxRepeat+' complete cycles for '+
    selection().length+' selected hotends (maximum 240 movements).');
  const cycles=repeatCount();
- const streaming=$('cxmMultiStream').checked;
+ const streaming=false;
  text('cxmMultiPlanned','NEXT TEST (not previous run): '+
    modeLabel(selectedMode())+' · '+profileLabel(selectedProfile())+
    ' · '+(cycles??'INVALID')+' cycle(s) · '+selection().length+' tools');
- const streamEligible=!streaming||(cycles===1&&selection().length<=3);
- const ready=!requestBusy&&!running&&valid&&cycles!==null&&streamEligible&&!!current?.revision;
+ const experimental=['sprint','race','boost'].includes(selectedProfile());
+ const ready=!requestBusy&&!running&&valid&&cycles!==null&&(!experimental||cycles===1)&&
+   current?.native_ready===true&&current?.current_tool===-1&&current?.fault===0&&!!current?.revision;
  $('cxmMultiAck').disabled=!ready;
  if(!ready)$('cxmMultiAck').checked=false;
  $('cxmMultiStart').disabled=!ready||!$('cxmMultiAck').checked;
- $('cxmMultiStop').disabled=!running||current?.execution_mode==='stream'||
-   current?.stop_requested===true||requestBusy;
- text('cxmMultiStop',running&&current?.execution_mode==='stream'
-   ?'No queued Stop · use physical E-stop':'Stop after current tool');
+ $('cxmMultiStop').disabled=!running||current?.stop_requested===true||requestBusy;
+ text('cxmMultiStop','Stop after current tool');
  $('cxmMultiRefresh').disabled=requestBusy;
  $('cxmMultiFastTransfer').disabled=requestBusy||running;
  $('cxmMultiPerformance').disabled=requestBusy||running;
@@ -82,6 +75,9 @@ function chooseControls(){
  $('cxmMultiRapid').disabled=requestBusy||running;
  $('cxmMultiStream').disabled=requestBusy||running;
  $('cxmMultiRepeats').disabled=requestBusy||running;
+ $('cxmNativeSync').disabled=requestBusy||running;
+ $('cxmNativeEmptyAck').disabled=requestBusy||running;
+ $('cxmNativeConfirm').disabled=requestBusy||running||!$('cxmNativeEmptyAck').checked||current?.native_ready!==true;
  text('cxmMultiStart',running?'Cycle test running…':
    'Start '+(cycles===null?'—':cycles)+' '+(cycles===1?'cycle':'cycles'));
  $('cxmMultiPanel').setAttribute('aria-busy',requestBusy?'true':'false');
@@ -208,6 +204,10 @@ async function refresh(){
    }
    snapshotRevision=next.revision;
    current=next;
+   text('cxmNativeStatus',next.native_ready&&next.fault===0&&next.current_tool===-1
+     ?'Native Klipper READY · carriage confirmed EMPTY'
+     :next.native_ready?'Native geometry synced · EMPTY confirmation or recovery required'
+     :'Native XY not synchronized. Use Sync saved dock XY to Klipper.');
    if(revisionChanged||!existing||wasRunning!==next.running)
      drawChoices();
    else if(current.running)chooseControls();
@@ -228,8 +228,8 @@ async function start(){
  const cycles=repeatCount();
  if(cycles===null)return;
  const travelProfile=selectedProfile();
- if((travelProfile==='sprint'||travelProfile==='race')&&cycles!==1){
-  text('cxmMultiStatus','Experimental Sprint/Race requires exactly one supervised cycle. Set repeats to 1.');
+ if((travelProfile==='sprint'||travelProfile==='race'||travelProfile==='boost')&&cycles!==1){
+  text('cxmMultiStatus','Experimental Sprint/Race/Boost requires exactly one supervised cycle. Set repeats to 1.');
   return;
  }
  const streaming=$('cxmMultiStream').checked;
@@ -237,7 +237,7 @@ async function start(){
   text('cxmMultiStatus','Uninterrupted Stream requires 2–3 selected tools and exactly 1 cycle.');
   return;
  }
- const rapid=$('cxmMultiRapid').checked;
+ const rapid=false;
  requestBusy=true;$('cxmMultiAck').checked=false;chooseControls();
  text('cxmMultiStatus','SUBMITTING '+modeLabel(selectedMode())+' · '+
    profileLabel(travelProfile)+' · '+list.map(n=>'T'+n).join(' → ')+
@@ -245,8 +245,7 @@ async function start(){
  try{
    const requestBody={tools:list,expected_revision:current.revision,
      acknowledgement:ack,travel_profile:travelProfile,cycles};
-   if(streaming)requestBody.execution_mode='stream';
-   else if(rapid)requestBody.execution_mode='rapid';
+   requestBody.execution_mode='native';
    const reply=await request('/start',requestBody);
    if(!reply.started)throw Error('Backend did not confirm a started run');
    lastError='';
@@ -270,6 +269,41 @@ async function stop(){
      '. Use the physical emergency stop for immediate danger.';
  }finally{requestBusy=false;await refresh();}
 }
+async function nativePost(path,body){
+ const r=await fetch('/cxm/api/v1/native/'+path,{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'Content-Type':'application/json','X-Requested-With':'CXM'},
+   body:JSON.stringify(body)
+ });
+ const data=await r.json().catch(()=>({error:'Non-JSON native controller response'}));
+ if(!r.ok)throw Error(data.error||'HTTP '+r.status);
+ return data;
+}
+async function synchronizeNative(){
+ if(requestBusy||current?.running||!current?.revision)return;
+ requestBusy=true;chooseControls();
+ try{
+   await nativePost('sync',{expected_revision:current.revision});
+   $('cxmNativeEmptyAck').checked=false;
+   text('cxmNativeStatus','Dock XY synchronized. Inspect the physical EMPTY carriage, then tick confirmation.');
+   lastError='';
+ }catch(e){text('cxmNativeStatus','SYNC BLOCKED: '+e.message);}
+ finally{requestBusy=false;await refresh();}
+}
+async function confirmNativeEmpty(){
+ if(requestBusy||current?.running||!$('cxmNativeEmptyAck').checked)return;
+ requestBusy=true;chooseControls();
+ try{
+   await nativePost('confirm-empty',{acknowledgement:'I_PHYSICALLY_INSPECTED_EMPTY_CARRIAGE'});
+   $('cxmNativeEmptyAck').checked=false;
+   text('cxmNativeStatus','Klipper confirmed EMPTY. Native controller ready for supervised movement.');
+   lastError='';
+ }catch(e){text('cxmNativeStatus','CONFIRM BLOCKED: '+e.message);}
+ finally{requestBusy=false;await refresh();}
+}
+$('cxmNativeEmptyAck').addEventListener('change',chooseControls);
+$('cxmNativeSync').addEventListener('click',synchronizeNative);
+$('cxmNativeConfirm').addEventListener('click',confirmNativeEmpty);
 $('cxmMultiAck').addEventListener('change',chooseControls);
 $('cxmMultiRepeats').addEventListener('input',()=>{
  $('cxmMultiAck').checked=false;
