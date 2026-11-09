@@ -1,36 +1,54 @@
 # CXM Control Centre
 
-**Current scope: supervised T0 XY commissioning with separate Lineux measurement and CxChanger motion.**
+**Current scope: supervised motor-on manual dock XY commissioning with the original CxChanger native pickup/dropoff motion.**
 
-CXM uses a single carriage-mounted extruder and exchangeable hotends. The current
-T0 controls can perform supervised pickup/dropoff; this is not a production
-printing or T1–T11 toolchange release.
+The original Lineux auto measurement and MCU-step recalculation have been retired from the
+active control path. Do not disable CoreXY motors or attempt to hand-drag the carriage.
+CXM uses a carriage-mounted extruder and exchangeable hotends; calibration records a
+provisional locking-hole XY datum, not a verified toolchange.
 
-Start with the [current first-test procedure](docs/cxchanger-first-test.md).
-It describes migration, the locking-hole datum, settings and the first physical cycle.
-The lower version-by-version sections are historical; their “motion disabled”
-statements describe those older releases, not the current T0 controller.
+## Install manual calibration V2 (after GitHub update)
 
-The 7 November readiness fixes make advanced manual tests use the same saved
-geometry as automatic/repeat tests, reject stale manual overrides, verify the
-configuration and Klipper identity after manual motion, and tolerate only the
-known transient idle-state delay. Tool selection immediately disables irrelevant
-T0 controls. CI now runs every browser regression test and JavaScript syntax check.
+1. When Klipper is idle, update the repository and restart the Python service:
+   `cd ~/CXM && git pull && sudo systemctl restart cxm-config.service`
+2. Run the removal installer **without** apply first:
+   `python3 ~/CXM/scripts/cxm_manual_calibration_install.py`
+3. Review the exact module/include/config paths it intends to remove, then run:
+   `python3 ~/CXM/scripts/cxm_manual_calibration_install.py --apply`
+4. Run **RESTART** in Mainsail while the printer is clear of docks. This unregisters
+   the old Klipper calibration module and reloads the unchanged native CxChanger macros.
+5. Hard-refresh CXM Control Centre. Dock XY now shows manual jogging and capture.
 
-Validation: 168 Python tests passed with Jinja2 installed (zero skipped),
-61 JavaScript tests passed, and all web JavaScript passed syntax checks.
-These are software/simulated-hardware results, not a physical printer pass.
+The installer backs up `printer.cfg`, the old module and its calibration CFG before
+removing only those recognised Lineux components. It never removes
+`CXM_variables.cfg`, old coordinate backups, CxChanger native macros or homing
+override. Old schema-3 `lineux_raw_x/y` and X/Y correction settings remain on disk
+**only for backward-compatible loading**; manual capture does not use them and a new
+save clears the old raw values.
 
-## CxChanger movement architecture (schema 3)
+## New dock calibration procedure
 
-**Lineux Hot Swap is calibration only. CxChanger is the motion engine.** The Lineux endstop-assisted `DOCK_LOCATE_CALIBRATE` still measures hand-aligned carriage XY. For each tool, align the **CxChanger hotend locking screw with the centre of the large dock hole** before measuring; this is the required mechanical datum. The provisional Lineux raw position is kept distinct from the CxChanger X/Y datum that the pickup/dropoff engine uses.
+- Home XYZ with the existing tested Y-first homing override. Keep ALL X/Y and four Z motors
+  energised, confirm Z >= 20 mm and physically EMPTY carriage.
+- Dock Calibration → select T0 → **Refresh live position**.
+- Approve supervised jog, use 10 / 1 / 0.1 / 0.01 mm jog increments to align the
+  locking screw with the centre of the correct dock hole. Every jog is guarded by
+  homing, motor, sensor, idle, physical axis limits and tool identity checks.
+- Inspect alignment; approve and **Capture X/Y to draft**. This runs M400 and reads
+  Klipper's live XY. No auto save, release motors, calibration G28 or toolchanging.
+- Review and **Save dock XY**. Persisted calibration has revision checks and backups;
+  previous native geometry is invalidated until explicitly synchronised again.
+- Use the existing native synchronisation/confirm-empty workflow, then conduct ONE
+  supervised slow pickup/dropoff with physical switch checks before repeat tests.
+  Do not perform automatic X-window search until safe failure recovery is tested.
 
-- **Settings:** `x_docking_adjust` and `y_docking_adjust` convert measured raw X/Y to the actual locking-hole datum (default 0; do not mistake these for latch travel). `cxm_shift_x` is lateral engagement/release travel, `cxm_dodge_y` is the Y mechanical dodge, and `cxm_safe_clearance_y` is **relative to each dock's Y**. CxChanger always stages at `dock_y + cxm_safe_clearance_y`; the prior absolute `safe_y` is retained on disk for legacy compatibility but **not used** for CxChanger motion.
-- **Native movement:** `server/cxm_cxchanger.py` implements the original CxChanger pickup/dropoff order independently of Lineux. T0 one-click, manual supervised tests, and repeatability tests all use this single engine. It does not move Z, modify heaters, or call Lineux when changing tools. The planner supports per-tool datum X/Y for T0–T11; automated physical switching of T1+ still awaits commissioning.
-- **Existing installations:** After **Updates → Install CXM Update**, open Settings and use **Back up and migrate configuration**. This is an **explicit schema 2 → 3** migration, not an automatic rewrite. Existing dock XY is retained for reference, but its movement acceptance and previous verification flags are deliberately reset. No unreviewed old coordinates can start a T0 motion. The migration makes an atomic backup; it does not edit printer.cfg or restart Klipper.
-- **New calibration:** In Settings review X/Y datum corrections and CxChanger X latch / dodge / safe clearance. In Dock Calibration: Home & Z20 → Release X/Y (leave all four Z motors ON) → manually align locking screw in the dock's large hole → Measure dock XY (Lineux) → Copy **CxChanger datum X/Y** → Save dock XY. Both Lineux raw X/Y and the accepted, converted CxChanger dock XY are stored with a backup. Save is not physical verification. Rehome XYZ and perform **one supervised T0 dropoff or pickup** with the real carriage switch, then use a small repeat test. No Klipper restart is needed for calibration/settings changes.
+**Provenance limits:** Motor-on Klipper XY is a repeatable commanded position, not
+an independent mechanical measurement. The carriage sensor only proves a binary
+presence change, not perfect seating. Failed pickups must stop and require inspection.
 
-**Safety:** Start with the correct carriage switch state and no print active. Homing XYZ, four powered Z motors, powered X/Y, Z≥20, safe XY area, a matching configuration revision, operator supervision and final sensor transition remain required. Any sensor/position mismatch fails closed; never blindly replay a failed motion. An emergency requires the printer's actual emergency stop, not the repeat-test Stop After Cycle control.
+**This release does not alter the existing CxChanger pickup/dropoff macro sequence.**
+The 1 mm cross-tool safe-Y guard still applies; calibrate and evaluate each physical
+dock Y before multi-tool cycles. Older release notes below are historical.
 
 ---
 
