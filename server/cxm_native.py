@@ -20,7 +20,7 @@ def _native_status():
     native=result.get('gcode_macro _CXM_NATIVE',{})
     test=result.get('gcode_macro _CXM_TEST_STATE',{})
     signal=result.get('gcode_button cxm_tool_detect',{}).get('state')
-    if native.get('protocol')!=1 or not test:
+    if native.get('protocol') not in (1,2) or not test:
         raise NativeError('Install and load CXM native Klipper macro before using toolchanges')
     return native,test,signal
 
@@ -58,6 +58,7 @@ def status(store):
             'current_cycle':test.get('completed',0)+1 if running else None,
             'current_action':'native_macro_pair' if running else None,
             'stop_requested':bool(test.get('stop')),
+            'native_protocol':native.get('protocol'),
             'current_tool':native.get('current_tool'),
             'sensor':signal,'native_ready':bool(native.get('ready')),
             'fault':native.get('fault'),
@@ -134,6 +135,8 @@ def initialize(store,expected_revision,carriage_tool):
     if store.read()['revision']!=expected_revision:
         raise NativeError('CXM calibration changed; reload tools before declaring the carriage')
     native,test,signal=_native_status()
+    if native.get('protocol')!=2:
+        raise NativeError('Install the updated CXM native Klipper macro and restart Klipper before using one-click setup')
     if test.get('running'):
         raise NativeError('Tool cycle still running; inspect and stop before declaring tool identity')
     if signal!=('RELEASED' if carriage_tool==-1 else 'PRESSED'):
