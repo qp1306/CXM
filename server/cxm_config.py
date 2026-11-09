@@ -63,7 +63,7 @@ V2_FIELDS = {key:spec for key,spec in FIELDS.items()
              if key not in ('lineux_raw_x','lineux_raw_y','dock_reference_accepted')}
 GLOBAL_FIELDS.update({
     "y_docking_adjust": ("float", -20, 20),
-    "cxm_shift_x": ("float", -8, -1),
+    "cxm_shift_x": ("float", -8, 8),
     "cxm_dodge_y": ("float", 5, 25),
     "cxm_safe_clearance_y": ("float", 35, 160),
 })
@@ -87,8 +87,8 @@ def template():
         })
     return {"schema": SCHEMA, "globals": {"tool_count": 6, "safe_y": 120.0,
             "x_docking_adjust": 0.0, "y_docking_adjust": 0.0,
-            "cxm_shift_x": -4.8, "cxm_dodge_y": 14.0,
-            "cxm_safe_clearance_y": 44.0}, "tools": tools}
+            "cxm_shift_x": 4.4, "cxm_dodge_y": 14.0,
+            "cxm_safe_clearance_y": 100.0}, "tools": tools}
 
 def check_value(field, value, spec, *, nullable=False):
     typ, lo, hi = spec
@@ -353,6 +353,44 @@ class Store:
             if new == old:
                 return {'saved': True, 'unchanged': True, 'revision': self._hash(old), 'active_in_klipper': False}
             return self._commit(old, new)
+    def apply_verified_t0_motion(self, expected_revision):
+        """Atomically save the demonstrated T0 X+4.4/Y+100 motion settings.
+
+        Never overwrite a separately measured physical dock position. A
+        previous accepted dock datum must match the proven T0 release-side
+        coordinate to within 0.05 mm. This only changes global motion
+        parameters, not T0 dock X/Y or any other tool's dock position.
+        """
+        if type(expected_revision) is not str or not re.fullmatch(r'[0-9a-f]{64}',expected_revision):
+            raise ValueError('Valid expected revision required')
+        with self.lock.open('a+') as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            data,old=self._current()
+            if self._hash(old)!=expected_revision:
+                raise RuntimeError('Configuration changed; reload before installing baseline')
+            if schema_on_disk(old)!=SCHEMA:
+                raise RuntimeError('Configuration migration required before installing baseline')
+            t0=data['tools'][0]
+            if (t0['dock_reference_accepted'] is not True
+                or t0['dock_x'] is None or t0['dock_y'] is None
+                or abs(t0['dock_x']-304.60)>0.05
+                or abs(t0['dock_y']-65.60)>0.05):
+                raise ValueError('T0 must already have accepted dock XY near X304.60 Y65.60; no overwrite')
+            updated=copy.deepcopy(data)
+            updated['globals']['cxm_shift_x']=4.4
+            updated['globals']['cxm_safe_clearance_y']=100.0
+            if updated==data:
+                return {'saved':True,'unchanged':True,'revision':self._hash(old),
+                        'dock_x':t0['dock_x'],'dock_y':t0['dock_y']}
+            # Motion changed: retain accepted dock XY, but reset previously
+            # validated automatic motion flags for all tools.
+            for tool in updated['tools']:
+                for flag in ('dock_verified','pickup_verified','dropoff_verified','commissioned'):
+                    tool[flag]=False
+            result=self._commit(old,render(updated))
+            result.update({'dock_x':t0['dock_x'],'dock_y':t0['dock_y']})
+            return result
+
     def save_dock(self, tool, xy, expected_revision, raw_xy=None):
         """Save X/Y of a gantry-mounted dock atomically with backup.
 
