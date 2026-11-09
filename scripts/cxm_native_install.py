@@ -10,7 +10,7 @@ import shutil
 import tempfile
 
 INCLUDE = '[include cxm_native_toolchange.cfg]'
-MACROS = ('CXM_SELECT_TOOL', '_CXM_NATIVE', '_CXM_PREPARE_CLEARANCE',
+MACROS = ('CXM_SELECT_TOOL', '_CXM_NATIVE', '_CXM_PREPARE_CLEARANCE', '_CXM_STAGE_TEST',
           'CXM_DECLARE_CARRIAGE', '_CXM_CHECK_TOOL',
           '_CXM_PICKUP_MOTION', '_CXM_RELEASE_MOTION',
           '_CXM_VERIFY', '_CXM_COMMIT_STATE', 'CXM_CONFIRM_EMPTY',
