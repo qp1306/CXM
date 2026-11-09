@@ -6,7 +6,8 @@ const root=el('cxmManualDock');
 if(!root)return;
 const api='/cxm/api/v1';
 let busy=false,live=null,config=null,tool=-1;
-function selected(){return Number(el('cxmDockTool').value);}
+let refreshVersion=0, polling=false;
+function selected(){const value=el('cxmDockTool').value;return value===''?-1:Number(value);}
 function say(message,bad=false){const n=el('cxmManualFeedback');n.textContent=message;n.style.color=bad?'#f4aaaa':'#bed9ec';}
 async function request(path,body){
   const opts={credentials:'same-origin',cache:'no-store'};
@@ -24,13 +25,16 @@ function controls(){
   el('cxmManualRefresh').disabled=busy;
 }
 async function refresh(silent=false){
-  if(busy)return;
-  busy=true;controls();
+  if(busy||(silent&&polling))return;
+  const version=++refreshVersion;
+  const selectedTool=selected();
+  polling=true;
   const previous=live,oldTool=tool,oldRevision=config?.revision;
   try{
     const latestConfig=await request('/config');
-    const selectedTool=selected();
+    if(version!==refreshVersion||selectedTool!==selected())return;
     const latest=await request('/manual/status?tool='+selectedTool);
+    if(version!==refreshVersion||selectedTool!==selected())return;
     // An identity/config change revokes the previous operator approval.
     if((oldTool>=0&&selectedTool!==oldTool) ||
        (oldRevision&&oldRevision!==latestConfig.revision) ||
@@ -46,18 +50,19 @@ async function refresh(silent=false){
     el('cxmManualReadiness').textContent='READY · T'+tool+' selected by operator · XYZ homed · motors on · hotend MOUNTED';
     if(!silent) say('READY: sensor confirms MOUNTED, not tool identity. Verify the mounted hotend is physically T'+tool+' before approving any jog.');
   }catch(e){
+    if(version!==refreshVersion||selectedTool!==selected())return;
     live=null;
     el('cxmManualApproval').checked=false;
     el('cxmManualCaptureAck').checked=false;
     el('cxmManualReadiness').textContent='NOT READY · '+e.message;
     say('Jog/capture blocked: '+e.message+'. Inspect and refresh after restoring safe state.',true);
-  }finally{busy=false;controls();}
+  }finally{if(version===refreshVersion){polling=false;controls();}}
 }
 async function jog(button){
   if(busy||!live?.ready||!el('cxmManualApproval').checked)return;
   const axis=button.dataset.manualAxis,sign=Number(button.dataset.manualSign);
   const distance=sign*Number(el('cxmManualStep').value);
-  busy=true;controls();
+  ++refreshVersion;polling=false;busy=true;controls();
   say('Jogging '+axis.toUpperCase()+' '+distance+' mm …');
   try{
     const answer=await request('/manual/jog',{
@@ -75,28 +80,29 @@ async function jog(button){
   }finally{busy=false;controls();}
 }
 async function capture(){
- if(busy||!live?.ready)return;
- busy=true;controls();
+ if(busy||!live?.ready||tool!==selected())return;
+ const target=tool;
+ ++refreshVersion;polling=false;busy=true;controls();
  say('Saving T'+tool+' dock X/Y…');
  try{
    const saved=await request('/manual/save',{
-     tool,expected_revision:live.revision,
+     tool:target,expected_revision:live.revision,
      acknowledgement:'I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON'});
-   if(!saved.saved||!saved.verified||saved.tool!==tool)
+   if(!saved.saved||!saved.verified||saved.tool!==target)
      throw Error('Dock Save was not verified');
    const check=await request('/config');
-   const actual=check.config.tools[tool];
+   const actual=check.config.tools[target];
    if(!actual||actual.dock_x!==saved.xy.x||actual.dock_y!==saved.xy.y
       ||actual.dock_reference_accepted!==true)
      throw Error('Stored dock differs from captured position');
    config=check;live=null;
    window.dispatchEvent(new CustomEvent('cxm-dock-save-completed',{
-     detail:{tool,x:actual.dock_x,y:actual.dock_y}}));
-   say('SAVED T'+tool+' — X'+actual.dock_x.toFixed(5)+
+     detail:{tool:target,x:actual.dock_x,y:actual.dock_y}}));
+   say('SAVED T'+target+' — X'+actual.dock_x.toFixed(5)+
      ' Y'+actual.dock_y.toFixed(5)+' mm · '+(saved.backup?'backup created':'already saved')+
      '. Ready to calibrate another tool.');
  }catch(e){
-   say('SAVE FAILED — '+e.message+'. Existing dock coordinates unchanged if no save was confirmed.',true);
+   say('Save unconfirmed: '+e.message+'. Check the stored T'+target+' coordinates before retrying.',true);
  }finally{busy=false;controls();refresh(true);}
 }
 root.querySelectorAll('[data-manual-axis]').forEach(b=>b.addEventListener('click',()=>jog(b)));

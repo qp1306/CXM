@@ -299,7 +299,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <p class="helper">Pick up and drop off each selected dock-calibrated hotend once per complete cycle, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating or extrusion. Z is automatically raised to 25 mm during verified carriage setup when needed. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
  
 <label class="cxm-simple-profile" for="cxmSpeedSimple"><strong>Movement speed</strong>
-<select id="cxmSpeedSimple"><option value="standard">Standard · 10 / 4 / 3 mm/s</option><option value="faster">Faster · 30 / 4 / 3 mm/s</option><option value="performance">Performance · 80 / 8 / 3 mm/s</option><option value="sprint">Sprint · 200 / 40 / 10 mm/s — fast docking</option><option value="race">Race · 400 / 80 / 20 mm/s — experimental</option><option value="boost">Boost · 600 / 120 / 40 mm/s — experimental maximum</option><option value="custom">Custom — enter three speeds</option></select></label>
+<select id="cxmSpeedSimple"><option value="standard">Standard · 100 / 100 / 100 mm/s</option><option value="faster">Faster · 30 / 4 / 3 mm/s</option><option value="performance">Performance · 80 / 8 / 3 mm/s</option><option value="sprint">Sprint · 200 / 40 / 10 mm/s — fast docking</option><option value="race">Race · 400 / 80 / 20 mm/s — experimental</option><option value="boost">Boost · 600 / 120 / 40 mm/s — experimental maximum</option><option value="custom">Custom — enter three speeds</option></select></label>
 <div id="cxmCustomSpeedFields" class="cxm-custom-speeds" hidden>
  <label>Travel mm/s<input type="number" id="cxmCustomTravel" min="10" max="1200" step="1" value="200"></label>
  <label>Approach mm/s<input type="number" id="cxmCustomApproach" min="1" max="600" step="1" value="40"></label>
@@ -402,7 +402,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  </div>
  <div class="cxm-step">
   <div class="panel-heading"><h3>2 · Save dock position</h3><span class="panel-label">Capture + Save</span></div>
-  <p class="helper">Align the mounted hotend with the dock, then press Save. CXM captures live X/Y and writes the verified coordinates with a backup. No extra confirmation step.</p>
+  <p class="helper">Align the selected mounted hotend at its release-side dock X/Y, before the +X engagement move. Press Save dock position once. CXM captures live X/Y and writes the verified coordinates with a backup. No extra confirmation step.</p>
   <label class="cxm-capture-ack" hidden><input type="checkbox" id="cxmManualCaptureAck"><span class="cxm-approval-copy"><strong>Alignment inspected</strong><small>I visually confirmed the mounted hotend is the selected T number, aligned its locking screw with the dock and never released motors</small></span></label>
   <div class="buttons"><button class="btn primary" id="cxmManualCapture" disabled>Save dock position</button></div>
   <p class="helper" id="cxmManualFeedback" role="status">Awaiting operator alignment.</p>
@@ -868,10 +868,10 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.5" defer></script>
 <script src="cxm-dock.js?v=1.0.0" defer></script>
-<script src="cxm-manual.js?v=3.0.0" defer></script>
+<script src="cxm-manual.js?v=3.0.1" defer></script>
 
 
-<script src="cxm-multi.js?v=1.4.0" defer></script>
+<script src="cxm-multi.js?v=1.4.1" defer></script>
 <script src="cxm-native-control.js?v=3.0.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>

@@ -47,3 +47,47 @@ test('manual jog is approved per operator and restored to prior modal state by b
  assert.match(backend,/PRESSED/);
  assert.doesNotMatch(backend,/SET_KINEMATIC_POSITION|DOCK_LOCATE_CALIBRATE/);
 });
+
+test('one T1 Save survives a slow status poll and verifies the selected dock',async()=>{
+ const vm=require('node:vm');
+ const nodes=new Map();
+ function node(id){
+   if(!nodes.has(id))nodes.set(id,{style:{},value:'',handlers:{},
+     querySelectorAll:()=>[],addEventListener(type,fn){this.handlers[type]=fn;}});
+   return nodes.get(id);
+ }
+ node('cxmDockTool').value='1';
+ let interval,initial,release,hold=false;
+ const posts=[],events=[],xy={x:251.00625,y:65.73125};
+ const config={revision:'first',config:{tools:[{},{}]}};
+ const live={revision:'first',ready:true,xy,z:25,sensor:'PRESSED'};
+ vm.runInNewContext(manual,{
+   document:{getElementById:node,querySelector:()=>null},
+   window:{addEventListener(){},dispatchEvent:e=>events.push(e)},
+   CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},
+   setInterval:fn=>{interval=fn;},setTimeout:fn=>{initial=fn;},
+   async fetch(path,opts){
+     let data=config;
+     if(path.endsWith('status?tool=1'))data=live;
+     if(hold){hold=false;await new Promise(r=>{release=r;});}
+     if(opts.method==='POST'){
+       assert.ok(path.endsWith('/manual/save'));
+       posts.push(JSON.parse(opts.body));
+       config.config.tools[1]={dock_x:xy.x,dock_y:xy.y,dock_reference_accepted:true};
+       data={saved:true,verified:true,tool:1,xy,backup:'before.cfg'};
+     }
+     return {ok:true,json:async()=>data};
+   }
+ });
+ await initial();
+ hold=true;interval();
+ assert.equal(node('cxmManualCapture').disabled,false);
+ const save=node('cxmManualCapture').handlers.click();
+ await node('cxmManualCapture').handlers.click();
+ await save;
+ release();
+ await new Promise(r=>setImmediate(r));
+ assert.deepEqual(posts.map(p=>[p.tool,p.expected_revision]),[[1,'first']]);
+ assert.equal(events[0].detail.tool,1);
+ assert.match(node('cxmManualFeedback').textContent,/SAVED T1.*251.00625.*65.73125/);
+});
