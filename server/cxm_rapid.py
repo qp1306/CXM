@@ -15,8 +15,9 @@ import math
 
 from cxm_cxchanger import (automatic_script, faster_cycle_script,
                            performance_cycle_script, sprint_cycle_script,
-                           race_cycle_script, PERFORMANCE_TRAVEL_FEED,
-                           SPRINT_TRAVEL_FEED, RACE_TRAVEL_FEED)
+                           race_cycle_script, boost_cycle_script,
+                           PERFORMANCE_TRAVEL_FEED, SPRINT_TRAVEL_FEED,
+                           RACE_TRAVEL_FEED, BOOST_TRAVEL_FEED)
 from cxm_t0 import SAFE_FEED, TEST_FEED, LATCH_FEED
 
 GATE="CXM_FAST_VERIFY"
@@ -43,6 +44,8 @@ def _movement(path,kind,profile):
         script=sprint_cycle_script(path,kind,at_stage=True)
     elif profile=="race":
         script=race_cycle_script(path,kind,at_stage=True)
+    elif profile=="boost":
+        script=boost_cycle_script(path,kind,at_stage=True)
     else:
         raise ValueError("Unknown rapid clear-travel profile")
     parts=script.splitlines()
@@ -91,7 +94,8 @@ def pair_script(paths,tool,travel_profile="standard"):
     minimum=min(_number(v["safe_y"],"safe Y") for v in paths.values())
     if y<minimum or y>362 or x<5 or x>330:
         raise ValueError("CXM rapid staging is outside safe XY limits")
-    travel_feed=(RACE_TRAVEL_FEED if travel_profile=="race" else
+    travel_feed=(BOOST_TRAVEL_FEED if travel_profile=="boost" else
+                 RACE_TRAVEL_FEED if travel_profile=="race" else
                  SPRINT_TRAVEL_FEED if travel_profile=="sprint" else
                  PERFORMANCE_TRAVEL_FEED if travel_profile=="performance" else
                  1800 if travel_profile=="faster" else SAFE_FEED)
