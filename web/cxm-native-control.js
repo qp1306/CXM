@@ -26,7 +26,8 @@ function controls(){
  const target=$('cxmNativeSelectedTool').value;
  const current=state?.current_tool;
  const declared=$('cxmCarriageIdentity').value;
- const mounted=(Number.isInteger(current)&&current>=-1)?current:(declared!==''?Number(declared):null);
+ const mounted=state?.sensor==='RELEASED'?-1:
+   (Number.isInteger(current)&&current>=0?current:(declared!==''?Number(declared):null));
  const valid=mounted!==null&&(state?.sensor===(mounted===-1?'RELEASED':'PRESSED'));
  const available=Array.isArray(state?.candidates)&&state.candidates.some(t=>t.tool===Number(target)&&t.eligible);
  $('cxmNativeSelect').disabled=busy||!valid||target===''||!available;
@@ -37,8 +38,10 @@ function controls(){
  $('cxmCalibrationReleaseAck').disabled=true;
  $('cxmCalibrationRelease').disabled=true;
  if(!state)return;
- const label=current===-2?'UNKNOWN — select actual mounted hotend once':
-   current===-1?'EMPTY':current>=0?'T'+current+' mounted':'UNKNOWN';
+ const label=state.sensor==='RELEASED'?'EMPTY (sensor confirmed)':
+   current===-2?'UNKNOWN — select mounted hotend':
+   current===-1?'Identity mismatch — inspect mounted hotend':
+   current>=0?'T'+current+' mounted':'UNKNOWN';
  text('cxmNativeToolStatus',
    'Carriage '+label+' · sensor '+String(state.sensor||'unknown')+
    (state.fault?' · native sync required':'')+
@@ -78,8 +81,9 @@ async function refresh(){
 async function selectTool(tool){
  if(busy||!state)return;
  const current=state.current_tool;
- const mounted=(Number.isInteger(current)&&current>=-1)?current:
-   ($('cxmCarriageIdentity').value===''?null:Number($('cxmCarriageIdentity').value));
+ const mounted=state.sensor==='RELEASED'?-1:
+   (Number.isInteger(current)&&current>=0?current:
+    ($('cxmCarriageIdentity').value===''?null:Number($('cxmCarriageIdentity').value)));
  if(mounted===null){
    text('cxmNativeToolStatus','Choose the currently mounted hotend or EMPTY once, then press LOAD/UNLOAD.');
    return;
