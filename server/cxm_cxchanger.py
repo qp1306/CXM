@@ -84,7 +84,8 @@ DOCK_CLEARANCE_MARGIN_Y=10.0 # stay 10 mm outside the Y-dodge point at speed
 def faster_cycle_script(path,kind,*,at_stage,travel_feed=FAST_TRANSFER_FEED,
                         test_feed=240,latch_feed=180,
                         margin_y=DOCK_CLEARANCE_MARGIN_Y,
-                        _performance_limits=False, _trial_limits=False):
+                        _performance_limits=False, _trial_limits=False,
+                        _boost_limits=False):
     """Same final docking geometry, faster ONLY when safely clear of dock.
 
     Entry is slowed at Y=dock_y+dodge_y+margin_y, before the coupling can
@@ -98,10 +99,13 @@ def faster_cycle_script(path,kind,*,at_stage,travel_feed=FAST_TRANSFER_FEED,
     # mode retains its original strict 30/4/3 mm/s limits and behaviour.
     # A 15mm approach margin protects the coupling from 80mm/s travel.
     travel=finite(travel_feed,'Fast clear-corridor feed',600,
-                  24000 if _trial_limits else 4800 if _performance_limits else 1800)
+                  36000 if _boost_limits else 24000 if _trial_limits
+                  else 4800 if _performance_limits else 1800)
     test=finite(test_feed,'Dock approach feed',120,
-                4800 if _trial_limits else 480 if _performance_limits else 240)
-    latch=finite(latch_feed,'Dock latch feed',90,1200 if _trial_limits else 180)
+                7200 if _boost_limits else 4800 if _trial_limits
+                else 480 if _performance_limits else 240)
+    latch=finite(latch_feed,'Dock latch feed',90,
+                 2400 if _boost_limits else 1200 if _trial_limits else 180)
     margin=finite(margin_y,'Dock approach safety margin',8,15)
     x=path['dock_reference_xy']['x']
     y=path['dock_reference_xy']['y']
@@ -188,3 +192,21 @@ def race_cycle_script(path,kind,*,at_stage):
                                latch_feed=RACE_LATCH_FEED,
                                margin_y=TRIAL_MARGIN_Y,
                                _trial_limits=True)
+
+# Stage 3, STRICTLY OPT-IN, requires mechanically proven Race at this dock.
+# Max velocity 800mm/s and accel 4000mm/s^2 on the current CXM limit
+# the achievable 600mm/s clear speed on short <45mm transfers.
+# The real gain will come from guided and latch movement, not the
+# unattainable short-stroke F36000 target. No acceleration changes here.
+BOOST_TRAVEL_FEED=36000    # 600 mm/s *requested* open corridor
+BOOST_APPROACH_FEED=7200   # 120 mm/s guided CxChanger motion
+BOOST_LATCH_FEED=2400      # 40 mm/s coupling/latch motion
+
+def boost_cycle_script(path,kind,*,at_stage):
+    """Stage 3 high-load, one-pass test; never changes measured dock XYZ."""
+    return faster_cycle_script(path,kind,at_stage=at_stage,
+                               travel_feed=BOOST_TRAVEL_FEED,
+                               test_feed=BOOST_APPROACH_FEED,
+                               latch_feed=BOOST_LATCH_FEED,
+                               margin_y=TRIAL_MARGIN_Y,
+                               _boost_limits=True)

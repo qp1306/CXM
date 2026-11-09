@@ -9,7 +9,7 @@ const source=fs.readFileSync(path.join(__dirname,'../web/cxm-multi.js'),'utf8');
 
 function harness({lockedTwo=false}={}){
  const nodes={},listeners={},calls=[],allChoices=[],windowListeners={};
- let timer=null,state='idle',step=0,selected=[],blockedStart=false,travelProfile='standard';
+ let timer=null,state='idle',step=0,selected=[],blockedStart=false,travelProfile='standard',executionMode='legacy';
  let requestedCycles=1,completedCycles=0,currentCycle=null;
  const mk=(tag='div')=>({
    tagName:tag,textContent:'',value:'',checked:false,disabled:false,hidden:false,
@@ -30,7 +30,8 @@ function harness({lockedTwo=false}={}){
  }
  function snapshot(){
    return {running:state==='running',state,stop_requested:false,
-     travel_profile:travelProfile,revision:'a'.repeat(64),candidates:candidates(),
+     travel_profile:travelProfile,execution_mode:executionMode,
+     revision:'a'.repeat(64),candidates:candidates(),
      max_repeat_cycles:20,max_total_movements:240,
      requested_cycles:requestedCycles,completed_cycles:completedCycles,
      current_cycle:currentCycle,
@@ -46,10 +47,11 @@ function harness({lockedTwo=false}={}){
      const body=JSON.parse(options.body);
      assert.equal(body.acknowledgement,'I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH');
      assert.equal(body.expected_revision,'a'.repeat(64));
-     assert.ok(['standard','faster','performance','sprint','race'].includes(body.travel_profile));
+     assert.ok(['standard','faster','performance','sprint','race','boost'].includes(body.travel_profile));
      assert.ok(Number.isInteger(body.cycles)&&body.cycles>=1&&body.cycles<=20);
      requestedCycles=body.cycles;currentCycle=1;completedCycles=0;
      travelProfile=body.travel_profile;
+     executionMode=body.execution_mode||'legacy';
      if(blockedStart)return {ok:false,status:400,json:async()=>({error:'Carriage FILAMENT PRESENT'})};
      selected=body.tools;state='running';step=0;
      reply={started:true,tools:selected,cycles:requestedCycles,
@@ -92,10 +94,13 @@ test('Tools page exposes explicit one-pass mechanical test, not a printing readi
  assert.match(html,/id="cxmMultiPanel"/);
  assert.match(html,/id="cxmMultiAck" type="checkbox" disabled/);
  assert.match(html,/id="cxmMultiStop" disabled/);
- assert.match(html,/src="cxm-multi\.js\?v=0\.2\.2"/);
+ assert.match(html,/src="cxm-multi\.js\?v=0\.2\.4"/);
  assert.match(html,/id="cxmMultiPerformance" type="checkbox"/);
  assert.match(html,/id="cxmMultiSprint" type="checkbox"/);
  assert.match(html,/id="cxmMultiRace" type="checkbox"/);
+ assert.match(html,/id="cxmMultiBoost" type="checkbox"/);
+ assert.match(html,/id="cxmMultiStream" type="checkbox"/);
+ assert.match(html,/PHYSICAL EMERGENCY STOP ONLY/);
   assert.match(html,/id="cxmMultiRapid" type="checkbox"/);
  assert.match(html,/NOT READY.*printing commissioning is incomplete/);
  assert.match(html,/physical emergency stop/);
@@ -117,6 +122,47 @@ test('rapid native mode is opt-in, revokes approval and adds execution_mode only
   assert.equal(h.get('cxmMultiRapid').disabled,true);
 });
 
+test('Uninterrupted stream is explicitly opt-in and switches off old Rapid mode',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ assert.equal(h.get('cxmMultiStream').checked,false,'not enabled by default');
+ h.get('cxmMultiRapid').checked=true;h.get('cxmMultiRapid').listeners.change();
+ h.get('cxmMultiRepeats').value='4';h.get('cxmMultiRepeats').listeners.input();
+ h.get('cxmMultiStream').checked=true;h.get('cxmMultiStream').listeners.change();
+ assert.equal(h.get('cxmMultiRapid').checked,false);
+ assert.equal(h.get('cxmMultiRepeats').value,'1');
+ assert.equal(h.get('cxmMultiAck').checked,false);
+ assert.match(h.get('cxmMultiStatus').textContent,/PHYSICAL EMERGENCY STOP ONLY/);
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const post=h.calls.find(c=>c.url.endsWith('/multi/start'));
+ assert.equal(JSON.parse(post.options.body).execution_mode,'stream');
+ assert.equal(h.get('cxmMultiStop').disabled,true,
+   'must not advertise a Stop that cannot interrupt the queued native script');
+ assert.match(h.get('cxmMultiStop').textContent,/physical E-stop/);
+ assert.match(h.get('cxmMultiStatus').textContent,/STREAM RUNNING/);
+});
+
+test('Switching to Rapid restores a Stop-after-current-pair execution mode',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ h.get('cxmMultiStream').checked=true;h.get('cxmMultiStream').listeners.change();
+ h.get('cxmMultiRapid').checked=true;h.get('cxmMultiRapid').listeners.change();
+ assert.equal(h.get('cxmMultiStream').checked,false);
+ assert.equal(h.get('cxmMultiRapid').checked,true);
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const post=h.calls.find(c=>c.url.endsWith('/multi/start'));
+ assert.equal(JSON.parse(post.options.body).execution_mode,'rapid');
+ assert.equal(h.get('cxmMultiStop').disabled,false);
+});
+
+test('Uninterrupted stream refuses a selected fourth tool or multiple repeats',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ h.get('cxmMultiStream').checked=true;h.get('cxmMultiStream').listeners.change();
+ h.get('cxmMultiRepeats').value='2';h.get('cxmMultiRepeats').listeners.input();
+ assert.equal(h.get('cxmMultiStart').disabled,true);
+ assert.equal(h.get('cxmMultiAck').disabled,true);
+ assert.equal(h.calls.filter(x=>x.url.endsWith('/multi/start')).length,0);
+});
 test('existing standard mode never sends execution_mode or silently enables rapid',async()=>{
   const h=harness();await h.tick();await h.tick();
   h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
@@ -202,6 +248,24 @@ test('experimental Sprint/Race do not submit multi-repeat requests',async()=>{
  assert.equal(h.calls.filter(c=>c.url.endsWith('/multi/start')).length,0);
  assert.match(h.get('cxmMultiStatus').textContent,/exactly one supervised cycle/);
 });
+test('Boost is opt-in after Race, exclusive and changes approval and request',async()=>{
+ const h=harness();await h.tick();await h.tick();
+ assert.equal(h.get('cxmMultiBoost').checked,false);
+ h.get('cxmMultiRace').checked=true;h.get('cxmMultiRace').listeners.change();
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ h.get('cxmMultiBoost').checked=true;h.get('cxmMultiBoost').listeners.change();
+ assert.equal(h.get('cxmMultiRace').checked,false);
+ assert.equal(h.get('cxmMultiAck').checked,false);
+ assert.match(h.get('cxmMultiStatus').textContent,/600 clear \/ 120 guided \/ 40 latch/);
+ h.get('cxmMultiStream').checked=true;h.get('cxmMultiStream').listeners.change();
+ h.get('cxmMultiAck').checked=true;h.get('cxmMultiAck').listeners.change();
+ await h.click('cxmMultiStart');
+ const p=h.calls.find(x=>x.url.endsWith('/multi/start'));
+ assert.equal(JSON.parse(p.options.body).travel_profile,'boost');
+ assert.equal(JSON.parse(p.options.body).execution_mode,'stream');
+ assert.equal(h.get('cxmMultiBoost').disabled,true);
+});
+
 test('three eligible docks are shown selected with saved coordinates and no motion until approval',async()=>{
  const h=harness();await h.tick();await h.tick();
  assert.equal(h.getCandidates().length,3);

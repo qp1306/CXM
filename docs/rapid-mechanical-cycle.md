@@ -200,3 +200,93 @@ For an apples-to-apples comparison, record **actual wall-clock
 duration**, the on-screen run profile, and whether the carriage is
 physically empty at the end. Motion limits and short-segment
 acceleration often matter more than a large requested feed rate.
+
+## Uninterrupted Klipper Stream and Stage 3 Boost (November 2026)
+
+### Why the visible wait persisted
+
+Even the earlier Rapid mode dispatched **one Moonraker
+`printer/gcode/script` per complete tool pair** and waited for the
+return before dispatching the next. This created an unnecessary
+Python → Moonraker → Klipper handoff after each RELEASED result.
+There is also a *deliberate* per-release sensor verification:
+150 ms settle + 3 × 80 ms intervals = **390 ms programmed dwell**,
+plus the four actual live Klipper state checks. This is not a
+two-second API stall; it is retained to verify the mechanical release.
+
+### Opt-in Uninterrupted Stream
+
+The new **Uninterrupted Stream** option generates one native Klipper
+script for all selected tools, rather than one script per pair.
+It supports **T0/T1 or T0/T1/T2 only, exactly one cycle**. Its
+G-code is an exact concatenation of the previously validated
+`pair_script` G-code for each tool: unchanged CxChanger XY
+waypoints, existing safe Y-before-X transfer, M400 movement barriers,
+four independent PRESSED samples after every pickup, and four
+independent RELEASED samples after every dropoff. Each pair starts
+with a fresh live EMPTY, homing, motor-power, stage and XY coordinate
+offset check. Any failed gate aborts before the next tool, and CXM
+latches **both** T0 and T1+ control paths until physical inspection
+resolves the uncertain tool identity.
+
+**Important control trade-off:** Klipper processes this as one
+uninterrupted G-code script. A queued software Stop-after-current-tool
+request **cannot reliably interrupt it** and would be dangerously
+misleading. The CXM Stop control is therefore explicitly disabled
+during Stream mode. The operator must keep a **working physical
+emergency stop immediately accessible** and supervise the entire
+pass. If the ability to stop gracefully after each tool is needed,
+leave Stream disabled and use the existing **Rapid Klipper** mode.
+
+The stream is an opt-in one-cycle test only. It is not an
+unsupervised production toolchanger; no heaters/Z offsets/extrusion
+have been commissioned by this software change.
+
+### Faster Stage 3 Boost
+
+A separate, experimental Stage 3 Boost requests:
+
+| Movement | Race | Boost |
+| --- | ---: | ---: |
+| Open transfer | 400 mm/s (F24000) | **600 mm/s (F36000)** |
+| Guided coupling | 80 mm/s (F4800) | **120 mm/s (F7200)** |
+| Latch/unlatch | 20 mm/s (F1200) | **40 mm/s (F2400)** |
+
+**This is a high-load test profile, not a verified mechanical
+capability.** The user-reported Klipper maximum speed is 800 mm/s
+and acceleration is 4000 mm/s². A typical 40 mm cross-dock transfer
+starting/stopping at rest has theoretical peak speed
+`sqrt(4000*40) = 400 mm/s` at that acceleration, so simply
+requesting 600 mm/s does **not** mean the carriage reaches it.
+The guided and latch segments are the more meaningful speed changes.
+
+Boost only after **physically observed successful Race tool pickups
+and dropoffs**. One supervised T0/T1 run first. Avoid combining
+the *first* Boost trial with the *first* Stream trial: validate
+each new change separately, then consider using them together.
+If any tool vibrates, shifts, sticks, is not positively seated,
+or the sensor disagrees, physically stop and inspect.
+
+### Minimal rollout
+
+1. Update the CXM source through **Control Centre → Updates**,
+   hard-refresh the web page. These Python/JS-only features do not
+   change the already installed Klipper rapid guard macro and do
+   **not** require a second `printer.cfg` edit or Klipper restart.
+2. Ensure XYZ homed, Z≥20 mm, every selected dock clear, carriage
+   physically empty, and no simultaneous Mainsail movements.
+3. Prove **Race with Rapid Klipper** (if not already done).
+4. Prove **Uninterrupted Stream at the last safe speed** with
+   T0/T1, one cycle. Stop-after-tool is deliberately unavailable;
+   the physical emergency stop must be ready.
+5. Once that stream passes, optionally prove **Boost using original
+   Rapid mode** with T0/T1 before combining Boost + Stream.
+6. When both new features are individually physically reliable,
+   test T0/T1/T2 for one supervised stream. Never automate repeated
+   Boost/Stream cycles until hardware evidence justifies them.
+
+Measure wall-clock elapsed time across the entire native stream;
+the UI now reports its one-script time. The programmed 390 ms
+sensor confirmation at every dropoff remains. If further reduction
+is required, first measure real sensor stability and bounce rather
+than shortening it blindly.
