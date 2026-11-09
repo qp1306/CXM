@@ -28,7 +28,7 @@ function controls(){
  const eligible=state?.candidates?.some(t=>t.tool===target&&t.eligible);
  const ready=state?.native_ready===true&&state?.fault===0&&!state?.running;
  const current=state?.current_tool;
- const canPickup=ready&&eligible&&Number.isInteger(target)&&current>=-1&&current!==target;
+ const canPickup=ready&&eligible&&$('cxmNativeSelectedTool').value!==''&&Number.isInteger(target)&&current>=-1&&current!==target;
  const canUnload=ready&&Number.isInteger(current)&&current>=0;
  $('cxmNativeSelect').disabled=busy||!approved||!canPickup;
  $('cxmNativeUnload').disabled=busy||!approved||!canUnload;
