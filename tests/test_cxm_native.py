@@ -18,9 +18,9 @@ class Store:
                                'maintenance_lockout':False})
     def read(self):
         return {'revision':self.revision,'migration_required':False,
-                'config':{'globals':{'tool_count':6,'cxm_shift_x':-3.0,
+                'config':{'globals':{'tool_count':6,'cxm_shift_x':4.4,
                                      'cxm_dodge_y':14.0,
-                                     'cxm_safe_clearance_y':60.0},
+                                     'cxm_safe_clearance_y':100.0},
                           'tools':self.tools}}
 
 def mock_rpc(path, body=None, **kwargs):
@@ -296,7 +296,11 @@ class NativeBridgeTests(unittest.TestCase):
                         'VARIABLE=t2_y VALUE=100.0',
                         'VARIABLE=t3_accepted VALUE=0',
                         'VARIABLE=current_tool VALUE=-2',
-                        'VARIABLE=ready VALUE=1'):
+                        'VARIABLE=ready VALUE=1',
+                        'VARIABLE=shift_x VALUE=4.4',
+                        'VARIABLE=clearance_y VALUE=100.0',
+                        'VARIABLE=travel_feed VALUE=6000',
+                        'VARIABLE=latch_feed VALUE=6000'):
             self.assertIn(command,script)
         self.assertNotRegex(script,r'(?m)^\s*(G0|G1|G28|M400)\b')
 
