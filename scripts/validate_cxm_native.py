@@ -57,7 +57,12 @@ def check():
     pickup=blocks['_CXM_PICKUP_MOTION']
     assert pickup.index('G1 Y{safe}') < pickup.index('G1 X{x}')
     test_start=blocks['CXM_TEST_START']
-    assert 'printer.toolhead.position.y|float < ([y_a,y_b,y_c]|max) - 1.0' in test_start
+    assert '_CXM_STAGE_TEST Y={([y_a,y_b,y_c]|max)}' in test_start
+    assert '_CXM_STAGE_TEST' in blocks
+    stage=blocks['_CXM_STAGE_TEST']
+    assert 'below dock mechanical clearance Y' in stage
+    assert 'G1 Y{target} F{st.travel_feed}' in stage
+    assert stage.index('G1 Y{target}') < stage.index('CXM_FAST_VERIFY EXPECT=RELEASED MIN_Y={target}')
     assert '_CXM_PREPARE_CLEARANCE EXPECT=RELEASED' in test_start
     assert '_CXM_PREPARE_CLEARANCE EXPECT={' in controller
     assert '_CXM_PREPARE_CLEARANCE' in blocks
