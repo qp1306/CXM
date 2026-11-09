@@ -32,7 +32,7 @@ function customSpeeds(){
  const values=['cxmCustomTravel','cxmCustomApproach','cxmCustomLatch'].map(id=>Number($(id).value));
  if(values.some((v,i)=>!Number.isFinite(v)||$( ['cxmCustomTravel','cxmCustomApproach','cxmCustomLatch'][i] ).value.trim()===''))return null;
  const [travel,approach,latch]=values;
- return travel>=10&&travel<=600&&approach>=1&&approach<=120&&latch>=1&&latch<=40&&travel>=approach&&approach>=latch
+ return travel>=10&&travel<=1200&&approach>=1&&approach<=600&&latch>=1&&latch<=300&&travel>=approach&&approach>=latch
    ? {travel,approach,latch}:null;
 }
 function selectedMode(){return 'native';}
