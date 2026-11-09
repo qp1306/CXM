@@ -305,7 +305,7 @@ def simple_change(store, tool, expected_revision, *, mounted_tool=None):
         raise NativeError('Klipper reports a different mounted tool; inspect identity')
     if native.get('fault')==1 and identity!=-2 and not stale_empty:
         raise NativeError('Native toolchange fault with known identity; inspect motion before recovery')
-    if native.get('ready')!=1 or identity==-2 or native.get('fault')!=0:
+    if (native.get('ready')!=1 or identity!=mounted_tool or native.get('fault')!=0):
         # Re-establish state using accepted geometry and existing Klipper
         # carriage declaration, never direct XY movement from Python.
         initialize(store,expected_revision,mounted_tool)
