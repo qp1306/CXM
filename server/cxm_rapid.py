@@ -115,3 +115,36 @@ def pair_script(paths,tool,travel_profile="standard"):
     # Last gate requires a verified EMPTY carriage, accepted staging XY,
     # homing, motor power, printer pause/print status and Z>=20.
     return "\n".join(lines)
+
+# A single HTTP request for the entire supervised T0/T1(/T2) pass removes
+# the Python↔Moonraker round-trip at EVERY tool boundary. All 4+4 native
+# status gates within each pair are still present. Stream mode intentionally
+# cannot promise Stop-after-current-pair: while Klipper is processing the
+# uninterrupted script, another queued G-code stop cannot take effect
+# until the script is finished. Use the physical emergency stop instead.
+MAX_NATIVE_STREAM_TOOLS=3
+
+def stream_script(paths,selected,travel_profile='standard'):
+    """One uninterrupted Klipper script with a guarded pickup/dropoff per tool.
+
+    Caller must perform the same strict selection/calibration/preflight as
+    the individual Rapid mode. The stream is limited to three tools and
+    one completed cycle, and does not support unattended repeats.
+    """
+    if (type(selected) is not list or
+            not 2<=len(selected)<=MAX_NATIVE_STREAM_TOOLS or
+            any(type(n) is not int for n in selected) or
+            selected != sorted(set(selected))):
+        raise ValueError('CXM native stream needs 2–3 distinct ascending tool IDs')
+    if type(paths) is not dict or set(selected)!=set(paths):
+        raise ValueError('CXM native stream must match its validated dock paths')
+    scripts=[pair_script(paths,tool,travel_profile) for tool in selected]
+    if any(x.count('CXM_FAST_VERIFY EXPECT=PRESSED')!=4 or
+           x.count('CXM_FAST_VERIFY EXPECT=RELEASED')!=6
+           for x in scripts):
+        raise ValueError('CXM stream native safety gate count changed')
+    # Each script ends with four live RELEASED samples, and the next
+    # starts with a fresh RELEASED/XYZ/steppers/offsets safety check.
+    # Klipper runs this as one ordered G-code script, fail-closing on a
+    # failed gate before the next tool can move.
+    return '\n'.join(scripts)
