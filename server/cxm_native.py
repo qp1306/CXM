@@ -107,8 +107,10 @@ def sync(store,expected_revision):
                 lines.append('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=t'+str(i)+
                              '_'+suffix+' VALUE='+str(value))
         # Fixed baseline only. New speed profiles must be validated independently.
-        for field,val in [('travel_feed',600),('approach_feed',240),('latch_feed',180)]:
+        for field,val in [('travel_feed',600),('approach_feed',240),('latch_feed',180),
+                          ('segmented',0),('margin_y',15.0)]:
             lines.append('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE='+field+' VALUE='+str(val))
+        lines.append('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=profile VALUE="\'standard\'"')
         lines.append('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=ready VALUE=1')
         if store.read()['revision']!=expected_revision:
             raise NativeError('Saved calibration changed during synchronization')
