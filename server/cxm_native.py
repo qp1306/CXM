@@ -82,7 +82,11 @@ def sync(store,expected_revision,*,declared_tool=None):
     expected='RELEASED' if declared_tool in (None,-1) else 'PRESSED'
     if signal!=expected:
         raise NativeError('Carriage sensor disagrees with declared physical identity; do not retry blindly')
-    if native.get('current_tool') not in (-2,-1,declared_tool):
+    # The sensor proves EMPTY even when a previous manual Mainsail unload
+    # left current_tool stale. Accept explicit EMPTY re-declaration only;
+    # never infer a mounted hotend identity from the presence switch.
+    if native.get('current_tool') not in (-2,-1,declared_tool) and not (
+            declared_tool == -1 and signal == 'RELEASED'):
         raise NativeError('Existing known mounted tool differs; refuse to overwrite identity')
     if not MOVE_LOCK.acquire(blocking=False):
         raise NativeError('CXM calibration or motion operation already running')
@@ -146,7 +150,8 @@ def initialize(store,expected_revision,carriage_tool):
         tool=store.read()['config']['tools'][carriage_tool]
         if tool['maintenance_lockout'] or not tool['dock_reference_accepted']:
             raise NativeError('Declared mounted tool is not an accepted, unlocked dock')
-    if native.get('ready')!=1:
+    if (native.get('ready')!=1 or native.get('fault')!=0
+            or native.get('current_tool')!=carriage_tool):
         sync(store,expected_revision,declared_tool=carriage_tool)
     _rpc('/printer/gcode/script',{'script':'CXM_DECLARE_CARRIAGE TOOL='+str(carriage_tool)})
     after,_,sensor=_native_status()
@@ -173,12 +178,10 @@ def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False, store=N
         from cxm_manual import status as manual_dock_status
         manual_dock_status(tool,store)
         identity=native.get('current_tool')
-        # A mounted calibration can legitimately follow a rejected native
-        # toolchange. A fault latch is not proof that the mounted hotend changed.
-        # Never accept a different positively-known tool identity, or any
-        # active native test. Save is disk-only; mark live geometry UNKNOWN.
-        if identity not in (-2, tool):
-            raise NativeError('Mounted tool identity conflicts with selected dock')
+        # Calibration is an explicit operator-selected tool identity; unlike
+        # automatic motion, an old known native identity may be stale after
+        # manual tool handling. We invalidate it and verify that invalidation
+        # BEFORE writing the selected tool's measured coordinates.
         invalid=(native.get('ready')==0 and native.get('fault')==1 and identity==-2)
         if invalid:
             return {'invalidated':True,'already_invalidated':True,
@@ -297,9 +300,10 @@ def simple_change(store, tool, expected_revision, *, mounted_tool=None):
     if signal!=expected:
         raise NativeError('Carriage sensor does not match selected mounted/empty state')
     identity=native.get('current_tool')
-    if identity not in (-2,mounted_tool):
+    stale_empty=(mounted_tool==-1 and signal=='RELEASED')
+    if identity not in (-2,mounted_tool) and not stale_empty:
         raise NativeError('Klipper reports a different mounted tool; inspect identity')
-    if native.get('fault')==1 and identity!=-2:
+    if native.get('fault')==1 and identity!=-2 and not stale_empty:
         raise NativeError('Native toolchange fault with known identity; inspect motion before recovery')
     if native.get('ready')!=1 or identity==-2 or native.get('fault')!=0:
         # Re-establish state using accepted geometry and existing Klipper
