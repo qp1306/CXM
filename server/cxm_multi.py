@@ -20,7 +20,7 @@ import uuid
 import urllib.parse
 
 from cxm_lineux import MOVE_LOCK, _rpc
-from cxm_rapid import pair_script
+from cxm_rapid import pair_script, stream_script, MAX_NATIVE_STREAM_TOOLS
 from cxm_cxchanger import (plan as cxchanger_plan, automatic_script,
                            faster_cycle_script, performance_cycle_script,
                            sprint_cycle_script, race_cycle_script)
@@ -45,7 +45,7 @@ RUN={'running':False,'run_id':None,'state':'idle','tools':[],
 START_ACK='I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH'
 STOP_ACK='STOP_AFTER_CURRENT_TOOL_PAIR'
 TRAVEL_PROFILES=('standard','faster','performance','sprint','race')
-EXECUTION_MODES=('legacy','rapid')
+EXECUTION_MODES=('legacy','rapid','stream')
 RAPID_MACRO='gcode_macro CXM_FAST_VERIFY'
 MAX_REPEAT_CYCLES=20
 MAX_TOTAL_MOVEMENTS=240  # bound unattended batch size across tool counts
@@ -158,7 +158,7 @@ def _prepare(store,selected,revision,execution_mode='legacy'):
     _check_no_pending_fault(ctx)
     if AUTO_SENSOR not in ctx['objects']:
         raise MultiToolError('Carriage presence switch is unavailable')
-    if execution_mode=='rapid':
+    if execution_mode in ('rapid','stream'):
         if RAPID_MACRO not in ctx['objects']:
             raise MultiToolError('Rapid mode unavailable: install the native CXM guard, perform one Klipper RESTART, then rehome XYZ')
         result=_rpc('/printer/objects/query?'+urllib.parse.urlencode(
@@ -339,6 +339,48 @@ def _rapid_pair(store,tool,expected_revision,expected_pid,paths,travel_profile):
     return {'signal':AUTO_EMPTY,'total_sec':elapsed}
 
 
+def _stream_run(store,selected,prepared,travel_profile):
+    """One native script across all selected tools, without HTTP handoffs.
+
+    In contrast to Rapid per-pair mode, operator Stop-after-pair is
+    unavailable while Klipper processes this script. Physical E-stop
+    remains effective. Unknown results latch faults for all tool routes.
+    """
+    saved=store.read()
+    if saved['revision']!=prepared['revision']:
+        raise MultiToolError('Saved CXM dock coordinates changed before stream')
+    info=_rpc('/printer/info')
+    if info.get('state')!='ready' or info.get('process_id')!=prepared['pid']:
+        raise MultiToolError('Klipper restarted or not ready before stream')
+    script=stream_script(prepared['paths'],selected,travel_profile)
+    began=time.monotonic()
+    _rpc('/printer/gcode/script',{'script':script})
+    elapsed=round(time.monotonic()-began,2)
+    if store.read()['revision']!=prepared['revision']:
+        raise MultiToolError('CXM dock config changed during stream; inspect all selected docks')
+    for t in selected:
+        _mark_tool(t,'dropoff',
+                   {'pid':prepared['pid'],'revision':prepared['revision']},
+                   prepared['revision'])
+    return {'duration_sec':elapsed,'signal':AUTO_EMPTY}
+
+
+def _latch_stream_fault(selected,prepared,error):
+    message=('Uninterrupted '+' → '.join('T'+str(t) for t in selected)+
+             ' stream result uncertain: '+str(error)[:160]+
+             '. Inspect carriage and ALL selected docks before clearing faults.')
+    # The shared presence switch cannot identify which tool was attached
+    # when a multi-tool native script failed. Mark both T0 and T1+ routes
+    # blocked to avoid accidental attempts with a falsely known tool.
+    with SESSION_LOCK:
+        AUTO_STATE.update(pid=prepared['pid'],revision=prepared['revision'],
+                          fault=message)
+    with TOOL_STATE_LOCK:
+        TOOL_STATE.update(pid=prepared['pid'],revision=prepared['revision'],
+                          mounted_tool=None,fault=message)
+    return message
+
+
 def _worker(store,selected,prepared,travel_profile,cycles,execution_mode='legacy'):
     tool=None
     kind=None
@@ -346,6 +388,22 @@ def _worker(store,selected,prepared,travel_profile,cycles,execution_mode='legacy
     # guarded startup, at the end of a prior movement, or between cycles.
     confirmed_signal=prepared['verified_signal']
     try:
+        if execution_mode=='stream':
+            kind='uninterrupted stream'
+            _update(current_cycle=1,current_action=kind,current_tool=None)
+            _event('Uninterrupted '+(' → '.join('T'+str(t) for t in selected))+
+                   ' native stream · physical E-stop only; no queued Stop-after-pair')
+            result=_stream_run(store,selected,prepared,travel_profile)
+            for t in selected:
+                _event('T'+str(t)+' native pickup confirmed (PRESSED)',
+                       tool=t,action='pickup',step_done=True)
+                _event('T'+str(t)+' native dropoff confirmed (RELEASED)',
+                       tool=t,action='dropoff',step_done=True)
+            _update(completed_cycles=1,state='complete',
+                    last_event='All '+str(len(selected))+
+                    ' pairs completed inside Klipper · carriage EMPTY · total '+
+                    str(result['duration_sec'])+'s')
+            return
         for cycle in range(1,cycles+1):
             if _stop_requested():
                 _update(state='stopped',
@@ -418,7 +476,9 @@ def _worker(store,selected,prepared,travel_profile,cycles,execution_mode='legacy
     except Exception as exc:
         # No forced retry/dropoff after uncertain pickup. The sensor's last
         # state may not reflect a securely mounted tool.
-        message=_latch_tool_fault(tool,kind,prepared['pid'],prepared['revision'],exc)
+        message=(_latch_stream_fault(selected,prepared,exc)
+                 if execution_mode=='stream'
+                 else _latch_tool_fault(tool,kind,prepared['pid'],prepared['revision'],exc))
         _update(state='failed',error=message,last_event=message)
         _event(message,tool=tool,action=kind)
     finally:
@@ -432,7 +492,7 @@ def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standa
     if type(travel_profile) is not str or travel_profile not in TRAVEL_PROFILES:
         raise MultiToolError('Invalid travel profile: choose standard, faster, performance, sprint or race')
     if type(execution_mode) is not str or execution_mode not in EXECUTION_MODES:
-        raise MultiToolError('Invalid execution mode: legacy or rapid')
+        raise MultiToolError('Invalid execution mode: legacy, rapid or stream')
     if type(cycles) is not int or not 1<=cycles<=MAX_REPEAT_CYCLES:
         raise MultiToolError('Choose a whole number of complete cycles from 1 to '+
                              str(MAX_REPEAT_CYCLES))
@@ -441,6 +501,14 @@ def start(*,store,tools,expected_revision,acknowledgement,travel_profile='standa
     # include only one complete pass; other proven modes remain unchanged.
     if travel_profile in ('sprint','race') and cycles!=1:
         raise MultiToolError('Experimental Sprint/Race requires exactly one supervised cycle')
+    if execution_mode=='stream':
+        if cycles!=1:
+            raise MultiToolError('Uninterrupted stream requires one supervised cycle')
+        if type(tools) is not list or not 2<=len(tools)<=MAX_NATIVE_STREAM_TOOLS:
+            raise MultiToolError('Uninterrupted stream requires 2–3 selected docks')
+        # This test intentionally prioritises uninterrupted movement, and
+        # therefore cannot guarantee Stop-after-pair while the script runs.
+        # It uses the real physical E-stop for immediate danger.
     if type(tools) is list and cycles*len(tools)*2>MAX_TOTAL_MOVEMENTS:
         raise MultiToolError('Batch exceeds the '+str(MAX_TOTAL_MOVEMENTS)+
                              '-movement safety limit; select fewer cycles or tools')
@@ -485,6 +553,9 @@ def stop(*,acknowledgement):
     with RUN_LOCK:
         if not RUN['running']:
             return {'stop_requested':False,'reason':'No active multi-tool pass'}
+        if RUN['execution_mode']=='stream':
+            return {'stop_requested':False,'emergency_stop_required':True,
+                    'reason':'Uninterrupted Klipper stream: physical emergency stop only; a queued G-code Stop cannot interrupt it'}
         RUN['stop_requested']=True
         return {'stop_requested':True,
                 'note':'The current tool pair completes unless the operator presses the real emergency stop.'}
