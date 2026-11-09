@@ -782,3 +782,25 @@ UI/Python-only update when the rapid guard has already been installed
 and loaded.
 
 Full procedure: [Rapid mechanical test and Performance](docs/rapid-mechanical-cycle.md).
+
+
+## Two larger, opt-in CXM XY speed trials (Sprint / Race)
+
+The Tools → Multi-tool cycle page now offers **Stage 1 Sprint**
+(**200 mm/s** clear, **40 mm/s** guided, **10 mm/s** latch) and
+**Stage 2 Race** (**400/80/20 mm/s**) alongside existing Standard,
+Faster and Performance speeds. These presets preserve every accepted
+CXM dock coordinate and CxChanger locking path, slow to guided speed
+15 mm before the Y-dodge point, and retain **four separately timed
+Klipper carriage-switch checks after pickup and after dropoff** when
+Rapid Klipper mode is enabled. There are no new Klipper macros or
+`printer.cfg` edits, and no change to the printer's global
+acceleration or velocity settings.
+
+Both new speeds are **not physically validated** on this machine.
+The backend prevents Sprint/Race multi-repeat requests; start with
+one supervised T0/T1 Stage 1 cycle only after the last lower profile
+passes, inspect the hardware, then one Stage 2 test only if Sprint
+shows no mechanical or sensor failures. Changing profiles resets the
+approval checkbox, and only one speed profile can be selected.
+See [rapid and larger motion speed tests](docs/rapid-mechanical-cycle.md).
