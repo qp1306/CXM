@@ -35,8 +35,12 @@ test('dock Save uses one atomic server request, no browser capture/save split',(
 test('manual jog is approved per operator and restored to prior modal state by backend',()=>{
  const backend=fs.readFileSync(path.join(__dirname,'../server/cxm_manual.py'),'utf8');
  assert.match(manual,/I_APPROVE_SUPERVISED_MOTOR_ON_JOG/);
- assert.match(backend,/SAVE_GCODE_STATE NAME=CXM_MANUAL_JOG/);
- assert.match(backend,/RESTORE_GCODE_STATE NAME=CXM_MANUAL_JOG MOVE=0/);
+ assert.match(backend,/CXM_MANUAL_DOCK_JOG TOOL=/);
+ assert.doesNotMatch(backend,/SAVE_GCODE_STATE NAME=CXM_MANUAL_JOG|\\bG1 [XY]/);
+ const klipper=fs.readFileSync(path.join(__dirname,'../vendor/cxm/cxm_native_toolchange.cfg'),'utf8');
+ assert.match(klipper,/\\[gcode_macro CXM_MANUAL_DOCK_JOG\\]/);
+ assert.match(klipper,/SAVE_GCODE_STATE NAME=CXM_MANUAL_JOG/);
+ assert.match(klipper,/RESTORE_GCODE_STATE NAME=CXM_MANUAL_JOG MOVE=0/);
  assert.match(backend,/M400/);
  assert.match(backend,/stepper_z3/);
  assert.match(backend,/print_stats/);
