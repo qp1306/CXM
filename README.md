@@ -55,12 +55,15 @@ python3 scripts/cxm_native_install.py --apply
 ```
 
 The installer backs up the previously installed native macro, checks duplicate
-definitions and prints a diff. After `--apply`, run `RESTART` in Mainsail
-with all movement paths clear. Klipper restart resets native RAM tool identity
-to UNKNOWN, so use the existing native initialization with the physically
-mounted tool again, verifying the new accepted geometry. Avoid physical
-movement while re-establishing identity. This macro has not yet been physically
-validated; test slowly with supervision and emergency stop accessible.
+definitions and prints a diff. **Do not apply or RESTART while a hotend is
+trapped between the carriage and dock or if the gantry is not mechanically
+supported.** Restart can de-energise Z motors and move the gantry, especially
+on a machine with an unresolved Z drive issue. Install/activate this feature
+only after physically securing the machine and resolving that risk. After a
+safe `RESTART`, Klipper resets native RAM tool identity to UNKNOWN; use the
+existing native initialization with the physically mounted tool again and
+verify the accepted geometry before any movement. This macro has not been
+physically validated; supervise its first use with emergency stop accessible.
 On an error, leave the machine untouched and inspect actual physical state
 before re-enabling any automatic movement.
 
