@@ -41,9 +41,9 @@ def plan(saved, shift_x=None, dodge_y=None, tool=0):
         # Upstream CxChanger _pickup_tool: enter at dodge Y, shift toward
         # release side, push to dock Y, latch back to X datum, retreat.
         'pickup':[(x,y+dy),(x+dx,y+dy),(x+dx,y),(x,y),(x,safe)],
-        # Upstream _release_tool: enter at dock Y, shift to open lever,
-        # retreat through dodge Y, reset lever, then travel clear.
-        'dropoff':[(x,y),(x+dx,y),(x+dx,y+dy),(x,y+dy),(x,safe)],
+        # Saved XY is mechanically LOCKED in the dock. Release requires
+        # only a straight positive-Y withdrawal at constant dock X.
+        'dropoff':[(x,y),(x,safe)],
         'shift_x':dx,'dodge_y':dy,'safe_y':safe,
         'clearance_y':clearance,'dock_reference_xy':{'x':x,'y':y},
         'motion_source':'CxChanger','measurement_source':'Lineux (separate)',
