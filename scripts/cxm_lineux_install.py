@@ -80,7 +80,7 @@ def main():
     if not original.is_file() or not destination.parent.is_dir() or not printer.is_file():
         raise RuntimeError('CXM repository, Klipper extras, or printer.cfg not present')
     src=original.read_bytes()
-    blob=b'blob '+str(len(src)).encode('ascii')+b'\\0'+src
+    blob=b'blob '+str(len(src)).encode('ascii')+b'\0'+src
     if hashlib.sha1(blob).hexdigest()!=UPDATED_GIT_BLOB_SHA:
         raise RuntimeError('Reviewed Lineux no-jog module blob mismatch; refusing installation')
     conf=printer.read_text('utf-8')
