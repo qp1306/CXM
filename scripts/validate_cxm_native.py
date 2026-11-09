@@ -59,6 +59,27 @@ def check():
     assert path['pickup']==[(304.60,65.60),(309.0,65.60),(309.0,165.6)]
     assert path['dropoff']==[(309.0,65.60),(304.60,65.60),(304.60,165.6)]
 
+    # Render the ACTUAL Klipper macro bodies with the measured saved T0
+    # datum. Verify the exact three G1 commands and their feed rates,
+    # not merely a separate Python planner approximation.
+    fake_native={'t0_x':304.60625,'t0_y':65.6,'shift_x':4.4,
+                 'clearance_y':100.0,'travel_feed':6000,
+                 'approach_feed':6000,'latch_feed':6000}
+    printer={'gcode_macro _CXM_NATIVE':fake_native}
+    def actual_g1(name):
+        rendered=env.from_string(blocks[name].split('gcode:',1)[1]).render(
+            printer=printer,params={'TOOL':0})
+        return [line.strip() for line in rendered.splitlines()
+                if line.strip().startswith('G1 ')]
+    assert actual_g1('_CXM_PICKUP_MOTION')==[
+        'G1 X304.60625 Y65.6 F6000',
+        'G1 X309.00625 Y65.6 F6000',
+        'G1 X309.00625 Y165.6 F6000']
+    assert actual_g1('_CXM_RELEASE_MOTION')==[
+        'G1 X309.00625 Y65.6 F6000',
+        'G1 X304.60625 Y65.6 F6000',
+        'G1 X304.60625 Y165.6 F6000']
+
     controller=blocks['CXM_SELECT_TOOL']
     # A mounted tool already at the saved locked XY can unload directly
     # through the dedicated Y-only release, while all other in-corridor
