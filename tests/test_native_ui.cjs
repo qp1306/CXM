@@ -59,7 +59,7 @@ test('custom speed limits increase without dropping native safety checks',()=>{
 
 test('selected hotend UI only requests named Klipper macros through native API',()=>{
  assert.match(native,/api\+'native\/status'/);
- assert.match(native,/post\('select'/);
+ assert.match(native,/post\('simple-change'/);
  assert.match(native,/expected_revision:state.revision/);
  assert.match(native,/cxmNativeToolAck/);
  assert.match(native,/current>=-1/);
