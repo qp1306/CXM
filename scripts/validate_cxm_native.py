@@ -100,10 +100,10 @@ def check():
         assert block.index(steps[0]) < block.index(steps[1]) < block.index(steps[2])
         assert block.count('G1 X{')==3, 'Unexpected extra X/Y waypoints'
     verify=blocks['_CXM_VERIFY']
-    assert 'final_x=x+st.shift_x|float if expect == "PRESSED" else x' in verify
+    assert 'final_x=(x+st.shift_x|float)|round(5) if expect == "PRESSED" else x' in verify
     assert verify.count('X={final_x} Y={y}')==2
     commit=blocks['_CXM_COMMIT_STATE']
-    assert 'X={st["t" ~ t ~ "_x"]|float+st.shift_x|float}' in commit
+    assert 'X={(st["t" ~ t ~ "_x"]|float+st.shift_x|float)|round(5)}' in commit
     check=blocks['_CXM_CHECK_TOOL']
     assert 'x+st.shift_x|float>325' in check
     calibration=blocks['CXM_CALIBRATION_RELEASE']
