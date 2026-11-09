@@ -247,6 +247,8 @@
 .cxm-simple-setup select,.cxm-simple-profile select{background:#182432;border:1px solid #6486a3;color:#fff;border-radius:9px;padding:12px;font-size:16px;min-width:220px}
 .cxm-simple-setup .buttons{display:flex;gap:10px;margin:12px 0;flex-wrap:wrap}
 #cxmMultiFastTransfer,#cxmMultiPerformance,#cxmMultiSprint,#cxmMultiRace,#cxmMultiBoost{display:none}
+#cxmNativeToolAck{display:none!important}
+.cxm-capture-ack:has(#cxmNativeToolAck){display:none!important}
 label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmMultiPerformance),label.cxm-multi-speed:has(#cxmMultiSprint),label.cxm-multi-speed:has(#cxmMultiRace),label.cxm-multi-speed:has(#cxmMultiBoost){display:none!important}
 #cxmNativeSync,#cxmNativeConfirm,#cxmNativeRecover,#cxmMultiRefresh,#cxmMultiApproval,.cxm-capture-ack:has(#cxmNativeEmptyAck){display:none!important}
 </style></head>
@@ -910,7 +912,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 
 
 <script src="cxm-multi.js?v=1.1.0" defer></script>
-<script src="cxm-native-control.js?v=1.0.0" defer></script>
+<script src="cxm-native-control.js?v=1.1.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-test-math.js?v=0.9.3" defer></script>
