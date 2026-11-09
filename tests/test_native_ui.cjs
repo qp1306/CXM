@@ -19,6 +19,16 @@ test('native CXM Control Centre offers only the new toolchange controller',()=>{
  assert.doesNotMatch(html,/src="cxm-tools\.js/);
 });
 
+test('single operator declaration replaces repetitive readiness checkbox flow',()=>{
+ for(const id of ['cxmCarriageIdentity','cxmDeclareCarriage','cxmSpeedSimple']){
+   assert.match(html,new RegExp('id="'+id+'"'));
+ }
+ assert.match(multi,/nativePost\('initialize'/);
+ assert.match(multi,/carriage_tool:tool/);
+ assert.match(multi,/\$\('cxmMultiStart'\)\.disabled=!ready;/);
+ assert.match(native,/const approved=true/);
+});
+
 test('selected hotend UI only requests named Klipper macros through native API',()=>{
  assert.match(native,/api\+'native\/status'/);
  assert.match(native,/post\('select'/);
