@@ -392,11 +392,14 @@ class Store:
                 raise ValueError('Tool outside count or in maintenance lockout')
             if raw_xy is not None:
                 for axis in ('x','y'):
-                    offset=data['globals'][axis+'_docking_adjust']
+                    # Lineux no-jog commissioning applies ZERO X datum correction.
+                    # Keep the legacy persisted X offset for rollback, but do not
+                    # require it when accepting a fresh measured raw X coordinate.
+                    offset=0.0 if axis == 'x' else data['globals']['y_docking_adjust']
                     expected=round(values['lineux_raw_'+axis]+offset,4)
                     if abs(values['dock_'+axis]-expected)>0.005:
                         raise ValueError('CxChanger dock '+axis.upper()+' must equal Lineux '+axis.upper()+
-                                         ' plus the configured calibration offset')
+                                         ' plus the currently applied calibration offset')
             data = copy.deepcopy(data)
             entry = data['tools'][tool]
             changed = any(entry[k] != v for k, v in values.items())
