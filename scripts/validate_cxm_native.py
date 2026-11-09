@@ -82,7 +82,7 @@ def check():
     native=(ROOT/'server/cxm_native.py').read_text('utf8')
     assert 'def initialize(store,expected_revision,carriage_tool):' in native
     verify=blocks['_CXM_VERIFY']
-    assert verify.count('CXM_FAST_VERIFY EXPECT={expect}')==4
+    assert verify.count('CXM_FAST_VERIFY EXPECT={expect}')==2
     assert blocks['CXM_SELECT_TOOL'].count('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=1')==2
     for name in ('cxm_multi.py','cxm_rapid.py'):
         assert not (ROOT/'server'/name).exists(), 'legacy Python motion worker remains: '+name

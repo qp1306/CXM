@@ -222,8 +222,8 @@ def start(store,tools,expected_revision,acknowledgement,travel_profile='standard
         if any(type(v) not in (int,float) or not math.isfinite(v) for v in values):
             raise NativeError('Custom speeds must be finite numeric values')
         travel,approach,latch=values
-        if not (10<=travel<=600 and 1<=approach<=120 and 1<=latch<=40 and travel>=approach>=latch):
-            raise NativeError('Custom limits: travel 10–600, approach 1–120, latch 1–40 mm/s; travel ≥ approach ≥ latch')
+        if not (10<=travel<=1200 and 1<=approach<=600 and 1<=latch<=300 and travel>=approach>=latch):
+            raise NativeError('Custom limits: travel 10–1200, approach 1–600, latch 1–300 mm/s; travel ≥ approach ≥ latch')
     elif custom_speeds is not None:
         raise NativeError('Custom speeds are only accepted with Custom profile')
     if travel_profile in ('sprint','race','boost','custom') and cycles!=1:

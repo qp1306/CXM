@@ -294,10 +294,10 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <label class="cxm-simple-profile" for="cxmSpeedSimple"><strong>Movement speed</strong>
 <select id="cxmSpeedSimple"><option value="standard">Standard · 10 / 4 / 3 mm/s</option><option value="faster">Faster · 30 / 4 / 3 mm/s</option><option value="performance">Performance · 80 / 8 / 3 mm/s</option><option value="sprint">Sprint · 200 / 40 / 10 mm/s — fast docking</option><option value="race">Race · 400 / 80 / 20 mm/s — experimental</option><option value="boost">Boost · 600 / 120 / 40 mm/s — experimental maximum</option><option value="custom">Custom — enter three speeds</option></select></label>
 <div id="cxmCustomSpeedFields" class="cxm-custom-speeds" hidden>
- <label>Travel mm/s<input type="number" id="cxmCustomTravel" min="10" max="600" step="1" value="200"></label>
- <label>Approach mm/s<input type="number" id="cxmCustomApproach" min="1" max="120" step="1" value="40"></label>
- <label>Latch / release mm/s<input type="number" id="cxmCustomLatch" min="1" max="40" step="1" value="10"></label>
- <small>Permitted: travel 10–600, approach 1–120, latch 1–40 mm/s; travel ≥ approach ≥ latch. Custom requires 1 supervised cycle.</small>
+ <label>Travel mm/s<input type="number" id="cxmCustomTravel" min="10" max="1200" step="1" value="200"></label>
+ <label>Approach mm/s<input type="number" id="cxmCustomApproach" min="1" max="600" step="1" value="40"></label>
+ <label>Latch / release mm/s<input type="number" id="cxmCustomLatch" min="1" max="300" step="1" value="10"></label>
+ <small>Permitted: travel 10–1200, approach 1–600, latch 1–300 mm/s; travel ≥ approach ≥ latch. Custom requires 1 supervised cycle.</small>
 </div>
 <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
  <label class="cxm-multi-repeat" for="cxmMultiRepeats">
@@ -918,7 +918,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-lineux.js?v=0.9.14" defer></script>
 
 
-<script src="cxm-multi.js?v=1.3.0" defer></script>
+<script src="cxm-multi.js?v=1.4.0" defer></script>
 <script src="cxm-native-control.js?v=1.1.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
