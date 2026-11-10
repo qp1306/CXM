@@ -19,10 +19,10 @@ async function setup(){
   node('cxmManualApproval').checked=true;
   return {tap:i=>buttons[i].handlers.click(),node,moves,replies};
 }
-test('queued taps run in order; overflow is ignored and clearing spares the in-flight jog',async()=>{
+test('clearing waiting taps spares the in-flight jog',async()=>{
   const t=await setup(), run=t.tap(0);
   for(const i of [1,0,1])t.tap(i);
-  assert.ok(t.node('x').disabled);
+  assert.equal(t.node('x').disabled,false);
   t.tap(0);
   assert.equal(t.moves.length,1);
   t.replies.shift()(true);
@@ -41,4 +41,19 @@ test('uncertain reply discards pending moves and revokes jog approval',async()=>
   await run;
   assert.equal(t.moves.length,1);
   assert.equal(t.node('cxmManualApproval').checked,false);
+});
+
+test('a burst of taps executes exactly once in order',async()=>{
+  const t=await setup(), run=t.tap(0);
+  const taps=Array.from({length:25},(_,i)=>i%2);
+  for(const i of taps.slice(1))t.tap(i);
+  assert.match(t.node('cxmJogQueue').textContent,/24 queued/);
+  for(let i=0;i<taps.length;i++){
+    assert.equal(t.moves.length,i+1);
+    assert.equal(t.replies.length,1);
+    t.replies.shift()(true);
+    await new Promise(r=>setImmediate(r));
+  }
+  await run;
+  assert.deepEqual(t.moves.map(v=>v.axis),taps.map(i=>i?'y':'x'));
 });

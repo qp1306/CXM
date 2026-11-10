@@ -8,7 +8,6 @@ const api='/cxm/api/v1';
 let busy=false,live=null,revision=null,tool=-1;
 let refreshVersion=0, polling=false;
 const pending=[];
-const maxPending=3;
 let jogging=false;
 const panel=document.querySelector('[data-panel="calibration"]');
 function canJog(){
@@ -32,9 +31,9 @@ async function request(path,body){
 }
 function controls(){
   const allowed=!busy&&live?.ready&&tool===selected()&&!!live.revision&&revision===live.revision;
-  for(const button of root.querySelectorAll('[data-manual-axis]'))button.disabled=!canJog()||(busy&&!jogging)||pending.length>=maxPending;
+  for(const button of root.querySelectorAll('[data-manual-axis]'))button.disabled=!canJog()||(busy&&!jogging);
   el('cxmJogClear').disabled=pending.length===0;
-  el('cxmJogQueue').textContent=jogging ? 'Jog in progress · '+pending.length+' of '+maxPending+' queued' : '';
+  el('cxmJogQueue').textContent=jogging ? 'Jog in progress · '+pending.length+' queued' : '';
   el('cxmManualCapture').disabled=!allowed;
   el('cxmManualRefresh').disabled=busy;
 }
@@ -73,7 +72,7 @@ async function refresh(silent=false){
   }finally{if(version===refreshVersion){polling=false;controls();}}
 }
 async function jog(button){
-  if(!canJog() || (busy&&!jogging) || pending.length>=maxPending)return;
+  if(!canJog() || (busy&&!jogging))return;
   pending.push({button, tool, revision});
   if(jogging){controls();return;}
   ++refreshVersion;polling=false;busy=true;jogging=true;
