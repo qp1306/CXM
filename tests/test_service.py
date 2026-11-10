@@ -72,6 +72,24 @@ class TestAPI(unittest.TestCase):
                                       'expected_revision':saved['revision']},headers)
         self.assertEqual(error.exception.code,409)
 
+    def test_fine_adjust_x_preserves_y_and_rejects_replay(self):
+        headers = {'Content-Type':'application/json', 'X-Requested-With':'CXM',
+                   'Origin':f'http://127.0.0.1:{self.port}'}
+        with patch('cxm_service.printer_safe', return_value=True):
+            rev = self.store.read()['revision']
+            rev = self.store.set_value('global','cxm_shift_x',4.4,rev)['revision']
+            saved = self.store.save_dock(2, {'x':222.01,'y':65.6}, rev)
+            body = {'tool':2, 'hundredths':-10, 'expected_revision':saved['revision']}
+            reply = self.call('/v1/dock/fine-x', body, headers)
+            self.assertTrue(reply['backup'])
+            entry = self.store.read()['config']['tools'][2]
+            self.assertEqual((entry['dock_x'],entry['dock_y']), (221.91,65.6))
+            for rejected in (body, dict(body, tool=1, expected_revision=reply['revision']),
+                             dict(body, hundredths=101, expected_revision=reply['revision'])):
+                with self.assertRaises(urllib.error.HTTPError):
+                    self.call('/v1/dock/fine-x', rejected, headers)
+            self.assertEqual(self.store.read()['revision'], reply['revision'])
+
     def test_reject_legacy_xyz_without_touching_config(self):
         current=self.call('/v1/config')
         headers={'Content-Type':'application/json','Origin':f'http://127.0.0.1:{self.port}',

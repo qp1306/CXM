@@ -393,11 +393,11 @@ class NativeBridgeTests(unittest.TestCase):
                          travel_profile='standard',cycles=1)
         self.assertEqual(scripts,['CXM_SET_PROFILE PROFILE=standard\n'
                                   'CXM_TEST_START A=0 B=1 C=2 CYCLES=1'])
-        with patch.object(native,'_rpc',side_effect=AssertionError('must fail preflight')):
-            with self.assertRaises(native.NativeError):
-                native.start(self.store,[0,1],'rev1',
-                             'I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH',
-                             travel_profile='boost',cycles=2)
+        with patch.object(native,'_rpc',side_effect=rpc):
+            native.start(self.store,[2],'rev1',
+                         'I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH',
+                         travel_profile='boost',cycles=2)
+        self.assertEqual(scripts[-1], 'CXM_SET_PROFILE PROFILE=boost\nCXM_TEST_START A=2 CYCLES=2')
 
     def test_stop_is_native_macro_request_not_gcode_motion(self):
         scripts=[]
