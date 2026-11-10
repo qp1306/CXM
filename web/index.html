@@ -271,7 +271,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
    <option value="">Choose EMPTY or mounted tool</option>
    <option value="-1">EMPTY — no hotend fitted</option>
   </select>
-  <button class="btn primary" id="cxmDeclareCarriage" hidden>Set carriage state</button>
+  <button class="btn primary" id="cxmDeclareCarriage">Confirm carriage state</button>
  </div>
  
 </div>
@@ -304,7 +304,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <label>Travel mm/s<input type="number" id="cxmCustomTravel" min="10" max="1200" step="1" value="200"></label>
  <label>Approach mm/s<input type="number" id="cxmCustomApproach" min="1" max="600" step="1" value="40"></label>
  <label>Latch / release mm/s<input type="number" id="cxmCustomLatch" min="1" max="300" step="1" value="10"></label>
- <small>Permitted: travel 10–1200, approach 1–600, latch 1–300 mm/s; travel ≥ approach ≥ latch. Custom requires 1 supervised cycle.</small>
+ <small>Permitted: travel 10–1200, approach 1–600, latch 1–300 mm/s; travel ≥ approach ≥ latch. Choose 1–20 supervised cycles.</small>
 </div>
 <p class="helper">Clear transfer: temporary 9,000 mm/s² acceleration with diagonal XY movement where the safe corridor allows. Dock approach/latch: 4,000 mm/s². Restored to 4,000 after each transfer.</p>
 <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
@@ -871,7 +871,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-manual.js?v=3.0.1" defer></script>
 
 
-<script src="cxm-multi.js?v=1.4.1" defer></script>
+<script src="cxm-multi.js?v=solo6" defer></script>
 <script src="cxm-native-control.js?v=3.0.0" defer></script>
 <script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>

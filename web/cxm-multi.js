@@ -51,20 +51,19 @@ function profileLabel(profile){
 function modeLabel(mode){return mode==='native'?'NATIVE KLIPPER':String(mode||'UNKNOWN').toUpperCase();}
 function chooseControls(){
  const running=current?.running===true;
- const valid=selection().length>=2&&selection().length<=3&&
+ const valid=selection().length>=1&&selection().length<=3&&
    selection().every(n=>current.candidates.some(t=>t.tool===n&&t.eligible));
  const maxRepeat=repeatMaximum();
  $('cxmMultiRepeats').max=String(maxRepeat);
  text('cxmMultiRepeatHelp','Allowed 1–'+maxRepeat+' complete cycles for '+
-   selection().length+' selected hotends (maximum 240 movements).');
+   selection().length+' selected hotends.');
  const cycles=repeatCount();
  const streaming=false;
  text('cxmMultiPlanned','NEXT TEST (not previous run): '+
    modeLabel(selectedMode())+' · '+profileLabel(selectedProfile())+
    ' · '+(cycles??'INVALID')+' cycle(s) · '+selection().length+' tools');
- const experimental=['sprint','race','boost','custom'].includes(selectedProfile());
  const customValid=selectedProfile()!=='custom'||customSpeeds()!==null;
- const ready=!requestBusy&&!running&&valid&&cycles!==null&&customValid&&(!experimental||cycles===1)&&
+ const ready=!requestBusy&&!running&&valid&&cycles!==null&&customValid&&
    current?.native_ready===true&&current?.current_tool===-1&&current?.fault===0&&!!current?.revision;
  $('cxmMultiAck').disabled=!ready;
  if(!ready)$('cxmMultiAck').checked=false;
@@ -177,7 +176,7 @@ function showStatus(){
    const selected=selection().map(n=>'T'+n).join(' → ');
    text('cxmMultiStatus',selected
       ?'Ready to PRECHECK '+selected+' · carriage must be EMPTY and all physical paths clear'
-      :'Choose at least two accepted docks to run a supervised mechanical test.');
+      :'Choose at least one accepted dock to run a supervised mechanical test.');
  }
 }
 async function request(path,body){
@@ -241,14 +240,10 @@ async function refresh(){
 async function start(){
  if(requestBusy||!current||current.running)return;
  const list=selection();
- if(list.length<2||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
+ if(list.length<1||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
  const cycles=repeatCount();
  if(cycles===null)return;
  const travelProfile=selectedProfile();
- if(['sprint','race','boost','custom'].includes(travelProfile)&&cycles!==1){
-  text('cxmMultiStatus','High-speed and Custom profiles require exactly one supervised cycle.');
-  return;
- }
  const streaming=$('cxmMultiStream').checked;
  if(streaming&&(cycles!==1||list.length>3)){
   text('cxmMultiStatus','Uninterrupted Stream requires 2–3 selected tools and exactly 1 cycle.');
@@ -365,9 +360,6 @@ $('cxmDeclareCarriage').addEventListener('click',setCarriageState);
 $('cxmSpeedSimple').addEventListener('change',()=>{
  $('cxmMultiAck').checked=false;
  $('cxmCustomSpeedFields').hidden=selectedProfile()!=='custom';
- if(['sprint','race','boost','custom'].includes(selectedProfile())){
-   $('cxmMultiRepeats').value='1';
- }
  chooseControls();
 });
 for(const id of ['cxmCustomTravel','cxmCustomApproach','cxmCustomLatch']){

@@ -367,8 +367,8 @@ def start(store,tools,expected_revision,acknowledgement,travel_profile='standard
           cycles=1,execution_mode='native',custom_speeds=None):
     if acknowledgement!='I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH':
         raise NativeError('Physical carriage and dock inspection required')
-    if type(tools) is not list or not 2<=len(tools)<=3 or any(type(n) is not int for n in tools) or tools != sorted(set(tools)):
-        raise NativeError('Native commissioning requires 2–3 ascending accepted tools')
+    if type(tools) is not list or not 1<=len(tools)<=3 or any(type(n) is not int for n in tools) or tools != sorted(set(tools)):
+        raise NativeError('Native commissioning requires 1–3 ascending accepted tools')
     profiles=('standard','faster','performance','sprint','race','boost','custom')
     if travel_profile not in profiles:
         raise NativeError('Unknown CXM speed profile')
@@ -383,8 +383,6 @@ def start(store,tools,expected_revision,acknowledgement,travel_profile='standard
             raise NativeError('Custom limits: travel 10–1200, approach 1–600, latch 1–300 mm/s; travel ≥ approach ≥ latch')
     elif custom_speeds is not None:
         raise NativeError('Custom speeds are only accepted with Custom profile')
-    if travel_profile in ('sprint','race','boost','custom') and cycles!=1:
-        raise NativeError('High-speed/custom profiles require exactly one supervised cycle')
     if type(cycles) is not int or not 1<=cycles<=20:
         raise NativeError('Cycles must be 1–20')
     saved=store.read()
@@ -402,7 +400,9 @@ def start(store,tools,expected_revision,acknowledgement,travel_profile='standard
     script='CXM_SET_PROFILE PROFILE='+travel_profile
     if travel_profile=='custom':
         script+=' TRAVEL='+str(travel)+' APPROACH='+str(approach)+' LATCH='+str(latch)
-    script+='\nCXM_TEST_START A='+str(tools[0])+' B='+str(tools[1])
+    script+='\nCXM_TEST_START A='+str(tools[0])
+    if len(tools)>=2:
+        script+=' B='+str(tools[1])
     if len(tools)==3:
         script+=' C='+str(tools[2])
     script+=' CYCLES='+str(cycles)
