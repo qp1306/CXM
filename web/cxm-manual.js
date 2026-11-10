@@ -59,9 +59,9 @@ async function refresh(silent=false){
   }finally{if(version===refreshVersion){polling=false;controls();}}
 }
 async function jog(button){
-  if(busy||!live?.ready||!el('cxmManualApproval').checked)return;
-  const axis=button.dataset.manualAxis,sign=Number(button.dataset.manualSign);
-  const distance=sign*Number(el('cxmManualStep').value);
+  if(busy||!live?.ready||tool!==selected()||!el('cxmManualApproval').checked)return;
+  const axis=button.dataset.manualAxis;
+  const distance=Number(button.dataset.distance);
   ++refreshVersion;polling=false;busy=true;controls();
   say('Jogging '+axis.toUpperCase()+' '+distance+' mm …');
   try{
@@ -72,7 +72,7 @@ async function jog(button){
     live.xy=answer.position;
     el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
     el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
-    say('Position reached. Verify the physical fit before further movement.');
+    say('Commanded position updated. Inspect physical alignment before saving.');
   }catch(e){
     live=null;
     el('cxmManualApproval').checked=false;
