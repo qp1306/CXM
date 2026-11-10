@@ -37,10 +37,13 @@ test('selected tools show readiness independently of manual maintenance lockout'
  assert.match(dock,/maintenance_lockout !== true/);
  assert.match(settings,/cfg\.tools\.slice\(0,count\)\.map/);
 });
-test('no live motion or offset capture or fake Axiscope measurements',()=>{
- for(const token of ['Y+','X−','X+','Y−','Capture measurement'])assert.ok(html.includes(token));
- assert.match(html,/button class="btn" disabled>Y\+/);
- assert.match(html,/button class="btn" disabled>Capture measurement/);
+test('Tool XY always shows the camera and supervised jogs with the optical comparison',()=>{
+ const panel=html.split('<section data-panel="offsets" hidden>')[1].split('</section>')[0];
+ assert.doesNotMatch(panel,/<details|future hardware/);
+ assert.match(panel,/id="cxmAxisJogRows"/);
+ assert.match(panel,/id="cxmManualApprovalXY"/);
+ assert.match(panel,/id="cxmJogClearXY"/);
+ assert.doesNotMatch(panel,/id="cxmManualCaptureXY"/);
  assert.doesNotMatch(axis,/\/printer\/gcode\/script|G1\s+[XY]|SET_GCODE_OFFSET|postJSON\(/);
  assert.match(html,/id="cxmAxisFrame"/);
  assert.match(html,/id="cxmAxisTable"/);

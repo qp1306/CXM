@@ -164,7 +164,7 @@
       tr.append(name,x,y,measured,state);table.append(tr);
     }
     text('cxmAxisFeedback',list.length
-      ? list.length+' selected hotend(s), '+locked+' maintenance lockout(s). Offsets are saved settings, NOT optical measurements. No movement enabled.'
+      ? list.length+' selected hotend(s), '+locked+' maintenance lockout(s).'
       : 'No selected hotends. Configure the count in Tools.');
   }
   el('cxmAxisRefreshCameras').addEventListener('click',loadCameras);

@@ -241,7 +241,7 @@
 .cxm-t0-auto-buttons .btn{min-height:54px}.cxm-advanced>summary{padding:10px 2px}
 @media(max-width:600px){main{padding:17px 13px 45px}.panel{padding:15px}.tabs .tab{padding:12px 11px}.cxm-step{padding:13px}.cxm-capture-ack,.cxm-lineux-live .cxm-capture-ack{padding:13px;gap:12px}.cxm-approval-copy strong{font-size:16px}.cxm-approval-copy small{font-size:12px}.cxm-step .btn.primary{width:100%}}
 [data-retired-python-control="true"]{display:none!important}
-.dock-jog-grid .btn.jog-active:disabled{opacity:1;background:#376ea9;color:white}.dock-jog-scroll{overflow-x:auto}.dock-jog-grid{display:grid;grid-template-columns:repeat(4,minmax(3.5rem,1fr)) auto repeat(4,minmax(3.5rem,1fr));gap:3px;align-items:center}.dock-jog-grid strong{text-align:center;padding:0 .45rem}.dock-jog-grid .btn{padding:.7rem .2rem;font-variant-numeric:tabular-nums}</style><style>
+.dock-jog-grid .btn.jog-active:disabled{opacity:1;background:#376ea9;color:white}#cxmAxisJogRows{min-width:0}.axis-grid>article{min-width:0}.dock-jog-scroll{overflow-x:auto}.dock-jog-grid{display:grid;grid-template-columns:repeat(4,minmax(3.5rem,1fr)) auto repeat(4,minmax(3.5rem,1fr));gap:3px;align-items:center}.dock-jog-grid strong{text-align:center;padding:0 .45rem}.dock-jog-grid .btn{padding:.7rem .2rem;font-variant-numeric:tabular-nums}</style><style>
 .cxm-simple-setup,.cxm-simple-profile{display:block;background:#1b3040;border:1px solid #416481;border-radius:12px;padding:16px;margin:12px 0}
 .cxm-simple-setup strong,.cxm-simple-profile strong{font-size:17px}
 .cxm-simple-setup select,.cxm-simple-profile select{background:#182432;border:1px solid #6486a3;color:#fff;border-radius:9px;padding:12px;font-size:16px;min-width:220px}
@@ -529,18 +529,8 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </section>
 <section data-panel="offsets" hidden>
 <div class="section-title"><div><h2>Tool XY offsets</h2><p>Relative nozzle X/Y position — T0 is the reference</p></div></div>
-<article class="panel cxm-simple-editor">
-  <div class="panel-heading"><h3>Save tool XY offset</h3><span class="panel-label">No printer movement</span></div>
-  <p class="helper">Measure the nozzle's X/Y difference from T0, enter the two values and save. T0 always remains X0 / Y0. No offset is applied to an active print until its motion integration is commissioned.</p>
-  <div class="cxm-simple-fields">
-    <label>Hotend<select id="cxmXYEditTool" disabled></select></label>
-    <label>X offset (mm)<input id="cxmXYEditX" type="number" step="0.001" min="-20" max="20" disabled></label>
-    <label>Y offset (mm)<input id="cxmXYEditY" type="number" step="0.001" min="-20" max="20" disabled></label>
-  </div>
-  <p id="cxmXYEditStatus" class="helper" role="status">Loading saved offsets…</p>
-  <div class="buttons"><button class="btn primary" id="cxmXYEditSave" disabled>Save XY offsets</button><button class="btn" id="cxmXYEditReset">Reset values</button></div>
-</article>
-<details class="cxm-advanced cxm-optional-section"><summary>Advanced · Axiscope camera and positioning</summary>
+
+
 <div class="axis-grid">
 <article class="panel"><div class="panel-heading"><h3>Axiscope camera</h3><span class="panel-label" id="cxmAxisCameraCount">Checking cameras</span></div>
 <div class="axis-row"><label for="cxmAxisCamera">Camera</label><select id="cxmAxisCamera" disabled></select><button class="btn" id="cxmAxisRefreshCameras">Refresh</button></div>
@@ -552,13 +542,34 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <article class="panel"><div class="panel-heading"><h3>XY positioning</h3><span class="panel-label">T0 reference</span></div>
 <div class="axis-row"><label for="cxmAxisTool">Hotend</label><select id="cxmAxisTool" disabled></select><strong id="cxmAxisToolStatus">Awaiting config</strong></div>
 <div class="axis-offsets"><div><small>Saved X offset</small><strong id="cxmAxisSavedX">—</strong></div><div><small>Saved Y offset</small><strong id="cxmAxisSavedY">—</strong></div></div>
-<h3>Move carriage X/Y · future hardware</h3><p class="muted">Jogging requires verified homing, clearances, tool identity and tested CXM macros. All controls are disabled.</p>
-<div class="axis-jog-wrap"><div class="axis-jog"><span></span><button class="btn" disabled>Y+</button><span></span><button class="btn" disabled>X−</button><span class="axis-center">XY</span><button class="btn" disabled>X+</button><span></span><button class="btn" disabled>Y−</button><span></span></div>
-<div class="axis-jog-other"><label>Future jog step</label><select disabled><option>0.01 mm</option><option>0.02 mm</option><option selected>0.05 mm</option><option>0.10 mm</option><option>0.50 mm</option><option>1.00 mm</option></select><button class="btn" disabled>Auto-centre</button><button class="btn" disabled>Capture measurement</button></div></div>
+<div id="cxmAxisJog">
+ <p id="cxmManualReadinessXY" class="helper" role="status">Checking live Klipper motor-on readiness…</p>
+ <p class="helper" id="cxmPositionFeedXY">Last reported position</p>
+ <div class="dock-live-preflight"><div><small>X</small><strong id="cxmManualXXY">—</strong></div><div><small>Y</small><strong id="cxmManualYXY">—</strong></div><div><small>Z</small><strong id="cxmManualZXY">—</strong></div><div><small>Carriage</small><strong id="cxmManualSensorXY">—</strong></div></div>
+ <div class="buttons"><button class="btn" id="cxmManualRefreshXY">Refresh live position</button></div>
+ <div class="cxm-step">
+  <div class="panel-heading"><h3>Jog carriage</h3><span class="panel-label">mm · 5 mm/s</span></div>
+  <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualApprovalXY"><span class="cxm-approval-copy"><strong>Approve supervised jog</strong><small>XYZ homed · motors ON · selected hotend MOUNTED (PRESSED) · Z ≥ 20 · camera and carriage path clear</small></span></label>
+  <div id="cxmAxisJogRows"></div>
+  <div class="buttons"><button class="btn" id="cxmJogClearXY" disabled>Clear queued jogs</button>
+   <span class="helper" id="cxmJogQueueXY" role="status"></span></div>
+ </div>
+<p class="helper" id="cxmManualFeedbackXY" role="status"></p>
+</div>
 <p id="cxmAxisFeedback" class="helper">No measurements or movements have been performed.</p></article></div>
 <article class="panel axis-table-panel"><div class="panel-heading"><h3>Hotend XY comparison</h3><span class="panel-label">Saved profiles · unmeasured</span></div><div class="axis-scroll"><table><thead><tr><th>Tool</th><th>Saved X (mm)</th><th>Saved Y (mm)</th><th>Axiscope measurement</th><th>Tool status</th></tr></thead><tbody id="cxmAxisTable"></tbody></table></div><p class="helper">All selected hotends appear here, including disabled profiles. Saved values are not optical measurements.</p></article>
 
-</details>
+<article class="panel cxm-simple-editor">
+  <div class="panel-heading"><h3>Save tool XY offset</h3><span class="panel-label">No printer movement</span></div>
+  <p class="helper">Measure the nozzle's X/Y difference from T0, enter the two values and save. T0 always remains X0 / Y0. No offset is applied to an active print until its motion integration is commissioned.</p>
+  <div class="cxm-simple-fields">
+    <label>Hotend<select id="cxmXYEditTool" disabled></select></label>
+    <label>X offset (mm)<input id="cxmXYEditX" type="number" step="0.001" min="-20" max="20" disabled></label>
+    <label>Y offset (mm)<input id="cxmXYEditY" type="number" step="0.001" min="-20" max="20" disabled></label>
+  </div>
+  <p id="cxmXYEditStatus" class="helper" role="status">Loading saved offsets…</p>
+  <div class="buttons"><button class="btn primary" id="cxmXYEditSave" disabled>Save XY offsets</button><button class="btn" id="cxmXYEditReset">Reset values</button></div>
+</article>
 </section>
 <section data-panel="z-calibration" hidden>
 <div class="section-title"><div><h2>Tool Z offsets</h2><p>Nozzle height difference relative to T0 — separate from dock XY</p></div></div>
@@ -895,13 +906,13 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-settings.js?v=0.9.5" defer></script>
 <script src="cxm-fine-dock.js?v=1" defer></script>
 <script src="cxm-dock.js?v=fine1" defer></script>
-<script src="cxm-dock-position.js?v=1" defer></script>
-<script src="cxm-manual.js?v=3.3.1" defer></script>
+<script src="cxm-dock-position.js?v=2" defer></script>
+<script src="cxm-manual.js?v=4.0" defer></script>
 
 
 <script src="cxm-multi.js?v=solo6" defer></script>
 <script src="cxm-native-control.js?v=3.0.0" defer></script>
-<script src="cxm-axiscope.js?v=0.9.3" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
+<script src="cxm-axiscope.js?v=1.0" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 
 <script src="cxm-testing.js?v=0.9.3" defer></script>
