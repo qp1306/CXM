@@ -17,7 +17,7 @@ class ManualDockTests(unittest.TestCase):
         self.store=Store()
         self.command_log=[]
         motors={name:True for name in ('stepper_x','stepper_y','stepper_z','stepper_z1','stepper_z2','stepper_z3')}
-        self.state={'toolhead':{'homed_axes':'xyz','position':[309.4,66.0,25.0]},
+        self.state={'webhooks':{'state':'ready'}, 'toolhead':{'axis_minimum':[0,0,0], 'axis_maximum':[335,362,350], 'homed_axes':'xyz','position':[309.4,66.0,25.0]},
                     'idle_timeout':{'state':'Idle'},
                     'print_stats':{'state':'standby'},
                     'stepper_enable':{'steppers':motors},
@@ -42,6 +42,16 @@ class ManualDockTests(unittest.TestCase):
         self.patcher=patch.object(m,'_rpc',side_effect=rpc)
         self.patcher.start()
         self.addCleanup(self.patcher.stop)
+    def test_readiness_uses_one_small_live_query(self):
+        with patch.object(m, '_rpc', return_value={'status': self.state}) as rpc:
+            self.assertTrue(m.status(0, self.store)['ready'])
+        rpc.assert_called_once()
+        self.assertNotIn('configfile', rpc.call_args.args[0])
+        self.assertIn('webhooks=state', rpc.call_args.args[0])
+        del self.state['toolhead']['axis_maximum']
+        with self.assertRaisesRegex(m.ManualDockError, 'travel limits'):
+            m.status(0, self.store)
+
     def test_motor_on_live_capture(self):
         d=m.capture(tool=0,expected_revision='a'*64,
           acknowledgement='I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON',store=self.store)
