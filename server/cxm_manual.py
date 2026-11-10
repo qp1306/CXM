@@ -101,8 +101,8 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
         raise ManualDockError('Fresh operator approval required')
     if axis not in ('x','y') or type(distance) not in (int,float) or not math.isfinite(distance):
         raise ManualDockError('Jog axis/distance invalid')
-    if abs(distance) not in (10.0,1.0,0.1,0.01):
-        raise ManualDockError('Use only the supported 10, 1, 0.1 or 0.01 mm jog increments')
+    if abs(distance) not in (10.0,1.0,0.1,0.01,0.001):
+        raise ManualDockError('Use only the supported 10, 1, 0.1, 0.01 or 0.001 mm jog increments')
     if not MOVE_LOCK.acquire(blocking=False):
         raise ManualDockError('Another CXM motion or configuration operation is running')
     try:
@@ -121,7 +121,7 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
         after=_check_after_own_command(tool,store)
         if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:
             raise ManualDockError('Carriage state changed during jog; inspect printer')
-        if abs(after['xy'][axis]-next_value)>0.08:
+        if abs(after['xy'][axis]-next_value)>min(0.08, abs(distance)/2):
             raise ManualDockError('Commanded jog and reported coordinates differ; inspect printer')
         return {'jogged':True,'position':after['xy'],'revision':after['revision']}
     finally:

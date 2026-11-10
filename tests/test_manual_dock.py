@@ -56,6 +56,14 @@ class ManualDockTests(unittest.TestCase):
         self.assertEqual(self.command_log[0],
                          'CXM_MANUAL_DOCK_JOG TOOL=0 AXIS=X DIST=0.1000')
         self.assertNotIn('G1 ',self.command_log[0])
+    def test_micron_jog_in_both_directions(self):
+        for axis in ('x', 'y'):
+            for distance in (-0.001, 0.001):
+                result = m.jog(tool=0, axis=axis, distance=distance, expected_revision='a'*64,
+                               acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG', store=self.store)
+                self.assertTrue(result['jogged'])
+                self.assertEqual(self.command_log[-1], f'CXM_MANUAL_DOCK_JOG TOOL=0 AXIS={axis.upper()} DIST={distance:.4f}')
+
     def test_transient_post_jog_busy_settles_without_repeat_motion(self):
         original=m._check
         calls=[0]
