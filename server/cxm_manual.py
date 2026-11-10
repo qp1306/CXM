@@ -17,14 +17,17 @@ def _check(tool, saved):
         raise ManualDockError('Select an active T0–T11 dock')
     if saved['migration_required'] or saved['config']['tools'][tool]['maintenance_lockout']:
         raise ManualDockError('Configuration migration or tool maintenance lockout')
-    info=_rpc('/printer/info')
-    if info.get('state')!='ready':
+    fields = {
+        'webhooks': 'state',
+        'toolhead': 'homed_axes,position,axis_minimum,axis_maximum',
+        'idle_timeout': 'state', 'print_stats': 'state',
+        'stepper_enable': 'steppers', 'gcode_button cxm_tool_detect': 'state',
+        'gcode_macro _CXM_TEST_STATE': 'running', 'gcode_macro _CXM_NATIVE': 'current_tool',
+    }
+    query = urllib.parse.urlencode(fields, quote_via=urllib.parse.quote)
+    state = _rpc('/printer/objects/query?' + query).get('status', {})
+    if state.get('webhooks', {}).get('state') != 'ready':
         raise ManualDockError('Klipper is not ready')
-    keys=['toolhead','idle_timeout','print_stats','stepper_enable',
-          'gcode_button cxm_tool_detect','gcode_macro _CXM_TEST_STATE',
-          'gcode_macro _CXM_NATIVE','configfile']
-    q='&'.join(urllib.parse.quote(k,safe='') for k in keys)
-    state=_rpc('/printer/objects/query?'+q).get('status',{})
     head=state.get('toolhead',{})
     axes=str(head.get('homed_axes','')).lower()
     pos=head.get('position')
@@ -55,12 +58,13 @@ def _check(tool, saved):
     # the presence switch cannot identify a hotend and native identity may be
     # stale after a physical change. We invalidate it before any disk save.
     # Automatic toolchanges still require confirmed identity and sensor state.
-    limits=state.get('configfile',{}).get('settings',{})
+    lower = head.get('axis_minimum')
+    upper = head.get('axis_maximum')
+    if not all(isinstance(bounds, list) and len(bounds) >= 2 for bounds in (lower, upper)):
+        raise ManualDockError('Missing physical XY travel limits')
     xy={}
     for i,ax in enumerate('xy'):
-        cfg=limits.get('stepper_'+ax,{})
-        low=cfg.get('position_min',0)
-        high=cfg.get('position_max')
+        low, high = lower[i], upper[i]
         value=pos[i]
         if not all(type(v) in (int,float) and math.isfinite(v) for v in (low,high,value)):
             raise ManualDockError('Missing physical '+ax.upper()+' travel limits')

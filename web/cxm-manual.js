@@ -5,7 +5,7 @@ const el=id=>document.getElementById(id);
 const root=el('cxmManualDock');
 if(!root)return;
 const api='/cxm/api/v1';
-let busy=false,live=null,config=null,tool=-1;
+let busy=false,live=null,revision=null,tool=-1;
 let refreshVersion=0, polling=false;
 function selected(){const value=el('cxmDockTool').value;return value===''?-1:Number(value);}
 function say(message,bad=false){const n=el('cxmManualFeedback');n.textContent=message;n.style.color=bad?'#f4aaaa':'#bed9ec';}
@@ -19,7 +19,7 @@ async function request(path,body){
   return json;
 }
 function controls(){
-  const allowed=!busy&&live?.ready&&tool===selected()&&config?.revision===live?.revision;
+  const allowed=!busy&&live?.ready&&tool===selected()&&!!live.revision&&revision===live.revision;
   for(const button of root.querySelectorAll('[data-manual-axis]'))button.disabled=!allowed||!el('cxmManualApproval').checked;
   el('cxmManualCapture').disabled=!allowed;
   el('cxmManualRefresh').disabled=busy;
@@ -29,20 +29,18 @@ async function refresh(silent=false){
   const version=++refreshVersion;
   const selectedTool=selected();
   polling=true;
-  const previous=live,oldTool=tool,oldRevision=config?.revision;
+  const previous=live,oldTool=tool,oldRevision=revision;
   try{
-    const latestConfig=await request('/config');
-    if(version!==refreshVersion||selectedTool!==selected())return;
     const latest=await request('/manual/status?tool='+selectedTool);
     if(version!==refreshVersion||selectedTool!==selected())return;
     // An identity/config change revokes the previous operator approval.
     if((oldTool>=0&&selectedTool!==oldTool) ||
-       (oldRevision&&oldRevision!==latestConfig.revision) ||
+       (oldRevision&&oldRevision!==latest.revision) ||
        (previous&&previous.native_tool_identity!==latest.native_tool_identity)) {
       el('cxmManualApproval').checked=false;
       el('cxmManualCaptureAck').checked=false;
     }
-    config=latestConfig;tool=selectedTool;live=latest;
+    revision=latest.revision;tool=selectedTool;live=latest;
     el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
     el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
     el('cxmManualZ').textContent=live.z.toFixed(2)+' mm';
@@ -63,6 +61,8 @@ async function jog(button){
   const axis=button.dataset.manualAxis;
   const distance=Number(button.dataset.distance);
   ++refreshVersion;polling=false;busy=true;controls();
+  const started=performance.now();
+  button.classList.add('jog-active');
   say('Jogging '+axis.toUpperCase()+' '+distance+' mm …');
   try{
     const answer=await request('/manual/jog',{
@@ -72,12 +72,12 @@ async function jog(button){
     live.xy=answer.position;
     el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
     el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
-    say('Commanded position updated. Inspect physical alignment before saving.');
+    say(axis.toUpperCase()+' '+distance+' mm confirmed · '+Math.round(performance.now()-started)+' ms click to confirmation.');
   }catch(e){
     live=null;
     el('cxmManualApproval').checked=false;
     say('JOG STOPPED/UNCERTAIN: '+e.message+'. Inspect machine and refresh before any further movement.',true);
-  }finally{busy=false;controls();}
+  }finally{button.classList.remove('jog-active');busy=false;controls();}
 }
 async function capture(){
  if(busy||!live?.ready||tool!==selected())return;
@@ -95,7 +95,7 @@ async function capture(){
    if(!actual||actual.dock_x!==saved.xy.x||actual.dock_y!==saved.xy.y
       ||actual.dock_reference_accepted!==true)
      throw Error('Stored dock differs from captured position');
-   config=check;live=null;
+   revision=check.revision;live=null;
    window.dispatchEvent(new CustomEvent('cxm-dock-save-completed',{
      detail:{tool:target,x:actual.dock_x,y:actual.dock_y}}));
    say('SAVED T'+target+' — X'+actual.dock_x.toFixed(5)+
