@@ -68,6 +68,7 @@
       el.value = tool?.['dock_'+name] == null ? '' : String(tool['dock_'+name]);
       el.disabled = !canEdit() || busy;
     }
+    window.CXMFineDock?.select(snapshot, selected);
     dirty = false;rawDraft=null;
     const hasValues = tool && axis.every(name => tool['dock_'+name] != null);
     get('cxmDockStatus').textContent = !tool ? 'No selected tool'

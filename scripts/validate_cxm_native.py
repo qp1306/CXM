@@ -60,12 +60,12 @@ def check():
     assert path['dropoff']==[(309.0,65.60),(304.60,65.60),(304.60,165.6)]
 
     # Render the ACTUAL Klipper macro bodies with the measured saved T0
-    # datum. Verify the exact three G1 commands and their feed rates,
+    # datum. Verify the exact four G1 commands and their feed rates,
     # not merely a separate Python planner approximation.
     fake_native={'t0_x':304.60625,'t0_y':65.6,'shift_x':4.4,
                  'clearance_y':100.0,'travel_feed':6000,
                  'approach_feed':6000,'latch_feed':6000}
-    printer={'gcode_macro _CXM_NATIVE':fake_native}
+    printer={'gcode_macro _CXM_NATIVE':fake_native, 'gcode_macro _CXM_TEST_STATE':{'running':0}}
     def actual_g1(name):
         # Klipper's gcode templates use {expression}, whereas vanilla
         # Jinja2 uses {{expression}}. Expand single-brace Klipper output
@@ -78,33 +78,18 @@ def check():
         return [line.strip() for line in rendered.splitlines()
                 if line.strip().startswith('G1 ')]
     assert actual_g1('_CXM_PICKUP_MOTION')==[
-        'G1 X304.60625 Y65.6 F6000',
-        'G1 X309.00625 Y65.6 F6000',
-        'G1 X309.00625 Y165.6 F6000'], repr(actual_g1('_CXM_PICKUP_MOTION'))
+        'G1 X304.60625 Y165.6 F6000', 'G1 Y65.6 F6000',
+        'G1 X309.00625 F6000', 'G1 Y165.6 F6000']
     assert actual_g1('_CXM_RELEASE_MOTION')==[
-        'G1 X309.00625 Y65.6 F6000',
-        'G1 X304.60625 Y65.6 F6000',
-        'G1 X304.60625 Y165.6 F6000'], repr(actual_g1('_CXM_RELEASE_MOTION'))
-
+        'G1 X309.00625 Y165.6 F6000', 'G1 Y65.6 F6000',
+        'G1 X304.60625 F6000', 'G1 Y165.6 F6000']
     controller=blocks['CXM_SELECT_TOOL']
-    # A mounted tool already at the saved locked XY can unload directly
-    # through the dedicated Y-only release, while all other in-corridor
-    # starts remain blocked by the standard approach guard.
-    assert 'and not at_locked_dock' in controller
-    assert 'CXM_CALIBRATION_RELEASE TOOL={old} CONFIRM=1' in controller
-    assert '(pos.x|float - st["t" ~ old ~ "_x"]|float)|abs <= 0.15' in controller
-    assert '(pos.y|float - st["t" ~ old ~ "_y"]|float)|abs <= 0.15' in controller
+    assert 'pos.y|float < old_safe - 0.2' in controller
     assert 'pos.y|float < target_safe - 1.0' in controller
-    pickup=blocks['_CXM_PICKUP_MOTION']
-    release=blocks['_CXM_RELEASE_MOTION']
-    assert '_CXM_CLEAR_TRANSFER X={x} Y={safe} MIN_Y={safe} EXPECT=RELEASED' in pickup
-    assert '_CXM_CLEAR_TRANSFER X={mounted} Y={safe} MIN_Y={safe} EXPECT=PRESSED' in release
-    for block,steps in ((pickup,('G1 X{x} Y{y}', 'G1 X{mounted} Y{y}',
-                                'G1 X{mounted} Y{safe}')),
-                        (release,('G1 X{mounted} Y{y}', 'G1 X{x} Y{y}',
-                                  'G1 X{x} Y{safe}'))):
-        assert block.index(steps[0]) < block.index(steps[1]) < block.index(steps[2])
-        assert block.count('G1 X{')==3, 'Unexpected extra X/Y waypoints'
+    for name,expected in (('_CXM_PICKUP_MOTION','RELEASED'),('_CXM_RELEASE_MOTION','PRESSED')):
+        block=blocks[name]
+        assert block.index('_CXM_CLEAR_TRANSFER TOOL={t} EXPECT='+expected) < block.index('G1 ')
+        assert 'RESTORE_GCODE_STATE' in block and 'MOVE=0' in block
     verify=blocks['_CXM_VERIFY']
     assert 'final_x=(x+st.shift_x|float)|round(5) if expect == "PRESSED" else x' in verify
     assert verify.count('X={final_x} Y={y}')==2
@@ -113,15 +98,10 @@ def check():
     check=blocks['_CXM_CHECK_TOOL']
     assert 'x+st.shift_x|float>325' in check
     calibration=blocks['CXM_CALIBRATION_RELEASE']
-    assert 'G1 X{x} Y{safe} F{st.approach_feed}' in calibration
-    assert 'G1 X{x+shift}' not in calibration
-    assert '_CXM_CLEAR_TRANSFER' in blocks
+    assert 'action_raise_error' in calibration and 'G1 ' not in calibration
     clear=blocks['_CXM_CLEAR_TRANSFER']
-    assert 'diagonal path would enter dock corridor' in clear
-    assert 'G1 X{target_x} Y{target_y} F{st.travel_feed}' in clear
-    assert clear.index('SET_VELOCITY_LIMIT ACCEL=9000') < clear.index('G1 X{target_x} Y{target_y}')
-    assert clear.index('G1 X{target_x} Y{target_y}') < clear.index('SET_VELOCITY_LIMIT ACCEL=4000')
-    assert clear.index('SET_VELOCITY_LIMIT ACCEL=4000') < clear.index('CXM_FAST_VERIFY EXPECT={expect} X={target_x} Y={target_y}')
+    assert 'pos.y < safe-0.001' in clear and 'G1 ' not in clear
+    assert 'CXM_FAST_VERIFY EXPECT={expect}' in clear
     assert 'CXM_ACCEL_RESTORE' in blocks
     assert 'SET_VELOCITY_LIMIT ACCEL=4000' in blocks['CXM_ACCEL_RESTORE']
     recover=blocks['CXM_RECOVER']
@@ -141,8 +121,8 @@ def check():
     assert '_CXM_STAGE_TEST' in blocks
     stage=blocks['_CXM_STAGE_TEST']
     assert 'below dock mechanical clearance Y' in stage
-    assert 'G1 Y{target} F{st.travel_feed}' in stage
-    assert stage.index('G1 Y{target}') < stage.index('CXM_FAST_VERIFY EXPECT=RELEASED MIN_Y={target}')
+    assert 'start on or above the clear staging line' in stage
+    assert 'G1 ' not in stage
     assert '_CXM_PREPARE_CLEARANCE EXPECT=RELEASED' in test_start
     assert '_CXM_PREPARE_CLEARANCE EXPECT={' in controller
     assert '_CXM_PREPARE_CLEARANCE' in blocks
@@ -150,8 +130,8 @@ def check():
     lift=blocks['_CXM_PREPARE_CLEARANCE']
     assert 'XYZ not homed; automatic clearance lift refused' in lift
     assert 'carriage sensor disagrees' in lift
-    assert 'G1 Z25 F600' in lift
-    assert lift.index('G1 Z25 F600') < lift.index('CXM_FAST_VERIFY EXPECT={expected}')
+    assert 'establish Z clearance of at least 25 mm' in lift
+    assert 'G1 ' not in lift and 'CXM_FAST_VERIFY EXPECT={expected}' in lift
     declare=blocks['CXM_DECLARE_CARRIAGE']
     assert declare.count('CXM_FAST_VERIFY EXPECT=RELEASED') == 4
     assert declare.count('CXM_FAST_VERIFY EXPECT=PRESSED') == 4

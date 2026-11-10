@@ -11,6 +11,7 @@ import time
 import urllib.error
 import urllib.request
 from cxm_config import Store
+from cxm_cxchanger import plan
 from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
                     confirm_staging as t0_confirm_staging, T0Error)
 from cxm_manual import status as manual_status, jog as manual_jog, capture as manual_capture, save as manual_save, ManualDockError
@@ -25,6 +26,25 @@ from cxm_native import (status as multi_status, start as multi_start,
 from urllib.parse import parse_qs, urlsplit
 
 MAX_BODY = 4096
+
+def fine_adjust_x(store, tool, hundredths, expected_revision):
+    snapshot = store.read()
+    if snapshot['revision'] != expected_revision:
+        raise RuntimeError('Dock settings changed. Refresh and review the adjustment.')
+    if type(hundredths) is not int or not 1 <= abs(hundredths) <= 100:
+        raise ValueError('Choose an X correction from 0.01 to 1.00 mm in either direction')
+    if type(tool) is not int or not 0 <= tool < snapshot['config']['globals']['tool_count']:
+        raise ValueError('Select a configured hotend')
+    if tool == 1:
+        raise ValueError('Revision 6 requires the measured T1 entry coordinates')
+    entry = snapshot['config']['tools'][tool]
+    if snapshot['migration_required'] or entry['maintenance_lockout'] or not entry['dock_reference_accepted']:
+        raise ValueError('An accepted, unlocked dock is required')
+    entry['dock_x'] = round(entry['dock_x'] + hundredths / 100, 5)
+    geometry = plan(snapshot, tool=tool)
+    native_invalidate()
+    return store.save_dock(tool, geometry['dock_reference_xy'], expected_revision)
+
 
 def parse_proc_start_ticks(raw, expected_pid):
     """Linux /proc/PID/stat field 22, accounting for spaces in process name."""
@@ -164,7 +184,7 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
                 return
             if self.path == '/v1/native/initialize':
@@ -292,6 +312,11 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if not printer_safe():
                 self.output(409,{'error':'Klipper status not confirmed idle/halted; save blocked'})
+                return
+            if self.path == '/v1/dock/fine-x':
+                if set(body) != {'tool', 'hundredths', 'expected_revision'}:
+                    raise ValueError('Expected tool, X correction and saved revision')
+                self.output(200, fine_adjust_x(self.server.store, **body))
                 return
             # Block stale Klipper geometry before any disk configuration change.
             # Invalidate only when the native macros are actually installed.

@@ -14,7 +14,7 @@ test('native CXM Control Centre offers only the new toolchange controller',()=>{
    assert.match(html,new RegExp('id="'+id+'"'));
  }
  assert.match(html,/src="cxm-native-control\.js\?v=/);
- assert.match(html,/src="cxm-multi\.js\?v=1\.4\.1"/);
+ assert.match(html,/src="cxm-multi\.js\?v=solo6"/);
  assert.doesNotMatch(html,/src="cxm-t0-auto\.js/);
  assert.doesNotMatch(html,/src="cxm-tools\.js/);
 });
@@ -30,12 +30,12 @@ test('single operator declaration replaces repetitive readiness checkbox flow',(
  assert.match(native,/mounted_tool:mounted/);
 });
 
-test('high-speed profiles exposed with one-cycle limiter',()=>{
+test('high-speed profiles support solo and repeated tests',()=>{
  for(const mode of ['sprint','race','boost']){
   assert.match(html,new RegExp('<option value="'+mode+'">'));
  }
- assert.match(multi,/\['sprint','race','boost','custom'\]\.includes\(selectedProfile\(\)\)/);
- assert.match(multi,/\$\('cxmMultiRepeats'\)\.value='1'/);
+ assert.match(multi,/selection\(\)\.length>=1/);
+ assert.match(multi,/count<=repeatMaximum\(\)/);
 });
 
 test('custom three-speed controls are present and used',()=>{
@@ -49,7 +49,7 @@ test('custom three-speed controls are present and used',()=>{
 
 test('custom speed limits increase without dropping native safety checks',()=>{
  const cfg=fs.readFileSync(path.join(__dirname,'../vendor/cxm/cxm_native_toolchange.cfg'),'utf8');
- assert.match(cfg,/travel > 1200 or approach < 1 or approach > 600 or latch < 1 or latch > 300/);
+ assert.match(cfg,/10 <= travel <= 1200 and 1 <= approach <= 600 and 1 <= latch <= 300/);
  assert.match(cfg,/G4 P30/);
  assert.match(cfg,/DURATION=0\.01/);
  assert.match(html,/id="cxmCustomTravel" min="10" max="1200"/);

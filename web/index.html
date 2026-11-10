@@ -296,7 +296,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </div>
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
  <div class="panel-heading"><h3>Native Klipper toolchange test</h3><span class="panel-label">CXM_SELECT_TOOL · supervised XY mechanical testing</span></div>
- <p class="helper">Pick up and drop off each selected dock-calibrated hotend once per complete cycle, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating or extrusion. Z is automatically raised to 25 mm during verified carriage setup when needed. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
+ <p class="helper">Pick up and drop off each selected dock-calibrated hotend once per complete cycle, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating or extrusion. Establish at least 25 mm Z clearance before starting. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
  
 <label class="cxm-simple-profile" for="cxmSpeedSimple"><strong>Movement speed</strong>
 <select id="cxmSpeedSimple"><option value="standard">Standard · 100 / 100 / 100 mm/s</option><option value="faster">Faster · 30 / 4 / 3 mm/s</option><option value="performance">Performance · 80 / 8 / 3 mm/s</option><option value="sprint">Sprint · 200 / 40 / 10 mm/s — fast docking</option><option value="race">Race · 400 / 80 / 20 mm/s — experimental</option><option value="boost">Boost · 600 / 120 / 40 mm/s — experimental maximum</option><option value="custom">Custom — enter three speeds</option></select></label>
@@ -306,7 +306,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <label>Latch / release mm/s<input type="number" id="cxmCustomLatch" min="1" max="300" step="1" value="10"></label>
  <small>Permitted: travel 10–1200, approach 1–600, latch 1–300 mm/s; travel ≥ approach ≥ latch. Choose 1–20 supervised cycles.</small>
 </div>
-<p class="helper">Clear transfer: temporary 9,000 mm/s² acceleration with diagonal XY movement where the safe corridor allows. Dock approach/latch: 4,000 mm/s². Restored to 4,000 after each transfer.</p>
+<p class="helper">The four-move test uses the selected travel, approach and latch feed rates within the active Klipper motion limits.</p>
 <div id="cxmMultiChoices" class="cxm-multi-choices" role="group" aria-label="Select accepted hotend docks">Loading eligible docks…</div>
  <label class="cxm-multi-repeat" for="cxmMultiRepeats">
   <span><strong>Repeat complete tool cycles</strong><small id="cxmMultiRepeatHelp">One cycle = each selected hotend picked up and dropped off once. Set 1–20 for T0/T1/T2. Maximum 240 movements per run.</small></span>
@@ -383,6 +383,14 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
   <div><small>Current carriage XYZ</small><strong id="cxmDockLivePosition">Checking…</strong></div>
 </div>
 <p class="helper" id="cxmDockLiveUpdated" role="status" aria-live="polite">Read-only Moonraker status check pending. This does not validate physical clearances, stepper directions or the dock position.</p></details>
+</div>
+<div class="panel" id="cxmFineDock">
+ <h3>Fine-adjust dock X</h3>
+ <label>X correction (mm)<input id="cxmFineDelta" type="number" min="-1" max="1" step="0.01" value="0"></label>
+ <p id="cxmFinePreview" class="helper"></p>
+ <button id="cxmFineSave" class="btn" disabled>Save X correction</button>
+ <button id="cxmFineTest" class="btn primary" disabled>Test selected hotend once</button>
+ <p id="cxmFineResult" class="helper" role="status"></p>
 </div>
 <div class="panel cxm-xy-lab" id="cxmManualDock">
  <div class="panel-heading"><h3>Set dock location</h3><span class="panel-label">MOTORS ON · LIVE XY</span></div>
@@ -867,7 +875,8 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-picker.js?v=0.9.3" defer></script>
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
 <script src="cxm-settings.js?v=0.9.5" defer></script>
-<script src="cxm-dock.js?v=1.0.0" defer></script>
+<script src="cxm-fine-dock.js?v=1" defer></script>
+<script src="cxm-dock.js?v=fine1" defer></script>
 <script src="cxm-manual.js?v=3.0.1" defer></script>
 
 
