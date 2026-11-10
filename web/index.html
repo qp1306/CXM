@@ -397,7 +397,8 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <p class="helper">Home XYZ normally, mount the selected hotend on the carriage and keep all motors energised. Jog into the selected dock alignment at low speed. This never calls Lineux, changes homing, releases motors or executes pickup/dropoff.</p>
  <div class="dock-warning">SUPERVISED MOTION. Check gantry clearance, all dock hardware and selected hotend before each jog. Stop on any contact or misalignment. Motor-on position is commanded position, not independent proof of mechanical engagement.</div>
  <p id="cxmManualReadiness" class="helper" role="status">Checking live Klipper motor-on readiness…</p>
- <div class="dock-live-preflight"><div><small>Live X</small><strong id="cxmManualX">—</strong></div><div><small>Live Y</small><strong id="cxmManualY">—</strong></div><div><small>Z</small><strong id="cxmManualZ">—</strong></div><div><small>Carriage</small><strong id="cxmManualSensor">—</strong></div></div>
+ <p class="helper" id="cxmPositionFeed">Last reported position</p>
+ <div class="dock-live-preflight"><div><small>X</small><strong id="cxmManualX">—</strong></div><div><small>Y</small><strong id="cxmManualY">—</strong></div><div><small>Z</small><strong id="cxmManualZ">—</strong></div><div><small>Carriage</small><strong id="cxmManualSensor">—</strong></div></div>
  <div class="buttons"><button class="btn" id="cxmManualRefresh">Refresh live position</button></div>
  <div class="cxm-step">
   <div class="panel-heading"><h3>1 · Jog carriage</h3><span class="panel-label">mm · 5 mm/s</span></div>
@@ -896,7 +897,8 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-settings.js?v=0.9.5" defer></script>
 <script src="cxm-fine-dock.js?v=1" defer></script>
 <script src="cxm-dock.js?v=fine1" defer></script>
-<script src="cxm-manual.js?v=3.1.1" defer></script>
+<script src="cxm-dock-position.js?v=1" defer></script>
+<script src="cxm-manual.js?v=3.2.0" defer></script>
 
 
 <script src="cxm-multi.js?v=solo6" defer></script>

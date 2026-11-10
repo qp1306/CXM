@@ -12,15 +12,16 @@ from cxm_runtime import MOVE_LOCK, _rpc
 class ManualDockError(RuntimeError):
     pass
 
-def _check(tool, saved):
+def _check(tool, saved, completed=None, *, after_jog=False):
     if type(tool) is not int or not 0 <= tool < saved['config']['globals']['tool_count']:
         raise ManualDockError('Select an active T0–T11 dock')
     if saved['migration_required'] or saved['config']['tools'][tool]['maintenance_lockout']:
         raise ManualDockError('Configuration migration or tool maintenance lockout')
     fields = {
         'webhooks': 'state',
-        'toolhead': 'homed_axes,position,axis_minimum,axis_maximum',
+        'toolhead': 'homed_axes,position,axis_minimum,axis_maximum,print_time,estimated_print_time',
         'idle_timeout': 'state', 'print_stats': 'state',
+        'virtual_sdcard': 'is_active', 'pause_resume': 'is_paused',
         'stepper_enable': 'steppers', 'gcode_button cxm_tool_detect': 'state',
         'gcode_macro _CXM_TEST_STATE': 'running', 'gcode_macro _CXM_NATIVE': 'current_tool',
     }
@@ -35,10 +36,25 @@ def _check(tool, saved):
         raise ManualDockError('Home XYZ before motor-on alignment')
     if type(pos[2]) not in (int,float) or pos[2]<20:
         raise ManualDockError('Physical Z clearance below 20 mm; stop')
-    if state.get('idle_timeout',{}).get('state') not in ('Idle','Ready'):
-        raise ManualDockError('Printer is busy; manual dock motion disabled')
-    if state.get('print_stats',{}).get('state') not in ('standby','complete','cancelled','error',None):
+    idle = state.get('idle_timeout', {}).get('state')
+    print_state = state.get('print_stats', {}).get('state')
+    if (print_state not in ('standby','complete','cancelled','error',None)
+            or state.get('pause_resume', {}).get('is_paused')
+            or state.get('virtual_sdcard', {}).get('is_active')):
         raise ManualDockError('Print is active')
+    scheduled = head.get('print_time')
+    elapsed = head.get('estimated_print_time')
+    drained = (all(type(t) in (int, float) and math.isfinite(t) for t in (scheduled, elapsed))
+               and elapsed >= scheduled)
+    signature = (tool, saved['revision'], scheduled, tuple(pos),
+                 state.get('gcode_macro _CXM_NATIVE', {}).get('current_tool'))
+    recent = completed and completed[0] >= time.monotonic() and completed[1] == signature
+    # M400 completed our jog. Klipper can still label that same drained motion
+    # Printing. Only reuse it for the exact tool, position and motion timestamp.
+    if idle not in ('Idle','Ready') and not (
+            idle == 'Printing' and drained and (after_jog or recent)
+            and print_state in ('standby','complete','cancelled','error')):
+        raise ManualDockError('Printer is busy; manual dock motion disabled')
     motors=state.get('stepper_enable',{}).get('steppers',{})
     for name in ('stepper_x','stepper_y','stepper_z','stepper_z1','stepper_z2','stepper_z3'):
         if motors.get(name) is not True:
@@ -73,11 +89,11 @@ def _check(tool, saved):
             raise ManualDockError('Carriage outside guarded '+ax.upper()+' travel')
     return {'tool':tool,'xy':{'x':xy['x']['position'],'y':xy['y']['position']},
             'limits':{ax:[xy[ax]['min'],xy[ax]['max']] for ax in 'xy'},
-            'z':float(pos[2]),'homed':True,'motors_enabled':True,
+            '_motion_signature':signature,'z':float(pos[2]),'homed':True,'motors_enabled':True,
             'sensor':'PRESSED','identity_source':'operator_selected',
             'native_tool_identity':identity,'revision':saved['revision'],'ready':True}
 
-def _check_after_own_command(tool, store):
+def _check_after_own_command(tool, store, *, jog=False):
     """Wait for Klipper's transient idle_timeout=Printing after our own M400.
 
     This is ONLY used after a successfully submitted manual jog/capture command.
@@ -87,7 +103,7 @@ def _check_after_own_command(tool, store):
     deadline=time.monotonic()+3.0
     while True:
         try:
-            return _check(tool,store.read())
+            return _check(tool, store.read(), after_jog=jog)
         except ManualDockError as exc:
             if str(exc)!='Printer is busy; manual dock motion disabled':
                 raise
@@ -98,7 +114,9 @@ def _check_after_own_command(tool, store):
             time.sleep(0.15)
 
 def status(tool,store):
-    return _check(tool,store.read())
+    result = _check(tool, store.read(), getattr(store, '_completed_jog', None))
+    result.pop('_motion_signature')
+    return result
 
 def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
     if acknowledgement!='I_APPROVE_SUPERVISED_MOTOR_ON_JOG':
@@ -110,7 +128,8 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
     if not MOVE_LOCK.acquire(blocking=False):
         raise ManualDockError('Another CXM motion or configuration operation is running')
     try:
-        before=_check(tool,store.read())
+        before=_check(tool,store.read(), getattr(store, '_completed_jog', None))
+        store._completed_jog = None
         if expected_revision != before['revision']:
             raise ManualDockError('Settings changed; reload and approve jog')
         next_value=before['xy'][axis]+distance
@@ -122,11 +141,16 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
         command='CXM_MANUAL_DOCK_JOG TOOL=%d AXIS=%s DIST=%.4f' % (
             tool,axis.upper(),distance)
         _rpc('/printer/gcode/script',{'script':command})
-        after=_check_after_own_command(tool,store)
+        after=_check_after_own_command(tool,store,jog=True)
         if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:
             raise ManualDockError('Carriage state changed during jog; inspect printer')
         if abs(after['xy'][axis]-next_value)>min(0.08, abs(distance)/2):
             raise ManualDockError('Commanded jog and reported coordinates differ; inspect printer')
+        other = 'y' if axis == 'x' else 'x'
+        if (after['revision'] != before['revision'] or after['z'] != before['z']
+                or after['xy'][other] != before['xy'][other]):
+            raise ManualDockError('Jog configuration or another axis changed; inspect printer')
+        store._completed_jog = (time.monotonic() + 3.0, after['_motion_signature'])
         return {'jogged':True,'position':after['xy'],'revision':after['revision']}
     finally:
         MOVE_LOCK.release()

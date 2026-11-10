@@ -77,17 +77,37 @@ class ManualDockTests(unittest.TestCase):
     def test_transient_post_jog_busy_settles_without_repeat_motion(self):
         original=m._check
         calls=[0]
-        def check(*args):
+        def check(*args, **kwargs):
             calls[0]+=1
             if calls[0] in (2,3):
                 raise m.ManualDockError('Printer is busy; manual dock motion disabled')
-            return original(*args)
+            return original(*args, **kwargs)
         with patch.object(m,'_check',side_effect=check),patch.object(m.time,'sleep'):
             result=m.jog(tool=0,axis='x',distance=0.1,expected_revision='a'*64,
                 acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG',store=self.store)
         self.assertTrue(result['jogged'])
         self.assertEqual(len(self.command_log),1)
         self.assertEqual(calls[0],4)
+    def test_consecutive_verified_jogs_during_idle_timeout_tail(self):
+        head = self.state['toolhead']
+        head.update(print_time=80.0, estimated_print_time=81.0)
+        original = m._rpc.side_effect
+        def rpc(path, payload=None):
+            response = original(path, payload)
+            if path == '/printer/gcode/script':
+                self.state['idle_timeout']['state'] = 'Printing'
+                head['print_time'] += 0.1
+            return response
+        with patch.object(m, '_rpc', side_effect=rpc), patch.object(m.time, 'sleep', side_effect=AssertionError):
+            for i in range(2):
+                m.jog(tool=0, axis='x', distance=0.1, expected_revision='a'*64,
+                      acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG', store=self.store)
+                self.assertTrue(m.status(0, self.store)['ready'])
+            head['print_time'] += 0.1
+            with self.assertRaisesRegex(m.ManualDockError, 'Printer is busy'):
+                m.status(0, self.store)
+        self.assertEqual(len(self.command_log), 2)
+
     def test_busy_before_jog_is_not_retried_or_moved(self):
         self.state['idle_timeout']['state']='Printing'
         with self.assertRaisesRegex(m.ManualDockError,'Printer is busy'):
@@ -97,11 +117,11 @@ class ManualDockTests(unittest.TestCase):
     def test_transient_post_capture_busy_settles_without_repeat_capture(self):
         original=m._check
         calls=[0]
-        def check(*args):
+        def check(*args, **kwargs):
             calls[0]+=1
             if calls[0]==2:
                 raise m.ManualDockError('Printer is busy; manual dock motion disabled')
-            return original(*args)
+            return original(*args, **kwargs)
         with patch.object(m,'_check',side_effect=check),patch.object(m.time,'sleep'):
             result=m.capture(tool=0,expected_revision='a'*64,
                 acknowledgement='I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON',store=self.store)
@@ -110,11 +130,11 @@ class ManualDockTests(unittest.TestCase):
     def test_nonbusy_sensor_fault_after_jog_never_retries(self):
         original=m._check
         calls=[0]
-        def check(*args):
+        def check(*args, **kwargs):
             calls[0]+=1
             if calls[0]==2:
                 self.state['gcode_button cxm_tool_detect']['state']='RELEASED'
-            return original(*args)
+            return original(*args, **kwargs)
         with patch.object(m,'_check',side_effect=check):
             with self.assertRaisesRegex(m.ManualDockError,'MOUNTED hotend'):
                 m.jog(tool=0,axis='x',distance=0.1,expected_revision='a'*64,
