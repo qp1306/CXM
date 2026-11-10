@@ -67,15 +67,16 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
 test('primary calibration has one Save button, advanced duplicate is hidden',()=>{
  const manual=fs.readFileSync(path.join(__dirname,'../web/cxm-manual.js'),'utf8');
  assert.match(html,/<h3>Set dock location<\/h3>/);
- assert.match(html,/cxm-manual\.js\?v=3\.2\.0/);
+ assert.match(html,/cxm-manual\.js\?v=3\.3\.0/);
  assert.match(html,/id="cxmManualCapture" disabled>Save dock position/);
  assert.match(html,/<div class="dock-columns" hidden style="display:none!important" aria-hidden="true">/);
  for(const id of ['cxmManualApproval','cxmManualCapture',
                   'cxmManualReadiness','cxmManualCaptureAck','cxmManualFeedback',
                   'cxmManualX','cxmManualY','cxmManualSensor'])
    assert.match(html,new RegExp('id="'+id+'"'));
+ assert.doesNotMatch(html,/data-distance="-?0\.001"/);
  for (const axis of ['x','y']) {
-   for (const step of [0.001,0.01,0.1,1,10]) {
+   for (const step of [0.01,0.1,1,10]) {
      for (const direction of [1,-1]) assert.ok(html.includes('data-manual-axis="'+axis+'" data-distance="'+step*direction+'"'));
    }
  }

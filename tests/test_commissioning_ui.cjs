@@ -62,7 +62,7 @@ test('one T1 Save survives a slow status poll and verifies the selected dock',as
  const config={revision:'first',config:{tools:[{},{}]}};
  const live={revision:'first',ready:true,xy,z:25,sensor:'PRESSED'};
  vm.runInNewContext(manual,{
-   document:{getElementById:node,querySelector:()=>null},
+   document:{getElementById:node,querySelector:()=>null,addEventListener(){}},
    window:{addEventListener(){},dispatchEvent:e=>events.push(e)},
    CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},
    setInterval:fn=>{interval=fn;},setTimeout:fn=>{initial=fn;},

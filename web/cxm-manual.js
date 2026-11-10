@@ -7,6 +7,18 @@ if(!root)return;
 const api='/cxm/api/v1';
 let busy=false,live=null,revision=null,tool=-1;
 let refreshVersion=0, polling=false;
+const pending=[];
+const maxPending=3;
+let jogging=false;
+const panel=document.querySelector('[data-panel="calibration"]');
+function canJog(){
+  return live?.ready && tool===selected() && live.revision===revision &&
+    el('cxmManualApproval').checked && !panel?.hidden && !document.hidden;
+}
+function clearQueue(){
+  pending.length=0;
+  controls();
+}
 function selected(){const value=el('cxmDockTool').value;return value===''?-1:Number(value);}
 function say(message,bad=false){const n=el('cxmManualFeedback');n.textContent=message;n.style.color=bad?'#f4aaaa':'#bed9ec';}
 async function request(path,body){
@@ -20,7 +32,9 @@ async function request(path,body){
 }
 function controls(){
   const allowed=!busy&&live?.ready&&tool===selected()&&!!live.revision&&revision===live.revision;
-  for(const button of root.querySelectorAll('[data-manual-axis]'))button.disabled=!allowed||!el('cxmManualApproval').checked;
+  for(const button of root.querySelectorAll('[data-manual-axis]'))button.disabled=!canJog()||(busy&&!jogging)||pending.length>=maxPending;
+  el('cxmJogClear').disabled=pending.length===0;
+  el('cxmJogQueue').textContent=jogging ? 'Jog in progress · '+pending.length+' of '+maxPending+' queued' : '';
   el('cxmManualCapture').disabled=!allowed;
   el('cxmManualRefresh').disabled=busy;
 }
@@ -59,29 +73,40 @@ async function refresh(silent=false){
   }finally{if(version===refreshVersion){polling=false;controls();}}
 }
 async function jog(button){
-  if(busy||!live?.ready||tool!==selected()||!el('cxmManualApproval').checked)return;
-  const axis=button.dataset.manualAxis;
-  const distance=Number(button.dataset.distance);
-  ++refreshVersion;polling=false;busy=true;controls();
-  const started=performance.now();
-  button.classList.add('jog-active');
-  say('Jogging '+axis.toUpperCase()+' '+distance+' mm …');
+  if(!canJog() || (busy&&!jogging) || pending.length>=maxPending)return;
+  pending.push({button, tool, revision});
+  if(jogging){controls();return;}
+  ++refreshVersion;polling=false;busy=true;jogging=true;
   try{
-    const answer=await request('/manual/jog',{
-      tool,axis,distance,expected_revision:live.revision,
-      acknowledgement:'I_APPROVE_SUPERVISED_MOTOR_ON_JOG'});
-    if(answer.jogged!==true)throw Error('Motor jog not verified');
-    live.xy=answer.position;
-    if (!window.CXMDockPosition?.streaming()) {
-      el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
-      el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
+    while(pending.length && canJog()){
+      const step=pending.shift();
+      if(step.tool!==selected() || step.revision!==revision)break;
+      const axis=step.button.dataset.manualAxis;
+      const distance=Number(step.button.dataset.distance);
+      controls();
+      step.button.classList.add('jog-active');
+      const started=performance.now();
+      try{
+        say('Jogging '+axis.toUpperCase()+' '+distance+' mm …');
+        const answer=await request('/manual/jog',{
+          tool:step.tool,axis,distance,expected_revision:step.revision,
+          acknowledgement:'I_APPROVE_SUPERVISED_MOTOR_ON_JOG'});
+        if(answer.jogged!==true || answer.revision!==step.revision)
+          throw Error('Jog or saved revision could not be verified');
+        if(!live || selected()!==step.tool)break;
+        live.xy=answer.position;
+        if(!window.CXMDockPosition?.streaming()){
+          el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
+          el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
+        }
+        say(axis.toUpperCase()+' '+distance+' mm confirmed · '+Math.round(performance.now()-started)+' ms.');
+      }finally{step.button.classList.remove('jog-active');}
     }
-    say(axis.toUpperCase()+' '+distance+' mm confirmed · '+Math.round(performance.now()-started)+' ms click to confirmation.');
   }catch(e){
     live=null;
     el('cxmManualApproval').checked=false;
-    say('JOG STOPPED/UNCERTAIN: '+e.message+'. Inspect machine and refresh before any further movement.',true);
-  }finally{button.classList.remove('jog-active');busy=false;controls();}
+    say('Jog unconfirmed. Queue cleared. '+e.message+'. Inspect the carriage before retrying.',true);
+  }finally{jogging=false;busy=false;clearQueue();}
 }
 async function capture(){
  if(busy||!live?.ready||tool!==selected())return;
@@ -112,10 +137,22 @@ async function capture(){
 root.querySelectorAll('[data-manual-axis]').forEach(b=>b.addEventListener('click',()=>jog(b)));
 el('cxmManualRefresh').addEventListener('click',()=>refresh(false));
 el('cxmManualCapture').addEventListener('click',capture);
-el('cxmManualApproval').addEventListener('change',controls);
+el('cxmManualApproval').addEventListener('change',clearQueue);
+el('cxmJogClear').addEventListener('click',clearQueue);
+function leaveJogPanel(){
+  if(document.hidden || panel?.hidden){
+    el('cxmManualApproval').checked=false;
+    clearQueue();
+  }
+}
+document.addEventListener('visibilitychange',leaveJogPanel);
+for(const event of ['pagehide','offline'])window.addEventListener(event,()=>{
+  el('cxmManualApproval').checked=false;clearQueue();
+});
+if(panel)new MutationObserver(leaveJogPanel).observe(panel,{attributes:true,attributeFilter:['hidden']});
 el('cxmManualCaptureAck').addEventListener('change',controls);
 el('cxmDockTool').addEventListener('change',()=>{
-  live=null;tool=-1;
+  pending.length=0;live=null;tool=-1;
   el('cxmManualApproval').checked=false;el('cxmManualCaptureAck').checked=false;
   controls();refresh();
 });
