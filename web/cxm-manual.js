@@ -1,15 +1,17 @@
 /* CXM motor-on dock alignment. Backend is sole motor/geometry authority. */
 (()=>{
 'use strict';
-const el=id=>document.getElementById(id);
-const root=el('cxmManualDock');
+const byId=id=>document.getElementById(id);
+function bindJogs(root,panel,selector,suffix=''){
 if(!root)return;
+const el=id=>byId(id+suffix);
+const captureButton=el('cxmManualCapture');
+const captureAck=el('cxmManualCaptureAck');
 const api='/cxm/api/v1';
 let busy=false,live=null,revision=null,tool=-1;
 let refreshVersion=0, polling=false;
 const pending=[];
 let jogging=false;
-const panel=document.querySelector('[data-panel="calibration"]');
 function canJog(){
   return live?.ready && tool===selected() && live.revision===revision &&
     el('cxmManualApproval').checked && !panel?.hidden && !document.hidden;
@@ -18,7 +20,7 @@ function clearQueue(){
   pending.length=0;
   controls();
 }
-function selected(){const value=el('cxmDockTool').value;return value===''?-1:Number(value);}
+function selected(){const value=selector.value;return value===''?-1:Number(value);}
 function say(message,bad=false){const n=el('cxmManualFeedback');n.textContent=message;n.style.color=bad?'#f4aaaa':'#bed9ec';}
 async function request(path,body){
   const opts={credentials:'same-origin',cache:'no-store'};
@@ -34,13 +36,14 @@ function controls(){
   for(const button of root.querySelectorAll('[data-manual-axis]'))button.disabled=!canJog()||(busy&&!jogging);
   el('cxmJogClear').disabled=pending.length===0;
   el('cxmJogQueue').textContent=jogging ? 'Jog in progress · '+pending.length+' queued' : '';
-  el('cxmManualCapture').disabled=!allowed;
+  if(captureButton)captureButton.disabled=!allowed;
   el('cxmManualRefresh').disabled=busy;
 }
 async function refresh(silent=false){
-  if(busy||(silent&&polling))return;
+  if(busy||panel?.hidden||(silent&&polling))return;
   const version=++refreshVersion;
   const selectedTool=selected();
+  if(selectedTool<0)return;
   polling=true;
   const previous=live,oldTool=tool,oldRevision=revision;
   try{
@@ -51,7 +54,7 @@ async function refresh(silent=false){
        (oldRevision&&oldRevision!==latest.revision) ||
        (previous&&previous.native_tool_identity!==latest.native_tool_identity)) {
       el('cxmManualApproval').checked=false;
-      el('cxmManualCaptureAck').checked=false;
+      if(captureAck)captureAck.checked=false;
     }
     revision=latest.revision;tool=selectedTool;live=latest;
     if (!window.CXMDockPosition?.streaming()) {
@@ -66,7 +69,7 @@ async function refresh(silent=false){
     if(version!==refreshVersion||selectedTool!==selected())return;
     live=null;
     el('cxmManualApproval').checked=false;
-    el('cxmManualCaptureAck').checked=false;
+    if(captureAck)captureAck.checked=false;
     el('cxmManualReadiness').textContent='NOT READY · '+e.message;
     say('Jog/capture blocked: '+e.message+'. Inspect and refresh after restoring safe state.',true);
   }finally{if(version===refreshVersion){polling=false;controls();}}
@@ -135,7 +138,7 @@ async function capture(){
 }
 root.querySelectorAll('[data-manual-axis]').forEach(b=>b.addEventListener('click',()=>jog(b)));
 el('cxmManualRefresh').addEventListener('click',()=>refresh(false));
-el('cxmManualCapture').addEventListener('click',capture);
+captureButton?.addEventListener('click',capture);
 el('cxmManualApproval').addEventListener('change',clearQueue);
 el('cxmJogClear').addEventListener('click',clearQueue);
 function leaveJogPanel(){
@@ -148,11 +151,11 @@ document.addEventListener('visibilitychange',leaveJogPanel);
 for(const event of ['pagehide','offline'])window.addEventListener(event,()=>{
   el('cxmManualApproval').checked=false;clearQueue();
 });
-if(panel)new MutationObserver(leaveJogPanel).observe(panel,{attributes:true,attributeFilter:['hidden']});
-el('cxmManualCaptureAck').addEventListener('change',controls);
-el('cxmDockTool').addEventListener('change',()=>{
+if(panel)new MutationObserver(()=>{leaveJogPanel();if(!panel.hidden)refresh(true);}).observe(panel,{attributes:true,attributeFilter:['hidden']});
+captureAck?.addEventListener('change',controls);
+selector.addEventListener('change',()=>{
   pending.length=0;live=null;tool=-1;
-  el('cxmManualApproval').checked=false;el('cxmManualCaptureAck').checked=false;
+  el('cxmManualApproval').checked=false;if(captureAck)captureAck.checked=false;
   controls();refresh();
 });
 window.addEventListener('cxm-dock-saved',()=>{live=null;refresh();});
@@ -161,8 +164,16 @@ window.addEventListener('cxm-config-migrated',()=>{live=null;refresh();});
 // while a jog/capture is in flight; any failed preflight revokes approval.
 setInterval(()=>{
   if(!busy && document.visibilityState!=='hidden' &&
-     !document.querySelector('[data-panel="calibration"]')?.hidden)
+     !panel?.hidden)
     refresh(true);
 },1500);
 setTimeout(()=>refresh(false),400);
+}
+const dock=byId('cxmManualDock');
+bindJogs(dock,document.querySelector('[data-panel="calibration"]'),byId('cxmDockTool'));
+const axisJog=document.querySelector('#cxmAxisJog');
+if(axisJog){
+  byId('cxmAxisJogRows').append(dock.querySelector('.dock-jog-scroll').cloneNode(true));
+  bindJogs(axisJog,document.querySelector('[data-panel="offsets"]'),byId('cxmAxisTool'),'XY');
+}
 })();

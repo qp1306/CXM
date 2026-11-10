@@ -1,11 +1,15 @@
 // Position display only. Motion approval and completion use the native jog endpoint.
 (() => {
-  const panel = document.querySelector('[data-panel="calibration"]');
-  const label = document.getElementById('cxmPositionFeed');
-  if (!panel || !label) return;
+  const views = [['calibration',''], ['offsets','XY']].map(([name,suffix]) => ({
+    panel:document.querySelector('[data-panel="'+name+'"]'), suffix
+  })).filter(view=>view.panel);
+  if (!views.length) return;
+  function showLabel(text){
+    for(const {suffix} of views)document.getElementById('cxmPositionFeed'+suffix).textContent=text;
+  }
   let socket, retry, watchdog, streaming = false;
   window.CXMDockPosition = {streaming: () => streaming};
-  const visible = () => !panel.hidden && !document.hidden;
+  const visible = () => views.some(view=>!view.panel.hidden) && !document.hidden;
   function stop() {
     clearTimeout(retry);
     clearTimeout(watchdog);
@@ -13,7 +17,7 @@
     socket = null;
     previous?.close();
     streaming = false;
-    label.textContent = 'Last reported position';
+    showLabel('Last reported position');
   }
   function connect() {
     if (!visible()) { stop(); return; }
@@ -37,9 +41,11 @@
       if (!Array.isArray(pos) || pos.length < 3 || !pos.slice(0,3).every(Number.isFinite)) return;
       clearTimeout(watchdog);
       streaming = true;
-      label.textContent = 'Live Klipper position';
-      for (const [i, axis] of ['X','Y','Z'].entries())
-        document.getElementById('cxmManual' + axis).textContent = pos[i].toFixed(i === 2 ? 2 : 3) + ' mm';
+      showLabel('Live Klipper position');
+      for(const {suffix} of views){
+        for (const [i, axis] of ['X','Y','Z'].entries())
+          document.getElementById('cxmManual' + axis + suffix).textContent = pos[i].toFixed(i === 2 ? 2 : 3) + ' mm';
+      }
     };
     ws.onclose = () => {
       if (socket !== ws) return;
@@ -47,7 +53,7 @@
       if (visible()) retry = setTimeout(connect, 3000);
     };
   }
-  new MutationObserver(connect).observe(panel, {attributes:true, attributeFilter:['hidden']});
+  for(const {panel} of views)new MutationObserver(connect).observe(panel, {attributes:true, attributeFilter:['hidden']});
   document.addEventListener('visibilitychange', connect);
   connect();
 })();
