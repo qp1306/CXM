@@ -41,9 +41,11 @@ async function refresh(silent=false){
       el('cxmManualCaptureAck').checked=false;
     }
     revision=latest.revision;tool=selectedTool;live=latest;
-    el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
-    el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
-    el('cxmManualZ').textContent=live.z.toFixed(2)+' mm';
+    if (!window.CXMDockPosition?.streaming()) {
+      el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
+      el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
+      el('cxmManualZ').textContent=live.z.toFixed(2)+' mm';
+    }
     el('cxmManualSensor').textContent=live.sensor;
     el('cxmManualReadiness').textContent='READY · T'+tool+' selected by operator · XYZ homed · motors on · hotend MOUNTED';
     if(!silent) say('READY: sensor confirms MOUNTED, not tool identity. Verify the mounted hotend is physically T'+tool+' before approving any jog.');
@@ -70,8 +72,10 @@ async function jog(button){
       acknowledgement:'I_APPROVE_SUPERVISED_MOTOR_ON_JOG'});
     if(answer.jogged!==true)throw Error('Motor jog not verified');
     live.xy=answer.position;
-    el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
-    el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
+    if (!window.CXMDockPosition?.streaming()) {
+      el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
+      el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
+    }
     say(axis.toUpperCase()+' '+distance+' mm confirmed · '+Math.round(performance.now()-started)+' ms click to confirmation.');
   }catch(e){
     live=null;
