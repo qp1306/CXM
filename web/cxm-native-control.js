@@ -23,7 +23,7 @@ panel.addEventListener('click',event=>{
 },true);
 const api='/cxm/api/v1/';
 let state=null,busy=false,previousSensor=null,previousTool=null;
-const text=(id,value)=>{$(id).textContent=value;};
+const text=(id,value)=>{$(id).textContent=value;if(id==='cxmChangeResult')$('cxmCameraResult').textContent=value;};
 async function read(){
  const r=await fetch(api+'native/status',{credentials:'same-origin',cache:'no-store'});
  const obj=await r.json();
@@ -39,6 +39,46 @@ async function post(action,body){
  let obj;try{obj=await r.json();}catch{throw Error('Non-JSON native response; inspect carriage before retrying')}
  if(!r.ok)throw Error(obj.error||'HTTP '+r.status);
  return obj;
+}
+let progressToken=null;
+let savedTools=new Set();
+function cameraSteps({ref,ready,valid,current}){
+ const token=ref?.[0]||0;
+ if(progressToken!==token){
+   progressToken=token;
+   savedTools=new Set();
+   try{
+     const progress=JSON.parse(sessionStorage.getItem('cxmCameraProgress'));
+     if(progress?.token===token)savedTools=new Set(progress.tools);
+   }catch{}
+ }
+ const locked=busy||panel.inert||$('cxmChangeControls').disabled||!state||state.running;
+ $('cxmCameraSession').disabled=!!locked;
+ $('cxmCameraActions').disabled=!!locked;
+ const row=$('cxmCameraTools');
+ const tools=state?.candidates||[];
+ for(const [i,t] of tools.entries()){
+   let button=row.children[i];
+   if(!button){
+     button=document.createElement('button');button.type='button';button.className='btn';
+     row.append(button);
+   }
+   const mounted=current===t.tool&&state.sensor==='PRESSED';
+   button.dataset.tool=String(t.tool);
+   button.setAttribute('aria-current',String(mounted));
+   button.textContent='T'+t.tool+' · '+(!t.eligible?'Dock unavailable':mounted?'Mounted':
+     savedTools.has(t.tool)?'Saved':t.tool===0?'Reference':'Load');
+   button.disabled=!ref||!valid||!t.eligible||mounted||(!token&&t.tool!==0)||(!!token&&!ready);
+ }
+ while(row.children.length>tools.length)row.lastElementChild.remove();
+ const next=tools.find(t=>t.tool>0&&t.eligible&&!savedTools.has(t.tool));
+ const needsSave=token&&current>0&&!savedTools.has(current);
+ text('cxmCameraNext',!ref?'Checking camera reference availability…':!valid?'Confirm the physically fitted hotend above.':
+   !token?(current===0?'1 · Centre and focus T0, then press Set T0 camera reference.':'1 · Press T0 to load the reference hotend.'):
+   needsSave?'3 · Centre T'+current+' on the crosshair, then press Save T'+current+' XY.':
+   next?'2 · Press T'+next.tool+' to change tools and return to the crosshair.':
+   'Alignment complete for the available hotends. End the camera session when finished.');
+ text('cxmCameraCapture',current>0?'Save T'+current+' XY':'Save centred hotend XY');
 }
 function controls(){
  const target=$('cxmNativeSelectedTool').value;
@@ -58,6 +98,7 @@ function controls(){
  const ref=state?.camera_reference;
  const active=!!ref?.[0];
  const ready=valid && state?.native_ready && !state?.fault && !state?.running && !busy;
+ cameraSteps({ref,ready,valid,current});
  $('cxmCameraReference').disabled=!ready||current!==0||!ref;
  $('cxmCameraCapture').disabled=!ready||!active||!(current>0)||Number($('cxmAxisTool').value)!==current;
  $('cxmCameraEnd').disabled=busy||!active;
@@ -71,7 +112,7 @@ function controls(){
  text('cxmNativeToolStatus',
    'Carriage '+label+' · sensor '+String(state.sensor||'unknown')+
    (state.fault?' · native sync required':'')+
-   '. LOAD and UNLOAD automatically set up saved geometry.');
+   (offsets.hidden?'. LOAD and UNLOAD automatically set up saved geometry.':'.'));
 }
 async function refresh(){
  if(busy)return;
@@ -134,7 +175,7 @@ async function selectTool(tool){
  }finally{busy=false;panel.inert=false;await refresh();}
 }
 async function cameraAction(action){
- if(busy||offsets.hidden||!state)return;
+ if(busy||panel.inert||$('cxmChangeControls').disabled||offsets.hidden||!state)return;
  const mounted=state.current_tool;
  const token=state.camera_reference?.[0];
  if(token===undefined)return;
@@ -143,12 +184,22 @@ async function cameraAction(action){
    const tool=action==='capture'?Number($('cxmAxisTool').value):mounted;
    const reply=await post('camera',{action,token,tool,mounted_tool:mounted,expected_revision:state.revision});
    if(action==='capture'){
+     if(reply.saved!==true)throw Error('Offset save was not confirmed');
+     savedTools.add(mounted);
+     try{sessionStorage.setItem('cxmCameraProgress',JSON.stringify({token,tools:[...savedTools]}));}catch{}
      text('cxmChangeResult','Saved T'+mounted+' · X '+reply.offsets.x.toFixed(3)+' · Y '+reply.offsets.y.toFixed(3)+' mm relative to T0.');
      window.dispatchEvent(new Event('cxm-camera-offset-saved'));
-   }else text('cxmChangeResult',action==='clear'?'Camera session ended.':'T0 reference captured. Select the next hotend and press LOAD.');
+   }else text('cxmChangeResult',action==='clear'?'Camera session ended.':'T0 reference captured. Press the next hotend above the jog controls.');
  }catch(e){text('cxmChangeResult','Camera action stopped · '+e.message);}
  finally{busy=false;panel.inert=false;await refresh();}
 }
+new MutationObserver(controls).observe($('cxmChangeControls'),{attributes:true,attributeFilter:['disabled']});
+new MutationObserver(controls).observe(panel,{attributes:true,attributeFilter:['inert']});
+$('cxmCameraTools').addEventListener('click',e=>{
+ const button=e.target.closest('button[data-tool]');
+ if(!button||button.disabled||offsets.hidden||panel.inert||$('cxmChangeControls').disabled)return;
+ selectTool(Number(button.dataset.tool));
+});
 $('cxmCameraReference').addEventListener('click',()=>cameraAction('reference'));
 $('cxmCameraCapture').addEventListener('click',()=>cameraAction('capture'));
 $('cxmCameraEnd').addEventListener('click',()=>cameraAction('clear'));
