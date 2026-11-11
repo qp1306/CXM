@@ -244,7 +244,10 @@
 .dock-jog-grid .btn.jog-active:disabled{opacity:1;background:#376ea9;color:white}[data-panel="offsets"] .axis-grid{grid-template-columns:minmax(0,1fr);max-width:1220px;margin-inline:auto}
 [data-panel="offsets"] .axis-grid > .panel, #cxmAxisChangeSlot > .panel{margin:0;max-width:none;min-width:0}
 #cxmAxisChangeSlot{min-width:0}
-[data-panel="offsets"] .axis-frame{width:100%;height:clamp(220px,48vh,540px);min-height:0;aspect-ratio:auto}
+[data-panel="offsets"] .axis-frame{width:100%;height:clamp(95px,32vh,360px);min-height:0;aspect-ratio:auto;position:sticky;top:0;z-index:5}
+.axis-camera-settings{margin-bottom:8px}.axis-workbench .axis-frame + .panel-heading{margin-top:8px}.axis-workbench .axis-row{margin:6px 0}
+#cxmAxisJog .cxm-step{padding:8px;margin:6px 0}#cxmAxisJog .cxm-capture-ack{margin:4px 0;padding:6px 10px}#cxmAxisJog .dock-jog-grid{grid-template-columns:repeat(4,minmax(0,1fr)) auto repeat(4,minmax(0,1fr))}#cxmAxisJog .dock-jog-grid .btn{min-width:0;padding:8px 0}
+@media(max-width:600px){#cxmAxisJog .dock-jog-grid{gap:2px}#cxmAxisJog .dock-jog-grid .btn{font-size:11px}#cxmAxisJog .dock-jog-grid strong{padding:0 2px}}
 #cxmAxisJogRows{min-width:0}.axis-grid>article{min-width:0}.dock-jog-scroll{overflow-x:auto}.dock-jog-grid{display:grid;grid-template-columns:repeat(4,minmax(3.5rem,1fr)) auto repeat(4,minmax(3.5rem,1fr));gap:3px;align-items:center}.dock-jog-grid strong{text-align:center;padding:0 .45rem}.dock-jog-grid .btn{padding:.7rem .2rem;font-variant-numeric:tabular-nums}</style><style>
 .cxm-simple-setup,.cxm-simple-profile{display:block;background:#1b3040;border:1px solid #416481;border-radius:12px;padding:16px;margin:12px 0}
 .cxm-simple-setup strong,.cxm-simple-profile strong{font-size:17px}
@@ -549,21 +552,17 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 
 <div class="axis-grid">
 <div id="cxmAxisChangeSlot"></div>
-<article class="panel"><div class="panel-heading"><h3>Axiscope camera</h3><span class="panel-label" id="cxmAxisCameraCount">Checking cameras</span></div>
+<article class="panel axis-workbench"><div class="panel-heading"><h3>Axiscope camera</h3><span class="panel-label" id="cxmAxisCameraCount">Checking cameras</span></div>
+<div class="axis-camera-settings">
 <div class="axis-row"><label for="cxmAxisCamera">Camera</label><select id="cxmAxisCamera" disabled></select><button class="btn" id="cxmAxisRefreshCameras">Refresh</button></div>
-<div class="axis-frame" id="cxmAxisFrame"><img id="cxmAxisImage" hidden alt="Axiscope camera video"/><div class="axis-reticle" aria-hidden="true"><i></i><b></b><em></em></div><div id="cxmAxisCameraMessage" class="axis-camera-message">Configure an Axiscope webcam in Mainsail.</div></div>
 <div class="axis-row"><label for="cxmAxisZoom">Visual zoom</label><input id="cxmAxisZoom" type="range" min="1" max="2.5" step="0.1" value="1"/><output id="cxmAxisZoomLabel">100%</output><label><input id="cxmAxisReticle" type="checkbox" checked> Crosshair</label></div>
 <p id="cxmAxisOrientation" class="helper">Camera orientation not verified.</p>
 <div class="dock-warning">Crosshair is a visual reference only. Camera scale, orientation, parallax and T0 reference must be calibrated before pixel offsets can represent millimetres.</div>
-</article>
-<article class="panel"><div class="panel-heading"><h3>Carriage positioning</h3><span class="panel-label">T0 reference</span></div>
+</div>
+<div class="axis-frame" id="cxmAxisFrame"><img id="cxmAxisImage" hidden alt="Axiscope camera video"/><div class="axis-reticle" aria-hidden="true"><i></i><b></b><em></em></div><div id="cxmAxisCameraMessage" class="axis-camera-message">Configure an Axiscope webcam in Mainsail.</div></div>
+<div class="panel-heading"><h3>Carriage positioning</h3><span class="panel-label">T0 reference</span></div>
 <div class="axis-row"><label for="cxmAxisTool">Hotend</label><select id="cxmAxisTool" disabled></select><strong id="cxmAxisToolStatus">Awaiting config</strong></div>
-<div class="axis-offsets"><div><small>Saved X offset</small><strong id="cxmAxisSavedX">—</strong></div><div><small>Saved Y offset</small><strong id="cxmAxisSavedY">—</strong></div></div>
 <div id="cxmAxisJog">
- <p id="cxmManualReadinessXY" class="helper" role="status">Checking live Klipper motor-on readiness…</p>
- <p class="helper" id="cxmPositionFeedXY">Last reported position</p>
- <div class="dock-live-preflight"><div><small>X</small><strong id="cxmManualXXY">—</strong></div><div><small>Y</small><strong id="cxmManualYXY">—</strong></div><div><small>Z</small><strong id="cxmManualZXY">—</strong></div><div><small>Carriage</small><strong id="cxmManualSensorXY">—</strong></div></div>
- <div class="buttons"><button class="btn" id="cxmManualRefreshXY">Refresh live position</button></div>
  <div class="cxm-step">
   <div class="panel-heading"><h3>Jog carriage</h3><span class="panel-label">XY 5 mm/s · Z 1 mm/s</span></div>
   <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualApprovalXY"><span class="cxm-approval-copy"><strong>Approve supervised jog</strong><small>XYZ homed · motors ON · selected hotend MOUNTED (PRESSED) · Z ≥ 20 · camera and carriage path clear</small></span></label>
@@ -581,8 +580,14 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
    <span class="helper" id="cxmJogQueueXY" role="status"></span></div>
  </div>
 <p class="helper" id="cxmManualFeedbackXY" role="status"></p>
+
+ <p id="cxmManualReadinessXY" class="helper" role="status">Checking live Klipper motor-on readiness…</p>
+ <p class="helper" id="cxmPositionFeedXY">Last reported position</p>
+ <div class="dock-live-preflight"><div><small>X</small><strong id="cxmManualXXY">—</strong></div><div><small>Y</small><strong id="cxmManualYXY">—</strong></div><div><small>Z</small><strong id="cxmManualZXY">—</strong></div><div><small>Carriage</small><strong id="cxmManualSensorXY">—</strong></div></div>
+ <div class="buttons"><button class="btn" id="cxmManualRefreshXY">Refresh live position</button></div>
 </div>
-<p id="cxmAxisFeedback" class="helper">No measurements or movements have been performed.</p></article>
+<div class="axis-offsets"><div><small>Saved X offset</small><strong id="cxmAxisSavedX">—</strong></div><div><small>Saved Y offset</small><strong id="cxmAxisSavedY">—</strong></div></div>
+<p id="cxmAxisFeedback" class="helper"></p></article>
 <article class="panel axis-table-panel"><div class="panel-heading"><h3>Hotend XY comparison</h3><span class="panel-label">Saved profiles</span></div><div class="axis-scroll"><table><thead><tr><th>Tool</th><th>Saved X (mm)</th><th>Saved Y (mm)</th><th>Reference</th><th>Tool status</th></tr></thead><tbody id="cxmAxisTable"></tbody></table></div><p class="helper">All selected hotends appear here, including disabled profiles. Saved values are not optical measurements.</p></article>
 
 <article class="panel cxm-simple-editor">
