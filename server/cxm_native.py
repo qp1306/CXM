@@ -15,7 +15,7 @@ class NativeError(RuntimeError):
 
 def _native_status():
     q=urllib.parse.urlencode({
-        'gcode_macro _CXM_NATIVE':'protocol,ready,current_tool,fault,tool_count,profile',
+        'gcode_macro _CXM_NATIVE':'protocol,ready,current_tool,fault,tool_count,profile,camera_reference',
         'gcode_macro _CXM_TEST_STATE':'running,stop,index,cycles,completed,tool_a,tool_b,tool_c,state',
         'gcode_button cxm_tool_detect':'state'})
     result=_rpc('/printer/objects/query?'+q).get('status',{})
@@ -47,7 +47,7 @@ def status(store):
             reason='Dock XY not accepted / maintenance lockout / migration required'
         candidates.append({'tool':n,'eligible':eligible,'reason':reason,
                            'xy':{'x':tool['dock_x'],'y':tool['dock_y']}})
-    return {'candidates':candidates,'max_repeat_cycles':20,'max_total_movements':120,
+    return {'camera_reference':native.get('camera_reference'), 'candidates':candidates,'max_repeat_cycles':20,'max_total_movements':120,
             'run_id':'native-klipper' if selected else None,
             'state':'running' if running else test.get('state','idle'),
             'running':running,'execution_mode':'native',
@@ -416,3 +416,75 @@ def stop(acknowledgement):
         raise NativeError('Explicit stop acknowledgement required')
     _rpc('/printer/gcode/script',{'script':'CXM_TEST_STOP'})
     return {'stop_requested':True,'note':'Klipper will stop at a completed tool-pair boundary if queued stop is processed before the next step; use emergency stop for immediate danger'}
+
+def camera_action(store, action, tool, mounted_tool, expected_revision, token):
+    """Operate on a single Klipper-held camera reference under the CXM motion lock."""
+    import secrets
+    from cxm_manual import _check_after_own_command
+    if action not in ('reference', 'change', 'capture', 'clear'):
+        raise NativeError('Unknown camera action')
+    if type(token) is not int or not 0 <= token < 2**48:
+        raise NativeError('Invalid camera reference')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise NativeError('Wait for the current motion to finish')
+    try:
+        saved = store.read()
+        count = saved['config']['globals']['tool_count']
+        if saved['migration_required'] or saved['revision'] != expected_revision:
+            raise NativeError('Saved configuration changed. Refresh and retry.')
+        for n in (mounted_tool, tool):
+            if type(n) is not int or not -1 <= n < count:
+                raise NativeError('Invalid hotend selection')
+        st, test, sensor = _native_status()
+        ref = st.get('camera_reference')
+        if not isinstance(ref, list) or len(ref) != 4:
+            raise NativeError('Install the updated CXM camera macro and reload Klipper')
+        if test.get('running') or ref[0] != token:
+            raise NativeError('Run active or camera reference changed. Refresh first.')
+        if action == 'clear':
+            _rpc('/printer/gcode/script', {'script':'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=camera_reference VALUE=[0,0,0,0]'})
+            return {'cleared':True}
+        if (st.get('current_tool') != mounted_tool or st.get('ready') != 1
+                or st.get('fault') or sensor != ('PRESSED' if mounted_tool >= 0 else 'RELEASED')):
+            raise NativeError('Confirm the fitted hotend and native carriage state first')
+        for n in (tool, mounted_tool):
+            if n >= 0:
+                profile = saved['config']['tools'][n]
+                if profile['maintenance_lockout'] or not profile['dock_reference_accepted']:
+                    raise NativeError('Hotend dock unavailable')
+        if action == 'reference':
+            if tool != 0 or mounted_tool != 0:
+                raise NativeError('Load and centre T0 first')
+            new_token = secrets.randbelow(2**48-1)+1
+            _rpc('/printer/gcode/script', {'script':f'M400\nCXM_CAMERA ACTION=REFERENCE TOOL=0 TOKEN={new_token}'})
+            reference = _native_status()[0].get('camera_reference')
+            if not reference or reference[0] != new_token:
+                raise NativeError('Camera reference readback failed')
+            return {'reference':reference}
+        if not token:
+            raise NativeError('Set the T0 camera reference first')
+        if action == 'capture' and (tool < 1 or tool != mounted_tool):
+            raise NativeError('Load the hotend to measure and centre it first')
+        cmd = f'CXM_CAMERA ACTION={action.upper()} TOOL={tool} MOUNTED={mounted_tool} TOKEN={token}'
+        _rpc('/printer/gcode/script', {'script':'M400\n'+cmd})
+        after, test, sensor = _native_status()
+        if (after.get('camera_reference') != ref or after.get('current_tool') != tool
+                or after.get('fault') or test.get('running')
+                or sensor != ('PRESSED' if tool >= 0 else 'RELEASED')):
+            raise NativeError('Camera or carriage state changed. Inspect before retrying.')
+        if tool >= 0:
+            live = _check_after_own_command(tool, store, jog=True)
+            if live['native_tool_identity'] != tool or live['revision'] != expected_revision:
+                raise NativeError('Configuration or tool changed during camera alignment')
+            delta = {a:round(live['xy'][a]-ref[i],3) for i,a in enumerate('xy',1)}
+            if action == 'capture':
+                result = store.save_offsets(tool, 'xy', delta, expected_revision)
+                actual = store.read()['config']['tools'][tool]
+                if any(actual['offset_'+a] != delta[a] for a in 'xy'):
+                    raise NativeError('Saved offsets differ from capture')
+                return dict(result, offsets=delta)
+            if max(abs(delta['x']),abs(delta['y']),abs(live['z']-ref[3])) > 0.02:
+                raise NativeError('Camera return position could not be confirmed')
+        return {'changed':True,'current_tool':tool}
+    finally:
+        MOVE_LOCK.release()

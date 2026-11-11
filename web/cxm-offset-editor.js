@@ -146,6 +146,7 @@ for(const [mode,spec] of Object.entries(modes)){
  $(spec.save).addEventListener('click',()=>save(mode));
  $(spec.reset).addEventListener('click',()=>render(mode,false));
 }
+window.addEventListener('cxm-camera-offset-saved',()=>{if(!dirty.xy&&!dirty.z)fetchConfig(true);});
 document.querySelector('[data-tab="offsets"]')?.addEventListener('click',()=>{if(!dirty.xy)fetchConfig(true);});
 document.querySelector('[data-tab="z-calibration"]')?.addEventListener('click',()=>{if(!dirty.z)fetchConfig(true);});
 $('cxmOpenDiagnostics')?.addEventListener('click',()=>{
