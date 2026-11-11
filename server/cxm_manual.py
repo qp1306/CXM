@@ -87,8 +87,12 @@ def _check(tool, saved, completed=None, *, after_jog=False):
         xy[ax]={'position':float(value),'min':float(low)+1.0,'max':float(high)-1.0}
         if not xy[ax]['min']<=value<=xy[ax]['max']:
             raise ManualDockError('Carriage outside guarded '+ax.upper()+' travel')
+    limits = {ax:[xy[ax]['min'],xy[ax]['max']] for ax in 'xy'}
+    if len(lower) >= 3 and len(upper) >= 3 and all(
+            type(v) in (int, float) and math.isfinite(v) for v in (lower[2], upper[2])):
+        limits['z'] = [max(20.0, lower[2]+1.0), upper[2]-1.0]
     return {'tool':tool,'xy':{'x':xy['x']['position'],'y':xy['y']['position']},
-            'limits':{ax:[xy[ax]['min'],xy[ax]['max']] for ax in 'xy'},
+            'limits':limits,
             '_motion_signature':signature,'z':float(pos[2]),'homed':True,'motors_enabled':True,
             'sensor':'PRESSED','identity_source':'operator_selected',
             'native_tool_identity':identity,'revision':saved['revision'],'ready':True}
@@ -121,10 +125,12 @@ def status(tool,store):
 def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
     if acknowledgement!='I_APPROVE_SUPERVISED_MOTOR_ON_JOG':
         raise ManualDockError('Fresh operator approval required')
-    if axis not in ('x','y') or type(distance) not in (int,float) or not math.isfinite(distance):
+    if axis not in ('x','y','z') or type(distance) not in (int,float) or not math.isfinite(distance):
         raise ManualDockError('Jog axis/distance invalid')
     if abs(distance) not in (10.0,1.0,0.1,0.01,0.001):
         raise ManualDockError('Use only the supported 10, 1, 0.1, 0.01 or 0.001 mm jog increments')
+    if axis == 'z' and abs(distance) not in (1.0, 0.1, 0.01):
+        raise ManualDockError('Use a Z step of 1, 0.1 or 0.01 mm')
     if not MOVE_LOCK.acquire(blocking=False):
         raise ManualDockError('Another CXM motion or configuration operation is running')
     try:
@@ -132,7 +138,10 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
         store._completed_jog = None
         if expected_revision != before['revision']:
             raise ManualDockError('Settings changed; reload and approve jog')
-        next_value=before['xy'][axis]+distance
+        start = dict(before['xy'], z=before['z'])
+        if axis not in before['limits']:
+            raise ManualDockError('Missing physical Z travel limits')
+        next_value=start[axis]+distance
         lo,hi=before['limits'][axis]
         if not lo <= next_value <= hi:
             raise ManualDockError('Jog would exceed guarded physical travel')
@@ -144,14 +153,13 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
         after=_check_after_own_command(tool,store,jog=True)
         if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:
             raise ManualDockError('Carriage state changed during jog; inspect printer')
-        if abs(after['xy'][axis]-next_value)>min(0.08, abs(distance)/2):
+        end = dict(after['xy'], z=after['z'])
+        if abs(end[axis]-next_value)>min(0.08, abs(distance)/2):
             raise ManualDockError('Commanded jog and reported coordinates differ; inspect printer')
-        other = 'y' if axis == 'x' else 'x'
-        if (after['revision'] != before['revision'] or after['z'] != before['z']
-                or after['xy'][other] != before['xy'][other]):
+        if after['revision'] != before['revision'] or any(end[a] != start[a] for a in start if a != axis):
             raise ManualDockError('Jog configuration or another axis changed; inspect printer')
         store._completed_jog = (time.monotonic() + 3.0, after['_motion_signature'])
-        return {'jogged':True,'position':after['xy'],'revision':after['revision']}
+        return {'jogged':True,'position':after['xy'],'z':after['z'],'revision':after['revision']}
     finally:
         MOVE_LOCK.release()
 

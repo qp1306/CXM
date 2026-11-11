@@ -241,7 +241,9 @@
 .cxm-t0-auto-buttons .btn{min-height:54px}.cxm-advanced>summary{padding:10px 2px}
 @media(max-width:600px){main{padding:17px 13px 45px}.panel{padding:15px}.tabs .tab{padding:12px 11px}.cxm-step{padding:13px}.cxm-capture-ack,.cxm-lineux-live .cxm-capture-ack{padding:13px;gap:12px}.cxm-approval-copy strong{font-size:16px}.cxm-approval-copy small{font-size:12px}.cxm-step .btn.primary{width:100%}}
 [data-retired-python-control="true"]{display:none!important}
-.dock-jog-grid .btn.jog-active:disabled{opacity:1;background:#376ea9;color:white}#cxmAxisJogRows{min-width:0}.axis-grid>article{min-width:0}.dock-jog-scroll{overflow-x:auto}.dock-jog-grid{display:grid;grid-template-columns:repeat(4,minmax(3.5rem,1fr)) auto repeat(4,minmax(3.5rem,1fr));gap:3px;align-items:center}.dock-jog-grid strong{text-align:center;padding:0 .45rem}.dock-jog-grid .btn{padding:.7rem .2rem;font-variant-numeric:tabular-nums}</style><style>
+.dock-jog-grid .btn.jog-active:disabled{opacity:1;background:#376ea9;color:white}[data-panel="offsets"] .axis-grid{grid-template-columns:minmax(0,1fr);max-width:1220px;margin-inline:auto}
+[data-panel="offsets"] .axis-frame{width:100%;height:clamp(220px,48vh,540px);min-height:0;aspect-ratio:auto}
+#cxmAxisJogRows{min-width:0}.axis-grid>article{min-width:0}.dock-jog-scroll{overflow-x:auto}.dock-jog-grid{display:grid;grid-template-columns:repeat(4,minmax(3.5rem,1fr)) auto repeat(4,minmax(3.5rem,1fr));gap:3px;align-items:center}.dock-jog-grid strong{text-align:center;padding:0 .45rem}.dock-jog-grid .btn{padding:.7rem .2rem;font-variant-numeric:tabular-nums}</style><style>
 .cxm-simple-setup,.cxm-simple-profile{display:block;background:#1b3040;border:1px solid #416481;border-radius:12px;padding:16px;margin:12px 0}
 .cxm-simple-setup strong,.cxm-simple-profile strong{font-size:17px}
 .cxm-simple-setup select,.cxm-simple-profile select{background:#182432;border:1px solid #6486a3;color:#fff;border-radius:9px;padding:12px;font-size:16px;min-width:220px}
@@ -261,7 +263,8 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <section class="printer-strip" aria-label="Printer status"><div class="stat"><span class="stat-label">KLIPPER</span><strong id="klipperStatus">Unknown</strong></div><div class="stat"><span class="stat-label">HOMING</span><strong id="homing">—</strong></div><div class="stat"><span class="stat-label">PRINT STATE</span><strong id="printStatus">—</strong></div><span id="activeTool" hidden>Not integrated</span><span id="cxmActiveTools" hidden>Awaiting config</span></section>
 <div id="message" class="notice" role="status" aria-live="polite"></div>
 <section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected hotends only</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Use <strong>Dock XY</strong> to calibrate a hotend or <strong>Settings</strong> to edit its profile. The <strong>NOT READY</strong> banner remains until all required verification is complete.</div>
-<div class="panel" id="cxmNativeToolPanel">
+<div id="cxmToolsChangeSlot">
+<div class="panel" id="cxmNativeToolPanel"><fieldset id="cxmChangeControls" style="border:0;padding:0;margin:0;min-width:0">
  <div class="panel-heading"><h3>Load / Unload</h3><span class="panel-label">CXM native toolchanger</span></div>
  <p class="helper">Choose a tool and press LOAD or UNLOAD. CXM automatically applies saved dock coordinates and verifies the carriage sensor.</p>
 <div class="cxm-simple-setup">
@@ -292,7 +295,8 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <div class="buttons"><button class="btn primary" id="cxmCalibrationRelease" disabled>Release mounted hotend from dock</button></div>
  <p class="helper" id="cxmCalibrationReleaseStatus" role="status">Requires an accepted native mounted tool and approved mechanical dock engagement.</p>
 </div>
-<p class="helper" id="cxmNativeToolStatus" role="status" aria-live="polite">Reading live Klipper tool state…</p>
+<p class="helper" id="cxmNativeToolStatus" role="status" aria-live="polite">Reading live Klipper tool state…</p><p id="cxmChangeResult" role="status"></p></fieldset>
+</div>
 </div>
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
  <div class="panel-heading"><h3>Native Klipper toolchange test</h3><span class="panel-label">CXM_SELECT_TOOL · supervised XY mechanical testing</span></div>
@@ -539,7 +543,8 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <p id="cxmAxisOrientation" class="helper">Camera orientation not verified.</p>
 <div class="dock-warning">Crosshair is a visual reference only. Camera scale, orientation, parallax and T0 reference must be calibrated before pixel offsets can represent millimetres.</div>
 </article>
-<article class="panel"><div class="panel-heading"><h3>XY positioning</h3><span class="panel-label">T0 reference</span></div>
+<div id="cxmAxisChangeSlot"></div>
+<article class="panel"><div class="panel-heading"><h3>Carriage positioning</h3><span class="panel-label">T0 reference</span></div>
 <div class="axis-row"><label for="cxmAxisTool">Hotend</label><select id="cxmAxisTool" disabled></select><strong id="cxmAxisToolStatus">Awaiting config</strong></div>
 <div class="axis-offsets"><div><small>Saved X offset</small><strong id="cxmAxisSavedX">—</strong></div><div><small>Saved Y offset</small><strong id="cxmAxisSavedY">—</strong></div></div>
 <div id="cxmAxisJog">
@@ -548,9 +553,18 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <div class="dock-live-preflight"><div><small>X</small><strong id="cxmManualXXY">—</strong></div><div><small>Y</small><strong id="cxmManualYXY">—</strong></div><div><small>Z</small><strong id="cxmManualZXY">—</strong></div><div><small>Carriage</small><strong id="cxmManualSensorXY">—</strong></div></div>
  <div class="buttons"><button class="btn" id="cxmManualRefreshXY">Refresh live position</button></div>
  <div class="cxm-step">
-  <div class="panel-heading"><h3>Jog carriage</h3><span class="panel-label">mm · 5 mm/s</span></div>
+  <div class="panel-heading"><h3>Jog carriage</h3><span class="panel-label">XY 5 mm/s · Z 1 mm/s</span></div>
   <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualApprovalXY"><span class="cxm-approval-copy"><strong>Approve supervised jog</strong><small>XYZ homed · motors ON · selected hotend MOUNTED (PRESSED) · Z ≥ 20 · camera and carriage path clear</small></span></label>
   <div id="cxmAxisJogRows"></div>
+  <div class="dock-jog-scroll"><div class="dock-jog-grid"><span></span>
+   <button class="btn" data-manual-axis="z" data-distance="-1" aria-label="Jog Z −1 mm" disabled>−1</button>
+   <button class="btn" data-manual-axis="z" data-distance="-0.1" aria-label="Jog Z −0.1 mm" disabled>−0.1</button>
+   <button class="btn" data-manual-axis="z" data-distance="-0.01" aria-label="Jog Z −0.01 mm" disabled>−0.01</button>
+   <strong>Z</strong>
+   <button class="btn" data-manual-axis="z" data-distance="0.01" aria-label="Jog Z +0.01 mm" disabled>+0.01</button>
+   <button class="btn" data-manual-axis="z" data-distance="0.1" aria-label="Jog Z +0.1 mm" disabled>+0.1</button>
+   <button class="btn" data-manual-axis="z" data-distance="1" aria-label="Jog Z +1 mm" disabled>+1</button>
+  <span></span></div></div>
   <div class="buttons"><button class="btn" id="cxmJogClearXY" disabled>Clear queued jogs</button>
    <span class="helper" id="cxmJogQueueXY" role="status"></span></div>
  </div>
@@ -907,11 +921,11 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-fine-dock.js?v=1" defer></script>
 <script src="cxm-dock.js?v=fine1" defer></script>
 <script src="cxm-dock-position.js?v=2" defer></script>
-<script src="cxm-manual.js?v=4.0" defer></script>
+<script src="cxm-manual.js?v=4.1" defer></script>
 
 
-<script src="cxm-multi.js?v=solo6" defer></script>
-<script src="cxm-native-control.js?v=3.0.0" defer></script>
+<script src="cxm-multi.js?v=solo6.1" defer></script>
+<script src="cxm-native-control.js?v=4.1" defer></script>
 <script src="cxm-axiscope.js?v=1.0" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 

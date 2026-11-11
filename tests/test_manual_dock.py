@@ -36,7 +36,7 @@ class ManualDockTests(unittest.TestCase):
                     values=dict(item.split('=',1) for item in script.split()[1:])
                     axis=values['AXIS']
                     distance=float(values['DIST'])
-                    self.state['toolhead']['position'][0 if axis=='X' else 1]+=distance
+                    self.state['toolhead']['position']['XYZ'.index(axis)]+=distance
                 return {}
             raise AssertionError('Unexpected Moonraker API: '+path)
         self.patcher=patch.object(m,'_rpc',side_effect=rpc)
@@ -66,6 +66,18 @@ class ManualDockTests(unittest.TestCase):
         self.assertEqual(self.command_log[0],
                          'CXM_MANUAL_DOCK_JOG TOOL=0 AXIS=X DIST=0.1000')
         self.assertNotIn('G1 ',self.command_log[0])
+    def test_axiscope_z_jog_and_clearances(self):
+        def jog(distance):
+            return m.jog(tool=0, axis='z', distance=distance, expected_revision='a'*64,
+                         acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG', store=self.store)
+        self.assertEqual(jog(-0.01)['z'],24.99)
+        self.assertEqual(jog(0.01)['z'],25)
+        for position, distance in ((20,-0.01),(349,0.1),(25,10)):
+            self.state['toolhead']['position'][2]=position
+            with self.assertRaises(m.ManualDockError):
+                jog(distance)
+        self.assertEqual(len(self.command_log),2)
+
     def test_micron_jog_in_both_directions(self):
         for axis in ('x', 'y'):
             for distance in (-0.001, 0.001):
