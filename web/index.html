@@ -244,6 +244,11 @@
 .dock-jog-grid .btn.jog-active:disabled{opacity:1;background:#376ea9;color:white}[data-panel="offsets"] .axis-grid{grid-template-columns:minmax(0,1fr);max-width:1220px;margin-inline:auto}
 [data-panel="offsets"] .axis-grid > .panel, #cxmAxisChangeSlot > .panel{margin:0;max-width:none;min-width:0}
 #cxmAxisChangeSlot{min-width:0}
+#cxmAxisChangeSlot .tools-load-help,#cxmAxisChangeSlot #cxmNativeSelect{display:none}
+.camera-steps{min-width:0;border:0;padding:0;margin:.6rem 0}.camera-steps legend{font-weight:700}
+#cxmCameraTools{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+#cxmCameraTools button{text-align:left}#cxmCameraTools button[aria-current=true]{border-color:#63cda2;background:#22483d;color:white;opacity:1}
+#cxmCameraResult:empty{display:none}
 [data-panel="offsets"] .axis-frame{width:100%;height:clamp(95px,min(46vh,max(32vh,calc(100vh - 300px))),520px);min-height:0;aspect-ratio:auto;position:sticky;top:0;z-index:5}
 .axis-camera-settings{margin-bottom:8px}.axis-workbench .axis-frame + .panel-heading{margin-top:8px}.axis-workbench .axis-row{margin:6px 0}
 #cxmAxisJog .cxm-step{padding:8px;margin:6px 0}#cxmAxisJog .cxm-capture-ack{margin:4px 0;padding:6px 10px}#cxmAxisJog .dock-jog-grid{grid-template-columns:repeat(4,minmax(0,1fr)) auto repeat(4,minmax(0,1fr))}#cxmAxisJog .dock-jog-grid .btn{min-width:0;padding:8px 0}
@@ -271,7 +276,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <div id="cxmToolsChangeSlot">
 <div class="panel" id="cxmNativeToolPanel"><fieldset id="cxmChangeControls" style="border:0;padding:0;margin:0;min-width:0">
  <div class="panel-heading"><h3>Load / Unload</h3><span class="panel-label">CXM native toolchanger</span></div>
- <p class="helper">Choose a tool and press LOAD or UNLOAD. CXM automatically applies saved dock coordinates and verifies the carriage sensor.</p>
+ <p class="helper tools-load-help">Choose a tool and press LOAD or UNLOAD. CXM automatically applies saved dock coordinates and verifies the carriage sensor.</p>
 <div class="cxm-simple-setup">
  <label for="cxmCarriageIdentity"><strong>Currently fitted (only choose when identity is unknown)</strong></label>
  <div class="buttons">
@@ -283,7 +288,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  </div>
  
 </div>
- <div class="buttons">
+ <div class="buttons tools-load-help">
   <label for="cxmNativeSelectedTool">Target hotend <select id="cxmNativeSelectedTool"><option value="">Choose a hotend</option></select></label>
  </div>
  <label class="cxm-capture-ack" hidden><input id="cxmNativeToolAck" type="checkbox">
@@ -301,16 +306,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <p class="helper" id="cxmCalibrationReleaseStatus" role="status">Requires an accepted native mounted tool and approved mechanical dock engagement.</p>
 </div>
 <p class="helper" id="cxmNativeToolStatus" role="status" aria-live="polite">Reading live Klipper tool state…</p><p id="cxmChangeResult" role="status"></p>
-<div id="cxmCameraSession" hidden>
- <h3>Camera reference</h3>
- <p id="cxmCameraDatum" aria-live="polite"></p>
- <div class="buttons">
-  <button class="btn" id="cxmCameraReference" disabled>Set T0 camera reference</button>
-  <button class="btn primary" id="cxmCameraCapture" disabled>Save centred hotend XY</button>
-  <button class="btn" id="cxmCameraEnd" disabled>End camera session</button>
- </div>
- <p class="helper">Centre and focus T0 with clearance for the longest nozzle. During this session, LOAD lifts at least 5 mm above the reference, changes hotends and returns to the saved XYZ. Confirm the camera and transfer path are clear.</p>
-</div></fieldset>
+</fieldset>
 </div>
 </div>
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
@@ -562,6 +558,12 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <div class="axis-frame" id="cxmAxisFrame"><img id="cxmAxisImage" hidden alt="Axiscope camera video"/><div class="axis-reticle" aria-hidden="true"><i></i><b></b><em></em></div><div id="cxmAxisCameraMessage" class="axis-camera-message">Configure an Axiscope webcam in Mainsail.</div></div>
 <div class="panel-heading"><h3>Carriage positioning</h3><span class="panel-label">T0 reference</span></div>
 <div class="axis-row"><label for="cxmAxisTool">Hotend</label><select id="cxmAxisTool" disabled></select><strong id="cxmAxisToolStatus">Awaiting config</strong></div>
+<fieldset id="cxmCameraSession" class="camera-steps" hidden disabled>
+ <legend>Camera alignment</legend>
+ <p id="cxmCameraDatum"></p>
+ <div id="cxmCameraTools" aria-label="Load a hotend for camera alignment"></div>
+ <p id="cxmCameraNext" role="status"></p>
+</fieldset>
 <div id="cxmAxisJog">
  <div class="cxm-step">
   <div class="panel-heading"><h3>Jog carriage</h3><span class="panel-label">XY 20 mm/s · Z 3 mm/s</span></div>
@@ -579,6 +581,14 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
   <div class="buttons"><button class="btn" id="cxmJogClearXY" disabled>Clear queued jogs</button>
    <span class="helper" id="cxmJogQueueXY" role="status"></span></div>
  </div>
+<fieldset id="cxmCameraActions" class="camera-steps" disabled>
+ <div class="buttons">
+  <button class="btn primary" id="cxmCameraReference" disabled>Set T0 camera reference</button>
+  <button class="btn primary" id="cxmCameraCapture" disabled>Save centred hotend XY</button>
+  <button class="btn" id="cxmCameraEnd" disabled>End camera session</button>
+ </div>
+ <p id="cxmCameraResult" role="status"></p>
+</fieldset>
 <p class="helper" id="cxmManualFeedbackXY" role="status"></p>
 
  <p id="cxmManualReadinessXY" class="helper" role="status">Checking live Klipper motor-on readiness…</p>
@@ -943,7 +953,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 
 
 <script src="cxm-multi.js?v=solo6.1" defer></script>
-<script src="cxm-native-control.js?v=4.2" defer></script>
+<script src="cxm-native-control.js?v=4.4" defer></script>
 <script src="cxm-axiscope.js?v=4.2" defer></script><script src="cxm-offset-editor.js?v=4.2" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 
