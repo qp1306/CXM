@@ -242,6 +242,8 @@
 @media(max-width:600px){main{padding:17px 13px 45px}.panel{padding:15px}.tabs .tab{padding:12px 11px}.cxm-step{padding:13px}.cxm-capture-ack,.cxm-lineux-live .cxm-capture-ack{padding:13px;gap:12px}.cxm-approval-copy strong{font-size:16px}.cxm-approval-copy small{font-size:12px}.cxm-step .btn.primary{width:100%}}
 [data-retired-python-control="true"]{display:none!important}
 .dock-jog-grid .btn.jog-active:disabled{opacity:1;background:#376ea9;color:white}[data-panel="offsets"] .axis-grid{grid-template-columns:minmax(0,1fr);max-width:1220px;margin-inline:auto}
+[data-panel="offsets"] .axis-grid > .panel, #cxmAxisChangeSlot > .panel{margin:0;max-width:none;min-width:0}
+#cxmAxisChangeSlot{min-width:0}
 [data-panel="offsets"] .axis-frame{width:100%;height:clamp(220px,48vh,540px);min-height:0;aspect-ratio:auto}
 #cxmAxisJogRows{min-width:0}.axis-grid>article{min-width:0}.dock-jog-scroll{overflow-x:auto}.dock-jog-grid{display:grid;grid-template-columns:repeat(4,minmax(3.5rem,1fr)) auto repeat(4,minmax(3.5rem,1fr));gap:3px;align-items:center}.dock-jog-grid strong{text-align:center;padding:0 .45rem}.dock-jog-grid .btn{padding:.7rem .2rem;font-variant-numeric:tabular-nums}</style><style>
 .cxm-simple-setup,.cxm-simple-profile{display:block;background:#1b3040;border:1px solid #416481;border-radius:12px;padding:16px;margin:12px 0}
@@ -546,6 +548,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 
 
 <div class="axis-grid">
+<div id="cxmAxisChangeSlot"></div>
 <article class="panel"><div class="panel-heading"><h3>Axiscope camera</h3><span class="panel-label" id="cxmAxisCameraCount">Checking cameras</span></div>
 <div class="axis-row"><label for="cxmAxisCamera">Camera</label><select id="cxmAxisCamera" disabled></select><button class="btn" id="cxmAxisRefreshCameras">Refresh</button></div>
 <div class="axis-frame" id="cxmAxisFrame"><img id="cxmAxisImage" hidden alt="Axiscope camera video"/><div class="axis-reticle" aria-hidden="true"><i></i><b></b><em></em></div><div id="cxmAxisCameraMessage" class="axis-camera-message">Configure an Axiscope webcam in Mainsail.</div></div>
@@ -553,7 +556,6 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <p id="cxmAxisOrientation" class="helper">Camera orientation not verified.</p>
 <div class="dock-warning">Crosshair is a visual reference only. Camera scale, orientation, parallax and T0 reference must be calibrated before pixel offsets can represent millimetres.</div>
 </article>
-<div id="cxmAxisChangeSlot"></div>
 <article class="panel"><div class="panel-heading"><h3>Carriage positioning</h3><span class="panel-label">T0 reference</span></div>
 <div class="axis-row"><label for="cxmAxisTool">Hotend</label><select id="cxmAxisTool" disabled></select><strong id="cxmAxisToolStatus">Awaiting config</strong></div>
 <div class="axis-offsets"><div><small>Saved X offset</small><strong id="cxmAxisSavedX">—</strong></div><div><small>Saved Y offset</small><strong id="cxmAxisSavedY">—</strong></div></div>
@@ -580,7 +582,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  </div>
 <p class="helper" id="cxmManualFeedbackXY" role="status"></p>
 </div>
-<p id="cxmAxisFeedback" class="helper">No measurements or movements have been performed.</p></article></div>
+<p id="cxmAxisFeedback" class="helper">No measurements or movements have been performed.</p></article>
 <article class="panel axis-table-panel"><div class="panel-heading"><h3>Hotend XY comparison</h3><span class="panel-label">Saved profiles</span></div><div class="axis-scroll"><table><thead><tr><th>Tool</th><th>Saved X (mm)</th><th>Saved Y (mm)</th><th>Reference</th><th>Tool status</th></tr></thead><tbody id="cxmAxisTable"></tbody></table></div><p class="helper">All selected hotends appear here, including disabled profiles. Saved values are not optical measurements.</p></article>
 
 <article class="panel cxm-simple-editor">
@@ -594,6 +596,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
   <p id="cxmXYEditStatus" class="helper" role="status">Loading saved offsets…</p>
   <div class="buttons"><button class="btn primary" id="cxmXYEditSave" disabled>Save XY offsets</button><button class="btn" id="cxmXYEditReset">Reset values</button></div>
 </article>
+</div>
 </section>
 <section data-panel="z-calibration" hidden>
 <div class="section-title"><div><h2>Tool Z offsets</h2><p>Nozzle height difference relative to T0 — separate from dock XY</p></div></div>
