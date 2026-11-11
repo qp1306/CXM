@@ -23,7 +23,7 @@ def _check(tool, saved, completed=None, *, after_jog=False):
         'idle_timeout': 'state', 'print_stats': 'state',
         'virtual_sdcard': 'is_active', 'pause_resume': 'is_paused',
         'stepper_enable': 'steppers', 'gcode_button cxm_tool_detect': 'state',
-        'gcode_macro _CXM_TEST_STATE': 'running', 'gcode_macro _CXM_NATIVE': 'current_tool',
+        'gcode_macro _CXM_TEST_STATE': 'running', 'gcode_macro _CXM_NATIVE': 'current_tool,jog_revision',
     }
     query = urllib.parse.urlencode(fields, quote_via=urllib.parse.quote)
     state = _rpc('/printer/objects/query?' + query).get('status', {})
@@ -95,7 +95,7 @@ def _check(tool, saved, completed=None, *, after_jog=False):
             'limits':limits,
             '_motion_signature':signature,'z':float(pos[2]),'homed':True,'motors_enabled':True,
             'sensor':'PRESSED','identity_source':'operator_selected',
-            'native_tool_identity':identity,'revision':saved['revision'],'ready':True}
+            'jog_revision':native.get('jog_revision',0),'native_tool_identity':identity,'revision':saved['revision'],'ready':True}
 
 def _check_after_own_command(tool, store, *, jog=False):
     """Wait for Klipper's transient idle_timeout=Printing after our own M400.
@@ -123,7 +123,8 @@ def status(tool,store):
     return result
 
 def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
-    if acknowledgement!='I_APPROVE_SUPERVISED_MOTOR_ON_JOG':
+    camera = acknowledgement == 'I_APPROVE_SUPERVISED_CAMERA_JOG'
+    if not camera and acknowledgement!='I_APPROVE_SUPERVISED_MOTOR_ON_JOG':
         raise ManualDockError('Fresh operator approval required')
     if axis not in ('x','y','z') or type(distance) not in (int,float) or not math.isfinite(distance):
         raise ManualDockError('Jog axis/distance invalid')
@@ -138,6 +139,8 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
         store._completed_jog = None
         if expected_revision != before['revision']:
             raise ManualDockError('Settings changed; reload and approve jog')
+        if (camera or axis=='z') and before['jog_revision'] != 1:
+            raise ManualDockError('Loaded Klipper jog macro is outdated. Install the updated native macro and run RESTART while idle.')
         start = dict(before['xy'], z=before['z'])
         if axis not in before['limits']:
             raise ManualDockError('Missing physical Z travel limits')
@@ -149,6 +152,8 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
         # The service only requests the named, independently guarded macro.
         command='CXM_MANUAL_DOCK_JOG TOOL=%d AXIS=%s DIST=%.4f' % (
             tool,axis.upper(),distance)
+        if camera:
+            command += ' CAMERA=1'
         _rpc('/printer/gcode/script',{'script':command})
         after=_check_after_own_command(tool,store,jog=True)
         if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:

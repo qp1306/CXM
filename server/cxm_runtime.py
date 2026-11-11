@@ -34,14 +34,22 @@ def _rpc(path, payload=None, *, timeout_s=None):
         with urllib.request.urlopen(req, timeout=deadline) as f:
             answer = json.load(f)
     except urllib.error.HTTPError as exc:
+        reason = f'Moonraker HTTP {exc.code} on {path.split("?")[0]}'
         try:
-            detail=json.loads(exc.read(16384).decode('utf8')).get('error',{})
-            trace=detail.get('traceback','')
-            match=re.search(r'gcode\\.CommandError: ([^\\n]+)',trace)
-            reason=match.group(1) if match else detail.get('message',str(exc))
-        except (ValueError,UnicodeError,TypeError):
-            reason=str(exc)
-        raise MeasurementError('Klipper rejected command: '+str(reason)[:240]) from exc
+            detail = json.loads(exc.read(16384)).get('error', {})
+            if isinstance(detail, dict):
+                trace = str(detail.get('traceback') or '')
+                matches = re.findall(r'(?:gcode\.(?:CommandError|error)|ServerError): ([^\r\n]+)', trace)
+                message = detail.get('message')
+                for candidate in [*reversed(matches), message]:
+                    if isinstance(candidate, str) and candidate.strip().lower() not in ('', 'unknown'):
+                        reason = candidate.strip()
+                        break
+            elif isinstance(detail, str) and detail:
+                reason = detail
+        except (ValueError, AttributeError):
+            pass
+        raise MeasurementError('Klipper rejected command: '+reason[:300]) from exc
     except (OSError, ValueError, urllib.error.URLError) as exc:
         raise MeasurementError('Moonraker connection failed: '+str(exc)[:140]) from exc
     if not isinstance(answer, dict) or 'error' in answer or 'result' not in answer:
