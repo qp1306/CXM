@@ -3,6 +3,23 @@
 'use strict';
 const $=id=>document.getElementById(id);
 if(!$('cxmNativeToolPanel'))return;
+const panel=$('cxmNativeToolPanel');
+const offsets=document.querySelector('[data-panel="offsets"]');
+function placeControls(){
+ const slot=$(offsets.hidden?'cxmToolsChangeSlot':'cxmAxisChangeSlot');
+ if(panel.parentElement!==slot)slot.append(panel);
+}
+placeControls();
+new MutationObserver(placeControls).observe(offsets,{attributes:true,attributeFilter:['hidden']});
+function revokeJogApproval(){
+ for(const id of ['cxmManualApproval','cxmManualApprovalXY']){
+   const approval=$(id);
+   if(approval){approval.checked=false;approval.dispatchEvent(new Event('change'));}
+ }
+}
+panel.addEventListener('click',event=>{
+ if(event.target.closest('#cxmDeclareCarriage'))revokeJogApproval();
+},true);
 const api='/cxm/api/v1/';
 let state=null,busy=false,previousSensor=null,previousTool=null;
 const text=(id,value)=>{$(id).textContent=value;};
@@ -88,17 +105,22 @@ async function selectTool(tool){
    text('cxmNativeToolStatus','Choose the currently mounted hotend or EMPTY once, then press LOAD/UNLOAD.');
    return;
  }
- busy=true;controls();
- text('cxmNativeToolStatus',(tool===-1?'UNLOAD':'LOAD T'+tool)+' running…');
+ busy=true;panel.inert=true;revokeJogApproval();controls();
+ text('cxmChangeResult',(tool===-1?'UNLOAD':'LOAD T'+tool)+' running…');
  try{
    const reply=await post('simple-change',{tool,mounted_tool:mounted,
      expected_revision:state.revision});
-   text('cxmNativeToolStatus',reply.already_empty?'Already empty':
+   if(!offsets.hidden && tool>=0 && reply.current_tool===tool){
+     const selector=$('cxmAxisTool');
+     selector.value=String(tool);
+     if(selector.value===String(tool))selector.dispatchEvent(new Event('change'));
+   }
+   text('cxmChangeResult',reply.already_empty?'Already empty':
      reply.already_mounted?'Already mounted':'Toolchange completed. Check physical seating.');
  }catch(e){
-   text('cxmNativeToolStatus','Toolchange stopped: '+e.message+
+   text('cxmChangeResult','Toolchange stopped: '+e.message+
      '. Inspect actual carriage position before retrying.');
- }finally{busy=false;await refresh();}
+ }finally{busy=false;panel.inert=false;await refresh();}
 }
 $('cxmNativeSelectedTool').addEventListener('change',controls);
 $('cxmCarriageIdentity').addEventListener('change',controls);

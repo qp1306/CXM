@@ -341,6 +341,7 @@ async function setCarriageState(){
    lastError='Invalid fitted tool number';text('cxmMultiStatus',lastError);return;
  }
  requestBusy=true;chooseControls();
+ $('cxmNativeToolPanel').inert=true;
  $('cxmDeclareCarriage').disabled=true;
  text('cxmNativeStatus','Checking declared carriage and preparing Z clearance automatically…');
  try{
@@ -351,6 +352,7 @@ async function setCarriageState(){
    lastError='CARRIAGE NOT READY: '+e.message;
  }finally{
    requestBusy=false;
+   $('cxmNativeToolPanel').inert=false;
    $('cxmDeclareCarriage').disabled=false;
    await refresh();
    if(lastError)text('cxmMultiStatus',lastError);

@@ -13,7 +13,7 @@ let refreshVersion=0, polling=false;
 const pending=[];
 let jogging=false;
 function canJog(){
-  return live?.ready && tool===selected() && live.revision===revision &&
+  return !byId('cxmNativeToolPanel')?.inert && live?.ready && tool===selected() && live.revision===revision &&
     el('cxmManualApproval').checked && !panel?.hidden && !document.hidden;
 }
 function clearQueue(){
@@ -79,6 +79,8 @@ async function jog(button){
   pending.push({button, tool, revision});
   if(jogging){controls();return;}
   ++refreshVersion;polling=false;busy=true;jogging=true;
+  const changeControls=byId('cxmChangeControls');
+  if(changeControls)changeControls.disabled=true;
   try{
     while(pending.length && canJog()){
       const step=pending.shift();
@@ -97,9 +99,11 @@ async function jog(button){
           throw Error('Jog or saved revision could not be verified');
         if(!live || selected()!==step.tool)break;
         live.xy=answer.position;
+        if(Number.isFinite(answer.z))live.z=answer.z;
         if(!window.CXMDockPosition?.streaming()){
           el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
           el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
+          el('cxmManualZ').textContent=live.z.toFixed(2)+' mm';
         }
         say(axis.toUpperCase()+' '+distance+' mm confirmed · '+Math.round(performance.now()-started)+' ms.');
       }finally{step.button.classList.remove('jog-active');}
@@ -108,7 +112,7 @@ async function jog(button){
     live=null;
     el('cxmManualApproval').checked=false;
     say('Jog unconfirmed. Queue cleared. '+e.message+'. Inspect the carriage before retrying.',true);
-  }finally{jogging=false;busy=false;clearQueue();}
+  }finally{jogging=false;busy=false;if(changeControls)changeControls.disabled=false;clearQueue();}
 }
 async function capture(){
  if(busy||!live?.ready||tool!==selected())return;
