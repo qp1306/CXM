@@ -244,7 +244,7 @@
 .dock-jog-grid .btn.jog-active:disabled{opacity:1;background:#376ea9;color:white}[data-panel="offsets"] .axis-grid{grid-template-columns:minmax(0,1fr);max-width:1220px;margin-inline:auto}
 [data-panel="offsets"] .axis-grid > .panel, #cxmAxisChangeSlot > .panel{margin:0;max-width:none;min-width:0}
 #cxmAxisChangeSlot{min-width:0}
-[data-panel="offsets"] .axis-frame{width:100%;height:clamp(95px,32vh,360px);min-height:0;aspect-ratio:auto;position:sticky;top:0;z-index:5}
+[data-panel="offsets"] .axis-frame{width:100%;height:clamp(95px,min(46vh,max(32vh,calc(100vh - 300px))),520px);min-height:0;aspect-ratio:auto;position:sticky;top:0;z-index:5}
 .axis-camera-settings{margin-bottom:8px}.axis-workbench .axis-frame + .panel-heading{margin-top:8px}.axis-workbench .axis-row{margin:6px 0}
 #cxmAxisJog .cxm-step{padding:8px;margin:6px 0}#cxmAxisJog .cxm-capture-ack{margin:4px 0;padding:6px 10px}#cxmAxisJog .dock-jog-grid{grid-template-columns:repeat(4,minmax(0,1fr)) auto repeat(4,minmax(0,1fr))}#cxmAxisJog .dock-jog-grid .btn{min-width:0;padding:8px 0}
 @media(max-width:600px){#cxmAxisJog .dock-jog-grid{gap:2px}#cxmAxisJog .dock-jog-grid .btn{font-size:11px}#cxmAxisJog .dock-jog-grid strong{padding:0 2px}}
