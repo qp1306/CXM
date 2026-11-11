@@ -94,7 +94,7 @@ async function jog(button){
         say('Jogging '+axis.toUpperCase()+' '+distance+' mm …');
         const answer=await request('/manual/jog',{
           tool:step.tool,axis,distance,expected_revision:step.revision,
-          acknowledgement:'I_APPROVE_SUPERVISED_MOTOR_ON_JOG'});
+          acknowledgement:suffix==='XY'?'I_APPROVE_SUPERVISED_CAMERA_JOG':'I_APPROVE_SUPERVISED_MOTOR_ON_JOG'});
         if(answer.jogged!==true || answer.revision!==step.revision)
           throw Error('Jog or saved revision could not be verified');
         if(!live || selected()!==step.tool)break;
