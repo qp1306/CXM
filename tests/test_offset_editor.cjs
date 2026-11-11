@@ -18,7 +18,7 @@ test('all browser JavaScript referenced by Control Centre parses',()=>{
     assert.doesNotThrow(()=>new vm.Script(source(name),{filename:name}),
       name+' must parse before page load');
   }
-  assert.match(html,/cxm-offset-editor\.js\?v=1\.0\.1/);
+  assert.match(html,/cxm-offset-editor\.js\?v=4\.2/);
 });
 
 function element(){

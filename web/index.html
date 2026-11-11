@@ -295,7 +295,17 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <div class="buttons"><button class="btn primary" id="cxmCalibrationRelease" disabled>Release mounted hotend from dock</button></div>
  <p class="helper" id="cxmCalibrationReleaseStatus" role="status">Requires an accepted native mounted tool and approved mechanical dock engagement.</p>
 </div>
-<p class="helper" id="cxmNativeToolStatus" role="status" aria-live="polite">Reading live Klipper tool state…</p><p id="cxmChangeResult" role="status"></p></fieldset>
+<p class="helper" id="cxmNativeToolStatus" role="status" aria-live="polite">Reading live Klipper tool state…</p><p id="cxmChangeResult" role="status"></p>
+<div id="cxmCameraSession" hidden>
+ <h3>Camera reference</h3>
+ <p id="cxmCameraDatum" aria-live="polite"></p>
+ <div class="buttons">
+  <button class="btn" id="cxmCameraReference" disabled>Set T0 camera reference</button>
+  <button class="btn primary" id="cxmCameraCapture" disabled>Save centred hotend XY</button>
+  <button class="btn" id="cxmCameraEnd" disabled>End camera session</button>
+ </div>
+ <p class="helper">Centre and focus T0 with clearance for the longest nozzle. During this session, LOAD lifts at least 5 mm above the reference, changes hotends and returns to the saved XYZ. Confirm the camera and transfer path are clear.</p>
+</div></fieldset>
 </div>
 </div>
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
@@ -571,7 +581,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <p class="helper" id="cxmManualFeedbackXY" role="status"></p>
 </div>
 <p id="cxmAxisFeedback" class="helper">No measurements or movements have been performed.</p></article></div>
-<article class="panel axis-table-panel"><div class="panel-heading"><h3>Hotend XY comparison</h3><span class="panel-label">Saved profiles · unmeasured</span></div><div class="axis-scroll"><table><thead><tr><th>Tool</th><th>Saved X (mm)</th><th>Saved Y (mm)</th><th>Axiscope measurement</th><th>Tool status</th></tr></thead><tbody id="cxmAxisTable"></tbody></table></div><p class="helper">All selected hotends appear here, including disabled profiles. Saved values are not optical measurements.</p></article>
+<article class="panel axis-table-panel"><div class="panel-heading"><h3>Hotend XY comparison</h3><span class="panel-label">Saved profiles</span></div><div class="axis-scroll"><table><thead><tr><th>Tool</th><th>Saved X (mm)</th><th>Saved Y (mm)</th><th>Reference</th><th>Tool status</th></tr></thead><tbody id="cxmAxisTable"></tbody></table></div><p class="helper">All selected hotends appear here, including disabled profiles. Saved values are not optical measurements.</p></article>
 
 <article class="panel cxm-simple-editor">
   <div class="panel-heading"><h3>Save tool XY offset</h3><span class="panel-label">No printer movement</span></div>
@@ -925,8 +935,8 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 
 
 <script src="cxm-multi.js?v=solo6.1" defer></script>
-<script src="cxm-native-control.js?v=4.1" defer></script>
-<script src="cxm-axiscope.js?v=1.0" defer></script><script src="cxm-offset-editor.js?v=1.0.1" defer></script>
+<script src="cxm-native-control.js?v=4.2" defer></script>
+<script src="cxm-axiscope.js?v=4.2" defer></script><script src="cxm-offset-editor.js?v=4.2" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 
 <script src="cxm-testing.js?v=0.9.3" defer></script>

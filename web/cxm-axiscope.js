@@ -157,7 +157,7 @@
       const measured=document.createElement('td'),state=document.createElement('td');
       x.textContent=format(p.offset_x);
       y.textContent=format(p.offset_y);
-      measured.textContent='Not measured';
+      measured.textContent=n===0?'T0':'Relative to T0';
       const readiness=window.CXMToolState?.classify(p,n,config.globals.tool_count,{});
       state.textContent=readiness?.label||'NOT READY';
       state.style.color=readiness?.code==='READY'?'#95d6af':'#f4a7ac';
@@ -184,6 +184,7 @@
     if(!webcams.length)loadCameras();
   });
   // Re-reading is safe: settings are read-only here and never cause printer moves.
+  window.addEventListener('cxm-camera-offset-saved',loadProfiles);
   window.addEventListener('cxm-dock-saved',loadProfiles);
   loadProfiles();
 })();
