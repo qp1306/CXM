@@ -163,8 +163,10 @@
       snapshot=latest;
       render();toolCards();
       status('AutoSaved '+next+' selected tool slots · disk only');
+       window.dispatchEvent(new CustomEvent('cxm-tool-count-saved',{detail:{tool_count:next,revision:latest.revision}}));
     }catch(e) {
       status('Tool count not verified: '+e.message,true);
+       window.dispatchEvent(new CustomEvent('cxm-tool-count-save-failed',{detail:{error:e.message}}));
       window.alert('CXM could not verify the tool count: '+e.message);
       await loadAfterSave();
     }finally {
