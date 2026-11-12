@@ -92,9 +92,12 @@ function populateBank(parent,role,selection){const bank=node('div','toolgrid cxm
 function showOriginalInAdvanced(advanced,els){const inner=q('.cxma-advanced-inner',advanced);els.filter(Boolean).forEach(x=>inner.append(x));}
 function tools(){const p=make('tools',[['printer','printer','Klipper'],['car','car','Carriage'],['available','layers','Available'],['remaining','verify','Remaining']]);
  const stage=p.stage;
- const s1=stage(1,'Select hotend','T0–T11 visible · only commissioned hotends can load.');
+ const s1=stage(1,'Select hotend','Choose any T0–T11. Unaccepted tools go to supervised Dock XY setup; they cannot load yet.');
  populateBank(q('.cxma-inner',s1),'tools','cxmNativeSelectedTool');
- const count=q('.tool-count-control',p.legacy);if(count){const summary=node('div','cxma-inline-data');move(count,summary);q('.cxma-inner',s1).append(summary)}
+ const setupHint=note('Select a hotend to load, or click an uncalibrated slot to set up its dock. No motion is sent by selecting a slot.');
+ setupHint.id='cxmaToolSetupNotice';setupHint.setAttribute('role','status');setupHint.setAttribute('aria-live','polite');
+ q('.cxma-inner',s1).append(setupHint);
+ const count=q('.tool-count-control',p.legacy);if(count){const summary=node('div','cxma-inline-data');move(count,summary);q('.cxma-inner',s1).append(summary);const title=count.querySelector('label[for="cxmCountSelect"]');if(title)title.textContent='Enabled tool slots';}
  const s2=stage(2,'Confirm carriage','Confirm physical carriage identity before changing a hotend.');
  // The native controller MUST retain ownership of its entire panel, fieldset and
  // dynamically relocated slot: cxm-native-control.js moves this panel between
@@ -249,6 +252,40 @@ function checkState(page){const x=texts();const state=[];const hom=x('homing'),k
  }
  return {states:state,okPrinter,homed,carriage,change,klip,printer,hom};
 }
+// A slot is not permission to move. Existing settings own count AutoSave and
+// Dock XY owns physical calibration; this UI only delegates to those controls.
+let pendingToolSetup=null;
+function setupNotice(message){
+ const target=$('cxmaToolSetupNotice');if(target)target.textContent=message;
+}
+function startDockSetup(n){
+ window.dispatchEvent(new CustomEvent('cxm-calibrate-tool',{detail:{tool:n}}));
+}
+function setupSlot(n){
+ if(!Number.isInteger(n)||n<0||n>=12||pendingToolSetup!==null)return;
+ const control=$('cxmCountSelect');const count=Number(control?.value);
+ if(!Number.isInteger(count)||count<1||count>12){setupNotice('Cannot verify enabled tool slots. Refresh configuration first.');return;}
+ if(n<count){setupNotice('Opening T'+n+' Dock XY setup. Saved coordinates and motion remain protected.');startDockSetup(n);return;}
+ if(!control||control.disabled){setupNotice('Settings are not ready to add T'+n+'. Check AutoSave and configuration state.');return;}
+ const next=n+1;
+ if(next>count+1&&!window.confirm('Enable tool slots T'+count+'–T'+n+'?\n\nThese slots will be UNCALIBRATED and cannot move automatically until their docks are physically verified.'))return;
+ pendingToolSetup={n,count:next};
+ setupNotice('AutoSaving tool slots through T'+n+'… No tool movement.');
+ control.value=String(next);
+ control.dispatchEvent(new Event('change',{bubbles:true}));
+}
+window.addEventListener('cxm-tool-count-saved',event=>{
+ if(!pendingToolSetup)return;
+ const {n,count}=pendingToolSetup;pendingToolSetup=null;
+ if(event.detail?.tool_count!==count){setupNotice('Tool count differs from requested count. Refresh before calibrating.');return;}
+ setupNotice('Tool slots through T'+n+' saved and verified. Opening T'+n+' Dock XY setup.');
+ startDockSetup(n);
+});
+window.addEventListener('cxm-tool-count-save-failed',event=>{
+ if(!pendingToolSetup)return;
+ const n=pendingToolSetup.n;pendingToolSetup=null;
+ setupNotice('T'+n+' was NOT added: '+String(event.detail?.error||'Save was not verified')+'. No docking action sent.');
+});
 function updateBank(bank,stats){
  const role=bank.dataset.bank,select=$(bank.dataset.selection),current=select?.value;
  const options=select?.options?Array.from(select.options):[];
@@ -266,21 +303,41 @@ function updateBank(bank,stats){
        original.click();return;
      }
      const sel=$(bank.dataset.selection),opt=sel&&Array.from(sel.options).find(x=>x.value===String(n));
+     const count=Number($('cxmCountSelect')?.value);
+     const dockOption=Array.from($('cxmDockTool')?.options||[]).find(x=>x.value===String(n));
+     if(dockOption?.textContent?.includes('LOCKED OUT')){
+       setupNotice('T'+n+' is in maintenance lockout. Inspect its lockout in Settings; no movement is permitted.');
+       window.dispatchEvent(new CustomEvent('cxm-edit-tool',{detail:{tool:n}}));return;
+     }
+     if(role==='tools'&&(!opt||opt.disabled)){setupSlot(n);return;}
+     if(role==='dock'&&(!opt||!Number.isInteger(count)||n>=count)){setupSlot(n);return;}
      if(!sel||!opt||opt.disabled)return;
      sel.value=String(n);sel.dispatchEvent(new Event('change',{bubbles:true}));updateAll();
    });bank.append(b)
  }}
  qa('button',bank).forEach((button,n)=>{
    const o=option(n),cam=role==='xy'?nativeCamera(n):null;
-   let available=role==='xy'?!!cam&&!cam.disabled&&!cam.closest('fieldset:disabled')&&!cam.closest('[inert]')&&!$('cxmNativeToolPanel')?.inert&&!$('cxmChangeControls')?.disabled:!!o&&!o.disabled;
-   let selected=role==='xy'?cam?.getAttribute('aria-current')==='true':current===String(n);
-   const hint=role==='xy'?(cam?cam.getAttribute('aria-label')||'Eligible camera tool':'Not commissioned for camera change'):
-     role==='dock'?o?'Select for supervised dock calibration':'Configure tool slot first':
-     available?'Commissioned / selectable':'Not commissioned';
+   const control=$('cxmCountSelect'),count=Number(control?.value);
+   const countKnown=Number.isInteger(count)&&count>=1&&count<=12;
+   const configured=countKnown&&n<count;
+   const dockOption=Array.from($('cxmDockTool')?.options||[]).find(x=>x.value===String(n));
+   const locked=configured&&!!dockOption?.textContent?.includes('LOCKED OUT');
+   const nativeEligible=!!o&&!o.disabled;
+   const setupReady=role!=='xy'&&countKnown&&pendingToolSetup===null&&
+     !locked&&(configured||!!control&&!control.disabled);
+   const cameraAvailable=!!cam&&!cam.disabled&&!cam.closest('fieldset:disabled')&&!cam.closest('[inert]')&&!$('cxmNativeToolPanel')?.inert&&!$('cxmChangeControls')?.disabled;
+   const available=role==='xy'?cameraAvailable:role==='tools'?(nativeEligible||setupReady):(nativeEligible||setupReady);
+   const selected=role==='xy'?cam?.getAttribute('aria-current')==='true':current===String(n);
+   const hint=role==='xy'?(cam?cam.getAttribute('aria-label')||'Eligible camera tool':'Dock not accepted · Tool XY locked'):
+     locked?'Maintenance lockout · open Settings':
+     !configured?'Add slot · set up Dock XY':
+     role==='dock'?'Select for supervised dock calibration':
+     nativeEligible?'Dock accepted · select for load':'Set up dock XY · no automatic load';
    button.querySelector('small').textContent=hint;
-   button.disabled=!available;
+   button.disabled=role==='xy'?!cameraAvailable:locked?!countKnown:!available;
    button.classList.toggle('selected',!!selected);
-   button.classList.toggle('unready',!available);
+   button.classList.toggle('unready',!nativeEligible);
+   button.classList.toggle('setup-needed',role!=='xy'&&!nativeEligible&&available&&!locked);
    button.setAttribute('aria-pressed',String(!!selected));
    button.title=hint;
  });

@@ -397,7 +397,10 @@
     if (dirty && n!==selected && !window.confirm('Discard unsaved dock XY draft and switch hotends?')) return;
     if (n!==selected) { selected=n; dirty=false; }
     document.querySelector('[data-tab="calibration"]')?.click();
-    if (snapshot && !dirty) render(); // Preserve same-tool unsaved draft.
+     // When a new slot has just been AutoSaved, the old snapshot has a lower
+     // tool_count. Let the tab's fresh load() select the requested tool instead
+     // of resetting it to T0 against stale options.
+     if (snapshot && n < snapshot.config.globals.tool_count && !dirty) render();
   });
   load();
 })();
