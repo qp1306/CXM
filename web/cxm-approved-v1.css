@@ -80,6 +80,9 @@ body.cxm-approved-v1 .cxma-tool-choice .toolname{display:flex;justify-content:sp
 body.cxm-approved-v1 .cxma-tool-choice small{font-size:11px;color:#b4cadc;line-height:1.25}
 body.cxm-approved-v1 .cxma-tool-choice.selected{border:2px solid #62e3ac;background:linear-gradient(130deg,#175b51,#134139);padding:10px 11px}
 body.cxm-approved-v1 .cxma-tool-choice.unready{opacity:.68;border-style:dashed}
+body.cxm-approved-v1 .cxma-tool-choice.setup-needed{opacity:.96;border-color:#bd9a55;border-style:dashed}
+body.cxm-approved-v1 .cxma-tool-choice.setup-needed small{color:#f3cb93}
+body.cxm-approved-v1 #cxmaToolSetupNotice{margin:11px 0 0;color:#c4dcef;max-width:900px;line-height:1.5}
 body.cxm-approved-v1 .cxma-tool-choice.unready small{color:#f3cb93}
 body.cxm-approved-v1 .cxma-tool-choice:disabled{cursor:not-allowed}
 body.cxm-approved-v1 .cxma-tool-choice:disabled .toolname svg{color:#8fabc3}
