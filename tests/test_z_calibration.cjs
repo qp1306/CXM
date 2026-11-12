@@ -33,55 +33,43 @@ test('only selected tool count appears and zero offset formatting is clearly sto
  assert.deepEqual(z.rows(null),[]);
  assert.deepEqual(z.rows({config:{globals:{tool_count:20},tools:snap.config.tools}}),[]);
 });
-test('distinct Z Calibration tab, T0 and all-hotend comparison are visible',()=>{
- assert.match(html,/data-tab="z-calibration">Tool Z<\/button>/);
- assert.match(html,/data-panel="z-calibration"/);
- for(const id of ['cxmZTool','cxmZSaved','cxmZStatus','cxmZTable','cxmZProgress','cxmZFeedback'])
-  assert.ok(html.includes('id="'+id+'"'),'Missing '+id);
- assert.match(html,/Nozzle height difference relative to T0/);
- assert.match(html,/The dock rides on the gantry/);
- assert.match(html,/PHYSICAL Z CALIBRATION REMAINS DISABLED/);
- assert.match(html,/id="cxmZTool" disabled/);
- assert.match(html,/Start Z calibration · unavailable<\/button>/);
- assert.match(html,/Accept measured Z · unavailable<\/button>/);
-});
-test('no runtime motion, writes, fabricated optical measurements, or automatic verification',()=>{
- assert.doesNotMatch(script,/method:\s*['"]POST|\/printer\/gcode|SET_GCODE_OFFSET|G28|SAVE_CONFIG|CXM_variables\.cfg.*write/);
- assert.doesNotMatch(script,/document\.createElement\(['"]input['"]\)/);
- assert.match(script,/cache:'no-store'/);
- assert.match(script,/CXMToolPicker\?\.sync/);
- assert.match(script,/status\.textContent=.*read-only|Read-only saved profiles/);
- assert.match(html,/cxm-z\.js\?v=0\.9\.3/);
- assert.match(html,/id="cxmPageTitle">Hotends<\/h1>/);
+test('Tool Z page exposes staged workflow and two supervised modes',()=>{
+  for(const id of ['cxmZAutoPanel','cxmZRefSet','cxmZToolsGrid','cxmZAutoApprove',
+                    'cxmZAutoPrepare','cxmZAutoStart','cxmZAutoStop','cxmZAutoMode',
+                    'cxmZAutoReport','cxmZResultMeta'])
+    assert.ok(html.includes('id="'+id+'"'),'Missing '+id);
+  assert.match(html,/Quick · 3 Touch per tool/);
+  assert.match(html,/Full redock test · 6 Touch per tool/);
+  assert.match(html,/value="verify_redock"/);
+  assert.match(html,/Provisional/);
 });
 
-test('V0.8.0 Touch statistics and offline test are visible, but physical Z is locked',()=>{
- assert.match(html,/Cartographer Touch · offline Z calculations/);
- assert.match(html,/140°C nozzle · 70°C bed/);
- assert.match(html,/3 complete Touch results\/tool/);
- assert.match(html,/5 readings · tightest 3/);
- assert.match(html,/±0\.025 mm/);
- assert.match(html,/≤ 0\.020 mm/);
- assert.match(html,/≤ 0\.040 mm/);
- assert.match(html,/0\.750 mm/);
- assert.match(html,/cxm_z_review\.py --example/);
- assert.match(html,/cxm_z_review\.py --input/);
- assert.match(html,/PHYSICAL Z CALIBRATION REMAINS DISABLED/);
- assert.match(html,/Start Z calibration · unavailable<\/button>/);
- assert.match(html,/Accept measured Z · unavailable<\/button>/);
- assert.doesNotMatch(script,/CARTOGRAPHER_TOUCH_PROBE|G28|SET_GCODE_OFFSET|\/printer\/gcode/);
+test('Legacy saved-offset reviewer remains read-only and never claims verification',()=>{
+  assert.doesNotMatch(script,/method:\s*['"]POST|\/printer\/gcode|SET_GCODE_OFFSET|G28|SAVE_CONFIG/);
+  assert.match(script,/cache:'no-store'/);
+  assert.match(script,/CXMToolPicker\?\.sync/);
+  assert.match(html,/id="cxmZTable"/);
 });
 
-test('V0.8.1 makes excessive full-five Touch variance and re-dock prerequisites explicit',()=>{
- assert.match(html,/Full 5-reading quality audit/);
- assert.match(html,/above 0\.040 mm/);
- assert.match(html,/two separately collected post-reseat trial sets/);
- assert.match(html,/Proposed 0\.025 mm drift review limit/);
- assert.match(html,/REVIEW_REQUIRED/);
- assert.match(html,/ready_for_commissioning: false/);
- assert.match(html,/cxm_z_review\.py --input \/tmp\/cxm_z_demo\.json --summary/);
- assert.match(html,/No readiness or save flags can be granted/);
- assert.match(html,/Start Z calibration · unavailable<\/button>/);
- assert.match(html,/Accept measured Z · unavailable<\/button>/);
- assert.doesNotMatch(script,/\/printer\/gcode|SET_GCODE_OFFSET|method:\s*['"]POST|CARTOGRAPHER_TOUCH_PROBE/);
+test('Quick calibration makes no direct printer motion call and does not save offsets',()=>{
+  const controller=fs.readFileSync(path.join(__dirname,'../web/cxm-z-auto.js'),'utf8');
+  const backend=fs.readFileSync(path.join(__dirname,'../server/cxm_z_auto.py'),'utf8');
+  assert.match(controller,/z-auto\/start/);
+  assert.match(controller,/value==='quick'|value==="quick"|value='quick'/);
+  assert.doesNotMatch(controller,/SET_GCODE_OFFSET|SAVE_CONFIG|\/printer\/gcode\/script/);
+  assert.match(backend,/RANGE_LIMIT = 0\.050/);
+  assert.match(backend,/REDOCK_LIMIT = 0\.050/);
+  assert.match(backend,/trial_count=1 if mode=='quick' else 2/);
+  assert.match(backend,/'offsets_applied':False/);
+  assert.match(backend,/'offsets_saved':False/);
+});
+
+test('Tool Z selection and readiness remain distinct guards',()=>{
+  const controller=fs.readFileSync(path.join(__dirname,'../web/cxm-z-auto.js'),'utf8');
+  const backend=fs.readFileSync(path.join(__dirname,'../server/cxm_z_auto.py'),'utf8');
+  assert.match(controller,/max_commissioned_tool/);
+  assert.match(controller,/preflight\?tools=/);
+  assert.match(backend,/selected_tools\(tool_count\)/);
+  assert.match(backend,/if tool_count != sorted\(set\(tool_count\)\)/);
+  assert.match(backend,/sensor != \('RELEASED' if fitted==-1 else 'PRESSED'\)/);
 });

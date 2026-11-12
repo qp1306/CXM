@@ -24,8 +24,22 @@ from cxm_native import (camera_action, status as multi_status, start as multi_st
                         invalidate_for_config_edit as native_invalidate,
                         NativeError)
 from urllib.parse import parse_qs, urlsplit
+from cxm_z_auto import CONTROLLER as zauto_controller, assess as zauto_assess, ZAutoError
+from cxm_z_prepare import prepare as zauto_prepare, in_progress as zauto_preparing, ACK as ZAUTO_PREPARE_ACK
 
 MAX_BODY = 4096
+
+def parse_z_tool_query(raw):
+    """GET ?count=3 (legacy) or ?tools=0,5,8, not both."""
+    params=parse_qs(urlsplit(raw).query)
+    if set(params)=={'count'} and len(params['count'])==1 and params['count'][0].isdigit():
+        return int(params['count'][0])
+    if set(params)=={'tools'} and len(params['tools'])==1:
+        parts=params['tools'][0].split(',')
+        if parts and all(re.fullmatch(r'(?:[0-9]|1[01])',p) for p in parts):
+            return [int(x) for x in parts]
+    raise ValueError('Provide count=N or tools=0,5,8; T0 is required')
+
 
 def fine_adjust_x(store, tool, hundredths, expected_revision):
     snapshot = store.read()
@@ -159,6 +173,10 @@ class Handler(BaseHTTPRequestHandler):
                 if set(args)!={'tool'} or len(args['tool'])!=1 or not args['tool'][0].isdigit():
                     raise ValueError('Select a valid motor-on calibration hotend')
                 self.output(200,manual_status(int(args['tool'][0]),self.server.store))
+            elif self.path == '/v1/z-auto/status':
+                self.output(200,zauto_controller.status())
+            elif self.path.startswith('/v1/z-auto/preflight?'):
+                self.output(200,zauto_assess(self.server.store,parse_z_tool_query(self.path)))
             elif self.path == '/v1/health':
                 self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
@@ -184,8 +202,42 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/z-auto/stop':
+                if body != {'acknowledgement':'STOP_AFTER_CURRENT_COMMAND'}:
+                    raise ZAutoError('Explicit stop acknowledgement required')
+                self.output(200,zauto_controller.stop())
+                return
+            if zauto_controller.status()['running']:
+                raise ZAutoError('Tool Z calibration active: other CXM actions are locked')
+            if zauto_preparing() and self.path != '/v1/z-auto/prepare':
+                raise ZAutoError('Tool Z preparation in progress; other CXM actions are locked')
+            if self.path == '/v1/z-auto/prepare':
+                if set(body) not in ({'tool_count','expected_revision','acknowledgement'},
+                                     {'tools','expected_revision','acknowledgement'}):
+                    raise ValueError('Invalid Tool Z preparation request')
+                if body['acknowledgement'] != ZAUTO_PREPARE_ACK:
+                    raise ZAutoError('Physical EMPTY/cold/homing supervision acknowledgement required')
+                if not printer_safe():
+                    raise ZAutoError('Printer must be safely idle before Tool Z preparation')
+                self.output(200,zauto_prepare(
+                    self.server.store,body['expected_revision'],body.get('tools',body.get('tool_count')),
+                    body['acknowledgement'],printer_safe))
+                return
+            if self.path == '/v1/z-auto/start':
+                keys=set(body)
+                basic=({'tool_count','expected_revision','acknowledgement'},
+                       {'tools','expected_revision','acknowledgement'})
+                if keys not in (*basic, *(k|{'mode'} for k in basic)):
+                    raise ValueError('Invalid Z calibration request')
+                if not printer_safe():
+                    raise ZAutoError('Printer is not confirmed safely idle')
+                self.output(200,zauto_controller.start(
+                    self.server.store,tool_count=body.get('tools',body.get('tool_count')),
+                    expected_revision=body['expected_revision'],
+                    acknowledgement=body['acknowledgement'],mode=body.get('mode','quick')))
                 return
             if self.path == '/v1/native/camera':
                 if set(body) != {'action','tool','mounted_tool','expected_revision','token'}:
@@ -357,7 +409,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected rollback parameters')
                 result=self.server.store.rollback(**body)
             self.output(200,result)
-        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError) as e:
+        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError,ZAutoError) as e:
             self.output(400,{'error':str(e)})
         except RuntimeError as e:
             self.output(409,{'error':str(e)})
@@ -381,7 +433,9 @@ def main():
              Path(__file__).with_name('cxm_t0.py'),
              Path(__file__).with_name('cxm_cxchanger.py'),
              Path(__file__).with_name('cxm_tools.py'),
-             Path(__file__).with_name('cxm_native.py')]
+             Path(__file__).with_name('cxm_native.py'),
+             Path(__file__).with_name('cxm_z_auto.py'),
+             Path(__file__).with_name('cxm_z_prepare.py')]
     before=[p.stat().st_mtime_ns for p in watched]
     def monitor_updates():
         while True:
@@ -391,7 +445,7 @@ def main():
                     # Never intentionally interrupt an active multi-tool pass
                     # to reload CXM Python source while a tool may be attached.
                     try:
-                        while multi_status(store)['running']:
+                        while multi_status(store)['running'] or zauto_controller.status()['running']:
                             time.sleep(1)
                     except (NativeError, OSError, KeyError, ValueError):
                         # Native macro not yet installed or Klipper in reload.

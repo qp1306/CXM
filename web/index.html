@@ -246,8 +246,17 @@
 #cxmAxisChangeSlot{min-width:0}
 #cxmAxisChangeSlot .tools-load-help,#cxmAxisChangeSlot #cxmNativeSelect{display:none}
 .camera-steps{min-width:0;border:0;padding:0;margin:.6rem 0}.camera-steps legend{font-weight:700}
-#cxmCameraTools{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
-#cxmCameraTools button{text-align:left}#cxmCameraTools button[aria-current=true]{border-color:#63cda2;background:#22483d;color:white;opacity:1}
+/* Camera tool grid: predictable columns, wrapping labels, no overflow at T0–T11. */
+#cxmCameraTools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;min-width:0;width:100%}
+#cxmCameraTools .btn{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:3px;min-width:0;max-width:100%;min-height:60px;width:100%;padding:10px 12px;text-align:left;white-space:normal;overflow-wrap:anywhere;line-height:1.3}
+#cxmCameraTools .cxm-camera-tool-name{font-size:15px;font-weight:800}
+#cxmCameraTools .cxm-camera-tool-state{font-size:12px;opacity:.82}
+#cxmCameraTools button[aria-current=true]{border-color:#63cda2;background:#22483d;color:white;opacity:1}
+#cxmCameraUnavailable{font-size:12px;color:#b6c6d8;margin:8px 0 12px}
+.cxm-camera-unload-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin:12px 0 16px}
+#cxmCameraUnload{min-height:44px;border-color:#b98c6e}
+@media(max-width:900px){#cxmCameraTools{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){#cxmCameraTools{grid-template-columns:repeat(2,minmax(0,1fr))}}
 #cxmCameraResult:empty{display:none}
 [data-panel="offsets"] .axis-frame{width:100%;height:clamp(95px,min(46vh,max(32vh,calc(100vh - 300px))),520px);min-height:0;aspect-ratio:auto;position:sticky;top:0;z-index:5}
 .axis-camera-settings{margin-bottom:8px}.axis-workbench .axis-frame + .panel-heading{margin-top:8px}.axis-workbench .axis-row{margin:6px 0}
@@ -263,7 +272,8 @@
 .cxm-capture-ack:has(#cxmNativeToolAck){display:none!important}
 label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmMultiPerformance),label.cxm-multi-speed:has(#cxmMultiSprint),label.cxm-multi-speed:has(#cxmMultiRace),label.cxm-multi-speed:has(#cxmMultiBoost){display:none!important}
 #cxmNativeSync,#cxmNativeConfirm,#cxmNativeRecover,#cxmMultiRefresh,#cxmMultiApproval,.cxm-capture-ack:has(#cxmNativeEmptyAck){display:none!important}
-</style><style>.cxm-custom-speeds{padding:15px;background:#1b3040;border:1px solid #416481;border-radius:10px;display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:12px;margin:10px 0}.cxm-custom-speeds[hidden]{display:none!important}.cxm-custom-speeds label{font-size:13px;display:flex;flex-direction:column;gap:7px}.cxm-custom-speeds input{font-size:17px;padding:10px;background:#101c29;border:1px solid #6486a3;border-radius:7px;color:#fff;width:100%}.cxm-custom-speeds small{grid-column:1/-1;color:#b9cad7}@media(max-width:650px){.cxm-custom-speeds{grid-template-columns:1fr}}</style></head>
+</style><style>.cxm-custom-speeds{padding:15px;background:#1b3040;border:1px solid #416481;border-radius:10px;display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:12px;margin:10px 0}.cxm-custom-speeds[hidden]{display:none!important}.cxm-custom-speeds label{font-size:13px;display:flex;flex-direction:column;gap:7px}.cxm-custom-speeds input{font-size:17px;padding:10px;background:#101c29;border:1px solid #6486a3;border-radius:7px;color:#fff;width:100%}.cxm-custom-speeds small{grid-column:1/-1;color:#b9cad7}@media(max-width:650px){.cxm-custom-speeds{grid-template-columns:1fr}}</style><link rel="stylesheet" href="cxm-ui-v2.css?v=2.3-arrow-steps" />
+</head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
 <header class="topbar"><div class="brand"><div class="brand-mark">C<span>X</span>M</div><div><strong>Control Centre</strong><small>Single extruder · multi-hotend</small></div></div><div class="top-actions"><span id="connection" class="status-indicator"><i></i><span>Connecting to Moonraker</span></span><span id="saveStatus" class="mini-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg> Config sync: not connected</span></div></header>
@@ -561,7 +571,12 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <fieldset id="cxmCameraSession" class="camera-steps" hidden disabled>
  <legend>Camera alignment</legend>
  <p id="cxmCameraDatum"></p>
- <div id="cxmCameraTools" aria-label="Load a hotend for camera alignment"></div>
+ <div id="cxmCameraTools" aria-label="Available hotends for camera alignment"></div>
+ <p id="cxmCameraUnavailable" class="helper" role="status"></p>
+ <div class="cxm-camera-unload-row">
+  <button type="button" class="btn" id="cxmCameraUnload" disabled>Unload mounted hotend</button>
+  <span class="helper" id="cxmCameraCarriageState" role="status">Checking carriage state…</span>
+ </div>
  <p id="cxmCameraNext" role="status"></p>
 </fieldset>
 <div id="cxmAxisJog">
@@ -584,7 +599,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <fieldset id="cxmCameraActions" class="camera-steps" disabled>
  <div class="buttons">
   <button class="btn primary" id="cxmCameraReference" disabled>Set T0 camera reference</button>
-  <button class="btn primary" id="cxmCameraCapture" disabled>Save centred hotend XY</button>
+  <button class="btn primary" id="cxmCameraCapture" disabled>Save centred hotend XY (manual)</button>
   <button class="btn" id="cxmCameraEnd" disabled>End camera session</button>
  </div>
  <p id="cxmCameraResult" role="status"></p>
@@ -614,6 +629,83 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </div>
 </section>
 <section data-panel="z-calibration" hidden>
+<article class="panel cxm-z-workflow" id="cxmZAutoPanel" aria-label="Tool Z calibration workflow">
+  <div class="cxm-flow-topline"><h2>Tool Z Calibration</h2><span class="cxm-ui-label">Cold commissioning · Z offsets not applied</span></div>
+  <nav class="cxm-flow-steps" aria-label="Tool Z calibration steps">
+    <button type="button" class="cxm-flow-step" data-cxm-stage="1" data-state="active" data-target="cxmZStage1" aria-label="Step 1: Set T0 Reference" aria-current="step">
+      <span class="cxm-step-bubble" aria-hidden="true">1</span><span class="cxm-step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg></span><span class="cxm-step-title">Set T0 Reference</span>
+    </button>
+    <button type="button" class="cxm-flow-step" data-cxm-stage="2" data-state="idle" data-target="cxmZStage2" aria-label="Step 2: Select Tools" aria-current="false">
+      <span class="cxm-step-bubble" aria-hidden="true">2</span><span class="cxm-step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/></svg></span><span class="cxm-step-title">Select Tools</span>
+    </button>
+    <button type="button" class="cxm-flow-step" data-cxm-stage="3" data-state="idle" data-target="cxmZStage3" aria-label="Step 3: Prepare" aria-current="false">
+      <span class="cxm-step-bubble" aria-hidden="true">3</span><span class="cxm-step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6zM18 12h.01"/></svg></span><span class="cxm-step-title">Prepare</span>
+    </button>
+    <button type="button" class="cxm-flow-step" data-cxm-stage="4" data-state="idle" data-target="cxmZStage4" aria-label="Step 4: Calibrate" aria-current="false">
+      <span class="cxm-step-bubble" aria-hidden="true">4</span><span class="cxm-step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 4 14 8-14 8V4Z"/></svg></span><span class="cxm-step-title">Calibrate</span>
+    </button>
+    <button type="button" class="cxm-flow-step" data-cxm-stage="5" data-state="idle" data-target="cxmZStage5" aria-label="Step 5: Results" aria-current="false">
+      <span class="cxm-step-bubble" aria-hidden="true">5</span><span class="cxm-step-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M6 18v-6h4v6M12 18V7h4v11M18 18V3h3v15"/></svg></span><span class="cxm-step-title">Results</span>
+    </button>
+  </nav>
+  <div class="cxm-live-strip" role="status" aria-label="Live Tool Z status">
+    <span>Printer <strong id="cxmZLivePrinter">Checking</strong></span>
+    <span>Bed mesh <strong id="cxmZLiveMesh">Checking</strong></span>
+    <span>Carriage <strong id="cxmZLiveCarriage">Checking</strong></span>
+    <span>T0 reference <strong id="cxmZLiveRef">Not selected</strong></span>
+    <span>Tools <strong id="cxmZLiveTools">T0</strong></span>
+  </div>
+
+  <section id="cxmZStage1" class="cxm-flow-card" aria-label="Step 1 - T0 reference">
+    <div class="cxm-step-num">1</div>
+    <div class="cxm-flow-content cxm-inline-content">
+      <button type="button" class="btn primary cxm-action-btn" id="cxmZRefSet">Use T0 as reference</button>
+      <span class="cxm-flow-hint" id="cxmZRefHint">Choose T0 as zero. Its height is measured when calibration starts.</span>
+    </div>
+  </section>
+  <section id="cxmZStage2" class="cxm-flow-card" aria-label="Step 2 - Select tools">
+    <div class="cxm-step-num">2</div>
+    <div class="cxm-flow-content">
+      <div class="cxm-flow-card-title"><strong>Select tools</strong><span id="cxmZToolsSummary">Select any commissioned tools</span></div>
+      <div id="cxmZToolsGrid" class="cxm-select-grid" role="group" aria-label="Choose tools for Z calibration">Loading saved tools…</div>
+      <select id="cxmZAutoCount" aria-hidden="true" hidden><option value="1">1</option><option value="2">2</option><option value="3">3</option></select>
+    </div>
+  </section>
+  <section id="cxmZStage3" class="cxm-flow-card" aria-label="Step 3 - Prepare printer">
+    <div class="cxm-step-num">3</div>
+    <div class="cxm-flow-content">
+      <label class="cxm-approval-minimal"><input type="checkbox" id="cxmZAutoApprove"><span><strong>Printer physically inspected · cold nozzle and bed · path clear</strong><small>Supervise all movement; keep the emergency stop accessible. Disconnected thermistor cannot confirm cold.</small></span></label>
+      <div class="cxm-flow-action-row"><button type="button" id="cxmZAutoPrepare" class="btn primary cxm-action-btn" disabled>Prepare printer</button><button type="button" id="cxmZAutoRefresh" class="btn" >Check readiness</button></div>
+      <p id="cxmZAutoPrepareResult" class="cxm-flow-feedback" role="status" aria-live="polite">After restart, prepare once. G28 runs only if unhomed.</p>
+      <p id="cxmZAutoPreflight" class="cxm-flow-feedback" role="status" aria-live="polite">Checking readiness…</p>
+    </div>
+  </section>
+  <section id="cxmZStage4" class="cxm-flow-card" aria-label="Step 4 - Start calibration">
+    <div class="cxm-step-num">4</div>
+    <div class="cxm-flow-content">
+      <div class="cxm-flow-action-row"><label class="cxm-quick-mode">Mode <select id="cxmZAutoMode" aria-label="Tool Z calibration mode"><option value="quick" selected>Quick · 3 Touch per tool</option><option value="verify_redock">Full redock test · 6 Touch per tool</option></select></label><button type="button" id="cxmZAutoStart" class="btn primary cxm-action-btn" disabled>Start calibration</button><button type="button" id="cxmZAutoStop" class="btn" disabled>Stop after current command</button></div>
+      <p id="cxmZAutoProgress" class="cxm-flow-feedback" role="status" aria-live="polite">No run started.</p>
+    </div>
+  </section>
+  <section id="cxmZStage5" class="cxm-flow-card" aria-label="Step 5 - Results">
+    <div class="cxm-step-num">5</div>
+    <div class="cxm-flow-content">
+      <div class="cxm-flow-card-title"><strong>Results</strong><span>Provisional · nothing saved or applied</span></div>
+      <div class="cxm-results-scroll"><table class="cxm-results-table"><thead><tr><th>Tool</th><th>Result</th><th>Touch range</th><th>Redock drift</th><th>Relative Z to T0</th></tr></thead><tbody id="cxmZResultsTable"><tr><td colspan="5">Run calibration to see results.</td></tr></tbody></table></div>
+      <p id="cxmZResultMeta" class="cxm-flow-feedback">Quick: 3 Touch/tool · range ≤ 0.050 mm · redock not tested · no offsets applied</p>
+      <details class="cxm-ui-notes"><summary>Detailed readings and error log</summary><pre id="cxmZAutoReport" aria-label="Provisional Tool Z detailed results"></pre></details>
+    </div>
+  </section>
+  <details class="cxm-ui-notes cxm-tool-manual"><summary>Manual T0 load / unload</summary>
+    <div class="cxm-z-tool-control" role="group" aria-label="T0 tool handling">
+      <p class="helper">Manual tool handling uses the proven native CXM movements, separately from automatic Z calibration.</p>
+      <div class="buttons"><button type="button" class="btn primary" id="cxmZAutoLoadT0" disabled>Load T0</button><button type="button" class="btn" id="cxmZAutoUnloadT0" disabled>Unload T0</button></div>
+      <p id="cxmZAutoToolState" class="cxm-flow-feedback" role="status">Checking carriage state…</p>
+    </div>
+  </details>
+</article>
+
+<details class="cxm-ui-notes cxm-z-advanced"><summary>Advanced · manual Z offset editor and reference tools</summary>
 <div class="section-title"><div><h2>Tool Z offsets</h2><p>Nozzle height difference relative to T0 — separate from dock XY</p></div></div>
 <article class="panel cxm-simple-editor">
   <div class="panel-heading"><h3>Save tool Z offset</h3><span class="panel-label">No printer movement</span></div>
@@ -627,15 +719,15 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </article>
 <details class="cxm-advanced cxm-optional-section"><summary>Advanced · Cartographer Touch preparation and saved profile comparison</summary>
 <div class="dock-warning cxm-z-warning">
-    <strong>PHYSICAL Z CALIBRATION REMAINS DISABLED.</strong>
-    Your proven BTC2 Cartographer 3D+1 Touch procedure is our reference. CXM now includes the offline Z calculation and verification engine. Until hardware is connected, saved offsets are NOT measurements and no nozzle probing or hotend coupling has been verified.
+    <strong>REFERENCE CALCULATOR — MANUAL REVIEW ONLY.</strong>
+    Your proven BTC2 Cartographer 3D+1 Touch procedure is our reference. CXM now includes the offline Z calculation and verification engine. This section is a read-only reviewer; the automatic workflow above is the source of live Touch measurements.
   </div>
   <article class="panel cxm-z-math-lab">
     <div class="panel-heading"><h3>Cartographer Touch · offline Z calculations</h3><span class="panel-label">T0–T11 calculator ready · hardware pending</span></div>
     <div class="cxm-z-math-grid">
-      <div><small>Calibration temperatures</small><strong>140°C nozzle · 70°C bed</strong></div>
+      <div><small>Calibration temperatures</small><strong>Cold commissioning: 0°C heater targets; thermistor unavailable</strong></div>
       <div><small>Initial calibration</small><strong>3 complete Touch results/tool</strong></div>
-      <div><small>Full 3-reading range</small><strong>≤ 0.020 mm</strong></div>
+      <div><small>Full 3-reading range</small><strong>≤ 0.050 mm</strong></div>
       <div><small>Verification</small><strong>5 readings · tightest 3</strong></div>
       <div><small>Stored offset error</small><strong>±0.025 mm</strong></div>
       <div><small>Overall error spread</small><strong>≤ 0.040 mm</strong></div>
@@ -643,7 +735,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
     <p class="helper">Separate BTC2 global Z correction limit: <strong>0.750 mm</strong> (NOT a Touch error allowance). Touch nozzle temperature above 149°C is rejected by the reviewer.</p>
     <div class="cxm-z-quality">
       <div><strong>Full 5-reading quality audit</strong><small>New CXM advisory: flag a full-five range above 0.040 mm; list excluded readings without weakening BTC2's tightest-three acceptance.</small></div>
-      <div><strong>Re-dock consistency check</strong><small>Compare two separately collected post-reseat trial sets with the T0 reference and the original offset. Proposed 0.025 mm drift review limit.</small></div>
+      <div><strong>Re-dock consistency check</strong><small>Compare two separately collected post-reseat trial sets with the T0 reference and the original offset. Current automatic commissioning drift limit: 0.050 mm.</small></div>
       <div><strong>Physical verification still mandatory</strong><small>Offline result files cannot prove removal, correct hotend seating, nozzle contact, or pickup. No readiness or save flags can be granted.</small></div>
     </div>
     <p class="helper">The deliberately fabricated demo includes one large Touch outlier on every hotend. Its BTC2 math passes but the new audit must report <strong>REVIEW_REQUIRED</strong> and <strong>ready_for_commissioning: false</strong>.</p>
@@ -690,6 +782,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
     <p class="helper">Only hotends inside Hotends in use are shown. Values are read from CXM_variables.cfg. No measurements or printer motion are performed on this page.</p>
   </article>
 
+</details>
 </details>
 </section>
 <section data-panel="tests" hidden>
@@ -953,10 +1046,12 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 
 
 <script src="cxm-multi.js?v=solo6.1" defer></script>
-<script src="cxm-native-control.js?v=4.4" defer></script>
+<script src="cxm-native-control.js?v=autosave1" defer></script>
 <script src="cxm-axiscope.js?v=4.2" defer></script><script src="cxm-offset-editor.js?v=4.2" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
+<script src="cxm-z-auto.js?v=2.3-arrow-steps" defer></script>
 
 <script src="cxm-testing.js?v=0.9.3" defer></script>
 
+<script src="cxm-ui-v2.js?v=20261112" defer></script>
 </body></html>

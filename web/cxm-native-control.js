@@ -56,26 +56,38 @@ function cameraSteps({ref,ready,valid,current}){
  $('cxmCameraSession').disabled=!!locked;
  $('cxmCameraActions').disabled=!!locked;
  const row=$('cxmCameraTools');
- const tools=state?.candidates||[];
+ const candidates=state?.candidates||[];
+ // Only calibrated, eligible docks are actionable; never show unavailable T-n as load buttons.
+ const tools=candidates.filter(t=>t.eligible);
  for(const [i,t] of tools.entries()){
    let button=row.children[i];
    if(!button){
      button=document.createElement('button');button.type='button';button.className='btn';
-     row.append(button);
+     const name=document.createElement('span');name.className='cxm-camera-tool-name';
+     const status=document.createElement('span');status.className='cxm-camera-tool-state';
+     button.append(name,status);row.append(button);
    }
    const mounted=current===t.tool&&state.sensor==='PRESSED';
+   const status=mounted?'Mounted':savedTools.has(t.tool)?'XY saved':t.tool===0?'Reference':'Load / align';
    button.dataset.tool=String(t.tool);
+   button.setAttribute('aria-label','T'+t.tool+' · '+status);
    button.setAttribute('aria-current',String(mounted));
-   button.textContent='T'+t.tool+' · '+(!t.eligible?'Dock unavailable':mounted?'Mounted':
-     savedTools.has(t.tool)?'Saved':t.tool===0?'Reference':'Load');
-   button.disabled=!ref||!valid||!t.eligible||mounted||(!token&&t.tool!==0)||(!!token&&!ready);
+   button.children[0].textContent='T'+t.tool;
+   button.children[1].textContent=status;
+   button.disabled=!ref||!valid||mounted||(!token&&t.tool!==0)||(!!token&&!ready);
  }
  while(row.children.length>tools.length)row.lastElementChild.remove();
- const next=tools.find(t=>t.tool>0&&t.eligible&&!savedTools.has(t.tool));
+ const unavailable=candidates.length-tools.length;
+ text('cxmCameraUnavailable',unavailable?unavailable+' selected hotend(s) hidden: dock not accepted, maintenance lockout or geometry unavailable. Configure and accept each dock before loading.':'');
+ const canUnload=ready&&current>=0&&state.sensor==='PRESSED'&&candidates.some(t=>t.tool===current&&t.eligible);
+ $('cxmCameraUnload').disabled=!canUnload;
+ text('cxmCameraCarriageState',!valid?'Carriage state requires verification':
+   current===-1?'Carriage EMPTY':current>=0?'Carriage: T'+current+' mounted':'Carriage identity UNKNOWN');
+ const next=tools.find(t=>t.tool>0&&!savedTools.has(t.tool));
  const needsSave=token&&current>0&&!savedTools.has(current);
  text('cxmCameraNext',!ref?'Checking camera reference availability…':!valid?'Confirm the physically fitted hotend above.':
    !token?(current===0?'1 · Centre and focus T0, then press Set T0 camera reference.':'1 · Press T0 to load the reference hotend.'):
-   needsSave?'3 · Centre T'+current+' on the crosshair, then press Save T'+current+' XY.':
+   needsSave?'3 · Centre T'+current+' on the crosshair, then select the next hotend to auto-save XY before changing.':
    next?'2 · Press T'+next.tool+' to change tools and return to the crosshair.':
    'Alignment complete for the available hotends. End the camera session when finished.');
  text('cxmCameraCapture',current>0?'Save T'+current+' XY':'Save centred hotend XY');
@@ -145,6 +157,39 @@ async function refresh(){
    text('cxmNativeToolStatus','Native tool controls unavailable: '+e.message);
  }
 }
+// Save the currently mounted hotend before changing it. Never change tools if
+// the capture failed or live state changed during the save.
+async function autoSaveBeforeCameraChange(tool,mounted){
+ if(offsets.hidden || tool===mounted || mounted<1 || !state?.camera_reference?.[0])return;
+ const before=state;
+ if(before.current_tool!==mounted || before.sensor!=='PRESSED' ||
+    !before.native_ready || before.fault || before.running){
+   throw Error('Cannot auto-save: mounted hotend state is not verified');
+ }
+ if(Number($('cxmAxisTool').value)!==mounted){
+   throw Error('Cannot auto-save: alignment selection does not match mounted T'+mounted);
+ }
+ text('cxmChangeResult','Saving T'+mounted+' XY before changing hotends…');
+ const reply=await post('camera',{action:'capture',token:before.camera_reference[0],
+   tool:mounted,mounted_tool:mounted,expected_revision:before.revision});
+ if(reply.saved!==true || !reply.offsets ||
+    !Number.isFinite(reply.offsets.x) || !Number.isFinite(reply.offsets.y)){
+   throw Error('T'+mounted+' XY save was not confirmed');
+ }
+ savedTools.add(mounted);
+ try{sessionStorage.setItem('cxmCameraProgress',JSON.stringify({
+   token:before.camera_reference[0],tools:[...savedTools]}));}catch{}
+ window.dispatchEvent(new Event('cxm-camera-offset-saved'));
+ // A save may change the config revision. Refresh rather than reuse stale data.
+ const after=await read();
+ if(after.current_tool!==mounted || after.sensor!=='PRESSED' ||
+    !after.native_ready || after.fault || after.running ||
+    after.camera_reference?.[0]!==before.camera_reference[0]){
+   throw Error('Native state changed after T'+mounted+' save; inspect before moving');
+ }
+ state=after;
+ text('cxmChangeResult','T'+mounted+' XY saved. Changing hotend…');
+}
 async function selectTool(tool){
  if(busy||!state)return;
  const current=state.current_tool;
@@ -158,6 +203,9 @@ async function selectTool(tool){
  busy=true;panel.inert=true;revokeJogApproval();controls();
  text('cxmChangeResult',(tool===-1?'UNLOAD':'LOAD T'+tool)+' running…');
  try{
+   // The current hotend must be captured before its removal. A failed save
+   // aborts the change, leaving the mounted hotend available for correction.
+   await autoSaveBeforeCameraChange(tool,mounted);
    const useReference=!offsets.hidden && !!state.camera_reference?.[0];
    const reply=useReference ? await post('camera',{action:'change',token:state.camera_reference[0],
      tool,mounted_tool:mounted,expected_revision:state.revision}) : await post('simple-change',{tool,mounted_tool:mounted,
@@ -170,8 +218,8 @@ async function selectTool(tool){
    text('cxmChangeResult',reply.already_empty?'Already empty':
      reply.already_mounted?'Already mounted':useReference&&tool>=0?'T'+tool+' returned to T0 camera XYZ. Fine-jog to centre the nozzle.':'Toolchange completed. Check physical seating.');
  }catch(e){
-   text('cxmChangeResult','Toolchange stopped: '+e.message+
-     '. Inspect actual carriage position before retrying.');
+   text('cxmChangeResult','Save or toolchange stopped: '+e.message+
+     '. No further change command was sent after this error; check the actual carriage before retrying.');
  }finally{busy=false;panel.inert=false;await refresh();}
 }
 async function cameraAction(action){
@@ -210,6 +258,9 @@ $('cxmNativeSelect').addEventListener('click',()=>{
  if(value!=='')selectTool(Number(value));
 });
 $('cxmNativeUnload').addEventListener('click',()=>selectTool(-1));
+$('cxmCameraUnload').addEventListener('click',()=>{
+ if(!$('cxmCameraUnload').disabled && !offsets.hidden)selectTool(-1);
+});
 document.querySelector('[data-tab="tools"]')?.addEventListener('click',refresh);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
 setInterval(()=>{if(!document.hidden)refresh();},2000);

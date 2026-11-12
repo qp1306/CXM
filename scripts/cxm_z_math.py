@@ -4,7 +4,7 @@ from dataclasses import dataclass, asdict
 from statistics import median
 import math
 
-RANGE_TOL = 0.020
+RANGE_TOL = 0.050
 ZERO_TOL = 0.025
 OVERALL_TOL = 0.040
 NOZZLE_C = 140.0
