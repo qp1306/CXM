@@ -41,9 +41,10 @@
     const cfg=config?.config;
     const total=Number(cfg?.globals?.tool_count)||0;
     const tools=Array.isArray(cfg?.tools)?cfg.tools:[];
-    return Array.from({length:Math.min(12,total)},(_,t)=>{
+    return Array.from({length:12},(_,t)=>{
+      const configured=t<total && t<tools.length;
       const data=tools[t]||{};
-      const accepted=data.dock_reference_accepted===true && !data.maintenance_lockout;
+      const accepted=configured && data.dock_reference_accepted===true && !data.maintenance_lockout;
       // Tool-card selection uses the authoritative, live commissioning status.
       // Preflight is request-specific and can be temporarily null during a
       // selection refresh; it must gate Start, not erase selectable tools.
