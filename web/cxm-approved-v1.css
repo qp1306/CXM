@@ -191,3 +191,30 @@ body.cxm-approved-v1 [data-panel="offsets"] #cxmCameraTools{position:absolute!im
 
 /* A hidden operator-acknowledgement must stay hidden despite legacy label flex rules. */
 body.cxm-approved-v1 label.cxm-capture-ack[hidden]{display:none!important}
+
+/* CXM Clear All: visible recovery, never a safety-interlock bypass. */
+body.cxm-approved-v1 .cxm-clear-all{
+  margin-top:18px;padding:18px 19px;border-radius:12px;
+  border:1px solid #9c6c5e;background:linear-gradient(130deg,#342b35,#172b42);
+}
+body.cxm-approved-v1 .cxm-clear-all h3{
+  color:#fbd1bf;font-size:17px;letter-spacing:-.2px;margin:0 0 11px;
+}
+body.cxm-approved-v1 .cxm-clear-all .cxm-clear-all-warning{
+  font-size:14px;line-height:1.55;color:#ffdfcc;margin:0 0 10px;
+}
+body.cxm-approved-v1 .cxm-clear-all .cxm-clear-all-ack{
+  display:flex;gap:12px;align-items:flex-start;margin:15px 0 10px;
+  padding:13px;border:1px solid #91725f;border-radius:9px;
+  background:#382d34;color:#f6e5db;font-size:13px;font-weight:700;line-height:1.55;
+}
+body.cxm-approved-v1 .cxm-clear-all .cxm-clear-all-ack input{
+  width:23px;height:23px;flex:none;margin:0;accent-color:#f6b783;
+}
+body.cxm-approved-v1 .cxm-clear-all #cxmClearAllButton{
+  font-size:15px;min-height:46px;background:#8c3845;border:1px solid #bd7280;
+  white-space:normal;
+}
+body.cxm-approved-v1 .cxm-clear-all #cxmClearAllButton:disabled{opacity:.43;}
+body.cxm-approved-v1 .cxm-clear-all #cxmClearAllState{font-weight:700;color:#ffe3bd;}
+body.cxm-approved-v1 .cxm-clear-all #cxmClearAllResult{font-weight:700;white-space:normal;}

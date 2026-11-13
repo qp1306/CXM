@@ -108,6 +108,9 @@ function tools(){const p=make('tools',[['printer','printer','Klipper'],['car','c
  const load=node('button','btn big',ico('upload')+'Load selected hotend');load.type='button';load.dataset.proxy='cxmNativeSelect';
  const unload=node('button','btn outline',ico('download')+'Unload current hotend');unload.type='button';unload.dataset.proxy='cxmNativeUnload';
  r.append(load,unload);q('.cxma-inner',s3).append(r);
+ // Keep recovery visible in the approved Tools workflow, independently of the
+ // native motion fieldset (which may be disabled after a failed toolchange).
+ fromId('cxmClearAllBox',q('.cxma-inner',s3));
  const s4=stage(4,'Verify result','Only the reported carriage sensor and controller state can confirm a change.');
  q('.cxma-inner',s4).append(node('p','cxma-real-status','Waiting for native tool status'));
  const adv=detail('Advanced · Detailed tool cards, speeds and repeated tests');p.stack.append(adv);

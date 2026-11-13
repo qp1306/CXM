@@ -45,6 +45,40 @@ override. Old schema-3 `lineux_raw_x/y` and X/Y correction settings remain on di
 **only for backward-compatible loading**; manual capture does not use them and a new
 save clears the old raw values.
 
+## Clear All — recover from a failed toolchange or stuck test
+
+When a failed sensor check leaves CXM showing a running test, fault or the
+wrong mounted-tool identity, use **Tools → Load or unload → Clear All**.
+
+1. Confirm the printer is completely stationary and not printing. Physically
+   remove the hotend from the carriage and return it to its correct dock.
+   **Do not force a mechanically trapped hotend or move the gantry to do this.**
+   Wait until a hotend is safe to handle before touching it.
+2. Inspect that the carriage is genuinely EMPTY, all docks are unobstructed,
+   and the filament-detection sensor reports `RELEASED`.
+3. Tick the physical-empty approval, then select **Clear All errors & reset
+   toolchanger**. The button remains disabled when the sensor reads
+   `PRESSED`, geometry is unsynchronized or the operator hasn't approved.
+4. The backend checks the current config revision, physical sensor and idle
+   Klipper state, then invokes the **existing** Klipper
+   `CXM_RECOVER CONFIRM=EMPTY` macro. The macro cancels a stuck delayed test
+   and repeats real `RELEASED` sensor checks. The same command sequence
+   restores the standard motion profile, resets test counts/selection and
+   clears the temporary camera reference. The API re-reads Klipper and
+   verifies every cleared runtime state before reporting success.
+
+**Verified success:** `current_tool=-1`, `fault=0`, `test.running=0`,
+`test.stop=0`, `test.state=idle`, sensor `RELEASED`, no selected test
+tools, cleared camera reference and `profile=standard`.
+This **never** homes or moves the printer, deletes dock coordinates,
+resets tool XY/Z offsets or marks a new tool commissioned. The existing
+recovery macro also restores a conservative runtime acceleration limit of
+**4000 mm/s²**, so check printer speed settings after a successful recovery.
+A healthy, actively running tool cycle must be stopped first. Klipper macros
+are unchanged, so no Klipper restart is required by this update.
+If any guard fails, stop and inspect the machine rather than overriding it.
+The CXM Python service auto-reloads updated sources when no tool cycle is active.
+
 ## First T0 release from the captured engaged dock position
 
 Manual alignment may end with a mounted hotend already seated in its dock at

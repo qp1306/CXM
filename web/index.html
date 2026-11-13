@@ -272,7 +272,7 @@
 .cxm-capture-ack:has(#cxmNativeToolAck){display:none!important}
 label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmMultiPerformance),label.cxm-multi-speed:has(#cxmMultiSprint),label.cxm-multi-speed:has(#cxmMultiRace),label.cxm-multi-speed:has(#cxmMultiBoost){display:none!important}
 #cxmNativeSync,#cxmNativeConfirm,#cxmNativeRecover,#cxmMultiRefresh,#cxmMultiApproval,.cxm-capture-ack:has(#cxmNativeEmptyAck){display:none!important}
-</style><style>.cxm-custom-speeds{padding:15px;background:#1b3040;border:1px solid #416481;border-radius:10px;display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:12px;margin:10px 0}.cxm-custom-speeds[hidden]{display:none!important}.cxm-custom-speeds label{font-size:13px;display:flex;flex-direction:column;gap:7px}.cxm-custom-speeds input{font-size:17px;padding:10px;background:#101c29;border:1px solid #6486a3;border-radius:7px;color:#fff;width:100%}.cxm-custom-speeds small{grid-column:1/-1;color:#b9cad7}@media(max-width:650px){.cxm-custom-speeds{grid-template-columns:1fr}}</style><link rel="stylesheet" href="cxm-ui-v2.css?v=2.3-arrow-steps" /><link rel="stylesheet" href="cxm-approved-v1.css?v=1.1-tool-setup" />
+</style><style>.cxm-custom-speeds{padding:15px;background:#1b3040;border:1px solid #416481;border-radius:10px;display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:12px;margin:10px 0}.cxm-custom-speeds[hidden]{display:none!important}.cxm-custom-speeds label{font-size:13px;display:flex;flex-direction:column;gap:7px}.cxm-custom-speeds input{font-size:17px;padding:10px;background:#101c29;border:1px solid #6486a3;border-radius:7px;color:#fff;width:100%}.cxm-custom-speeds small{grid-column:1/-1;color:#b9cad7}@media(max-width:650px){.cxm-custom-speeds{grid-template-columns:1fr}}</style><link rel="stylesheet" href="cxm-ui-v2.css?v=2.3-arrow-steps" /><link rel="stylesheet" href="cxm-approved-v1.css?v=1.2-clear-all" />
 </head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
@@ -317,6 +317,15 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </div>
 <p class="helper" id="cxmNativeToolStatus" role="status" aria-live="polite">Reading live Klipper tool state…</p><p id="cxmChangeResult" role="status"></p>
 </fieldset>
+<section class="cxm-clear-all" id="cxmClearAllBox" aria-labelledby="cxmClearAllHeading">
+  <h3 id="cxmClearAllHeading">Clear All · Start fresh</h3>
+  <p class="cxm-clear-all-warning"><strong>FIRST: Remove the hotend from the carriage and return it to its dock.</strong> Check the hotend is cool enough to handle. Inspect the empty carriage, all tool docks and the released filament switch. Do not force a tool off or move the gantry to achieve this.</p>
+  <p class="helper">This clears the CXM toolchange test, error flag and recorded tool identity. It does not move the printer or delete saved Dock XY, Tool XY or Tool Z calibration.</p>
+  <label class="cxm-clear-all-ack"><input type="checkbox" id="cxmClearAllAck"><span>I have physically removed the hotend, returned it to its dock and confirmed the carriage is EMPTY.</span></label>
+  <div class="buttons"><button type="button" class="btn danger" id="cxmClearAllButton" disabled>Clear All errors &amp; reset toolchanger</button></div>
+  <p class="helper" id="cxmClearAllState" role="status">Checking live carriage sensor…</p>
+  <p class="helper" id="cxmClearAllResult" role="status" aria-live="polite"></p>
+</section>
 </div>
 </div>
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
@@ -1046,7 +1055,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 
 
 <script src="cxm-multi.js?v=solo6.1" defer></script>
-<script src="cxm-native-control.js?v=autosave1" defer></script>
+<script src="cxm-native-control.js?v=clear-all1" defer></script>
 <script src="cxm-axiscope.js?v=4.2" defer></script><script src="cxm-offset-editor.js?v=4.2" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-z-auto.js?v=2.3-arrow-steps" defer></script>
@@ -1054,5 +1063,5 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-testing.js?v=0.9.3" defer></script>
 
 <script src="cxm-ui-v2.js?v=20261112" defer></script>
-<script src="cxm-approved-v1.js?v=1.1-tool-setup" defer></script>
+<script src="cxm-approved-v1.js?v=1.2-clear-all" defer></script>
 </body></html>
