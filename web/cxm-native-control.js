@@ -163,7 +163,9 @@ async function clearAll(){
    if(after.revision!==revision||after.sensor!=='RELEASED'||after.running!==false
       ||after.current_tool!==-1||after.fault!==0||after.native_ready!==true
       ||after.state!=='idle'||after.tools?.length!==0
-      ||after.camera_reference?.some(v=>v!==0)){
+      ||after.travel_profile!=='standard'
+      ||!Array.isArray(after.camera_reference)||after.camera_reference.length!==4
+      ||after.camera_reference.some(v=>v!==0)){
      throw Error('Live CXM state changed after reset; inspect before continuing');
    }
    state=after;
