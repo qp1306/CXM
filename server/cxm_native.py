@@ -275,23 +275,39 @@ def clear_all(store, expected_revision, acknowledgement):
             raise NativeError('Klipper is not safely ready; Clear All blocked')
         if store.read()['revision'] != expected_revision:
             raise NativeError('Configuration changed during recovery; nothing cleared')
-        # Only the existing guarded Klipper recovery macro owns the reset.
-        # It cancels the delayed native test, checks RELEASED four times,
-        # clears its test state and fault, and declares EMPTY. No G0/G1 or
-        # homing commands are issued. Preserve its fail-closed interlocks.
-        _rpc('/printer/gcode/script', {'script': 'CXM_RECOVER CONFIRM=EMPTY'})
+        # Use only existing guarded Klipper macros for recovery and the
+        # safe standard profile. Clear all EPHEMERAL session variables after
+        # the macro has verified physical EMPTY. No G0/G1, homing, heater or
+        # motion commands are generated here. Persistent XY/Z remains intact.
+        reset = [
+            'CXM_RECOVER CONFIRM=EMPTY',
+            'CXM_SET_PROFILE PROFILE=standard',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=camera_reference VALUE=[0,0,0,0]',
+        ]
+        for field, value in (('tool_a', -1), ('tool_b', -1), ('tool_c', -1),
+                             ('index', 0), ('cycles', 0), ('completed', 0)):
+            reset.append('SET_GCODE_VARIABLE MACRO=_CXM_TEST_STATE VARIABLE='
+                         + field + ' VALUE=' + str(value))
+        _rpc('/printer/gcode/script', {'script': '\n'.join(reset)})
         after, after_test, after_sensor = _native_status()
         if (after_sensor != 'RELEASED' or after.get('ready') != 1
                 or after.get('fault') != 0 or after.get('current_tool') != -1
+                or after.get('profile') != 'standard'
+                or after.get('camera_reference') != [0, 0, 0, 0]
                 or after_test.get('running') != 0 or after_test.get('stop') != 0
-                or after_test.get('state') != 'idle'):
+                or after_test.get('state') != 'idle'
+                or any(after_test.get(k) != v for k, v in (
+                    ('tool_a', -1), ('tool_b', -1), ('tool_c', -1),
+                    ('index', 0), ('cycles', 0), ('completed', 0)))):
             raise NativeError('Clear All was not fully verified. Do not move the carriage; inspect live state.')
         if store.read()['revision'] != expected_revision:
             raise NativeError('Configuration changed during recovery. Recheck calibration and carriage state.')
         return {'cleared': True, 'current_tool': -1, 'sensor': 'RELEASED',
                 'running': False, 'fault': 0, 'state': 'idle',
-                'no_motion': True, 'calibration_preserved': True,
-                'note': 'CXM runtime cleared to verified EMPTY. Saved dock and offset calibrations are unchanged.'}
+                'profile': 'standard', 'camera_cleared': True,
+                'test_session_cleared': True, 'no_motion': True,
+                'calibration_preserved': True,
+                'note': 'CXM reset to verified EMPTY, no session history, standard speed; saved calibrations unchanged.'}
     finally:
         MOVE_LOCK.release()
 
