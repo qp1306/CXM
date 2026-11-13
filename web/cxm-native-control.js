@@ -154,15 +154,23 @@ async function clearAll(){
    const reply=await post('clear-all',{
      expected_revision:revision,acknowledgement:CLEAR_ALL_ACK});
    if(reply.cleared!==true||reply.current_tool!==-1||reply.sensor!=='RELEASED'
-      ||reply.running!==false||reply.fault!==0||reply.state!=='idle'){
+      ||reply.running!==false||reply.fault!==0||reply.state!=='idle'
+      ||reply.profile!=='standard'||reply.camera_cleared!==true
+      ||reply.test_session_cleared!==true){
      throw Error('Server did not verify a complete EMPTY reset');
    }
    const after=await read();
    if(after.revision!==revision||after.sensor!=='RELEASED'||after.running!==false
-      ||after.current_tool!==-1||after.fault!==0||after.native_ready!==true){
+      ||after.current_tool!==-1||after.fault!==0||after.native_ready!==true
+      ||after.state!=='idle'||after.tools?.length!==0
+      ||after.camera_reference?.some(v=>v!==0)){
      throw Error('Live CXM state changed after reset; inspect before continuing');
    }
    state=after;
+   savedTools.clear();progressToken=null;
+   try{sessionStorage.removeItem('cxmCameraProgress');}catch{}
+   $('cxmCarriageIdentity').value='-1';
+   $('cxmNativeSelectedTool').value='';
    text('cxmClearAllResult','CLEAR ALL VERIFIED · Toolchanger EMPTY, test idle, faults cleared. Saved calibration preserved. Existing macro reset acceleration to 4000 mm/s². Continue supervised Dock XY setup.');
    window.dispatchEvent(new Event('cxm-clear-all-complete'));
  }catch(e){
