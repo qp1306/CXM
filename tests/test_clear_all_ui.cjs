@@ -14,6 +14,8 @@ test('client only posts guarded named recovery; never direct movement',()=>{
  assert.match(client,/post\('clear-all'/);
  assert.match(client,/state\.sensor!=='RELEASED'/);
  assert.match(client,/state\.native_ready!==true/);
+ assert.match(client,/healthyTestActive/);
+ assert.match(client,/state\.running&&!state\.stop_requested&&state\.fault!==1/);
  assert.match(client,/reply\.cleared!==true/);
  assert.match(client,/after\.current_tool!==-1/);
  assert.match(client,/after\.fault!==0/);
