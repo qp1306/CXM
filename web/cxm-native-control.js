@@ -100,9 +100,11 @@ function clearAllControls(){
  if(!approve||!button||!info)return;
  const released=state?.sensor==='RELEASED';
  const ready=state?.native_ready===true;
- button.disabled=busy||!approve.checked||!released||!ready||panel.inert;
+ const healthyTestActive=state?.running===true&&!state?.stop_requested&&state?.fault!==1;
+ button.disabled=busy||!approve.checked||!released||!ready||panel.inert||healthyTestActive;
  info.textContent=!state?'Cannot verify live carriage state — Clear All disabled':
    !ready?'Native geometry is not synchronized. Restore saved geometry before recovery':
+   healthyTestActive?'An active tool test is running. Press Stop and verify the printer is stationary first':
    !released?'Sensor '+String(state.sensor||'UNKNOWN')+' — remove hotend from carriage and return it to its dock first':
    'Sensor RELEASED · carriage appears EMPTY. Inspect all docks, confirm printer is stationary, then approve Clear All.';
 }
@@ -143,7 +145,8 @@ function controls(){
 }
 async function clearAll(){
  if(busy||!state||state.sensor!=='RELEASED'||state.native_ready!==true
-    ||!$('cxmClearAllAck')?.checked||panel.inert)return;
+    ||!$('cxmClearAllAck')?.checked||panel.inert
+    ||(state.running&&!state.stop_requested&&state.fault!==1))return;
  const revision=state.revision;
  busy=true;controls();
  text('cxmClearAllResult','Checking physical EMPTY and clearing CXM toolchange state…');
@@ -160,7 +163,7 @@ async function clearAll(){
      throw Error('Live CXM state changed after reset; inspect before continuing');
    }
    state=after;
-   text('cxmClearAllResult','CLEAR ALL VERIFIED · Toolchanger EMPTY, test idle, faults cleared. Saved calibration preserved. Continue supervised Dock XY setup.');
+   text('cxmClearAllResult','CLEAR ALL VERIFIED · Toolchanger EMPTY, test idle, faults cleared. Saved calibration preserved. Existing macro reset acceleration to 4000 mm/s². Continue supervised Dock XY setup.');
    window.dispatchEvent(new Event('cxm-clear-all-complete'));
  }catch(e){
    text('cxmClearAllResult','CLEAR ALL REFUSED / UNVERIFIED: '+e.message+
