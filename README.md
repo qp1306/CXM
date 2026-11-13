@@ -53,6 +53,7 @@ wrong mounted-tool identity, use **Tools → Load or unload → Clear All**.
 1. Confirm the printer is completely stationary and not printing. Physically
    remove the hotend from the carriage and return it to its correct dock.
    **Do not force a mechanically trapped hotend or move the gantry to do this.**
+   Wait until a hotend is safe to handle before touching it.
 2. Inspect that the carriage is genuinely EMPTY, all docks are unobstructed,
    and the filament-detection sensor reports `RELEASED`.
 3. Tick the physical-empty approval, then select **Clear All errors & reset
