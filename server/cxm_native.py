@@ -263,6 +263,11 @@ def clear_all(store, expected_revision, acknowledgement):
         raise NativeError('Native dock geometry is not synchronized; cannot safely clear the controller')
     if sensor != 'RELEASED':
         raise NativeError('Carriage is not confirmed EMPTY: sensor must read RELEASED; remove the hotend and inspect the switch')
+    # An actively executing healthy cycle may transiently show an EMPTY switch.
+    # Refuse to interrupt it while running; Clear All is a fault/stopped recovery,
+    # not a second STOP button and never an emergency stop.
+    if test.get('running') == 1 and test.get('stop') != 1 and native.get('fault') != 1:
+        raise NativeError('Native test still active without a stop request or fault. Stop the test and verify the machine is stationary before Clear All')
     if not MOVE_LOCK.acquire(blocking=False):
         raise NativeError('Another calibration or toolchange operation is active')
     try:
