@@ -61,12 +61,15 @@ wrong mounted-tool identity, use **Tools → Load or unload → Clear All**.
    `PRESSED`, geometry is unsynchronized or the operator hasn't approved.
 4. The backend checks the current config revision, physical sensor and idle
    Klipper state, then invokes the **existing** Klipper
-   `CXM_RECOVER CONFIRM=EMPTY` macro. The macro cancels a stuck delayed test,
-   repeats real `RELEASED` sensor checks and resets only runtime toolchange
-   state. The API re-reads Klipper before reporting success.
+   `CXM_RECOVER CONFIRM=EMPTY` macro. The macro cancels a stuck delayed test
+   and repeats real `RELEASED` sensor checks. The same command sequence
+   restores the standard motion profile, resets test counts/selection and
+   clears the temporary camera reference. The API re-reads Klipper and
+   verifies every cleared runtime state before reporting success.
 
 **Verified success:** `current_tool=-1`, `fault=0`, `test.running=0`,
-`test.stop=0`, `test.state=idle`, sensor `RELEASED`.
+`test.stop=0`, `test.state=idle`, sensor `RELEASED`, no selected test
+tools, cleared camera reference and `profile=standard`.
 This **never** homes or moves the printer, deletes dock coordinates,
 resets tool XY/Z offsets or marks a new tool commissioned. The existing
 recovery macro also restores a conservative runtime acceleration limit of
