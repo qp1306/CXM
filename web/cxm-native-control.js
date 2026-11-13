@@ -92,7 +92,22 @@ function cameraSteps({ref,ready,valid,current}){
    'Alignment complete for the available hotends. End the camera session when finished.');
  text('cxmCameraCapture',current>0?'Save T'+current+' XY':'Save centred hotend XY');
 }
+// Clear All is independent of a stopped/stuck native cycle. It NEVER sends
+// motion commands; server and Klipper separately verify a physically EMPTY carriage.
+const CLEAR_ALL_ACK='I_REMOVED_THE_HOTEND_FROM_THE_CARRIAGE_RETURNED_IT_TO_ITS_DOCK_AND_VERIFIED_EMPTY';
+function clearAllControls(){
+ const approve=$('cxmClearAllAck'),button=$('cxmClearAllButton'),info=$('cxmClearAllState');
+ if(!approve||!button||!info)return;
+ const released=state?.sensor==='RELEASED';
+ const ready=state?.native_ready===true;
+ button.disabled=busy||!approve.checked||!released||!ready||panel.inert;
+ info.textContent=!state?'Cannot verify live carriage state — Clear All disabled':
+   !ready?'Native geometry is not synchronized. Restore saved geometry before recovery':
+   !released?'Sensor '+String(state.sensor||'UNKNOWN')+' — remove hotend from carriage and return it to its dock first':
+   'Sensor RELEASED · carriage appears EMPTY. Inspect all docks, confirm printer is stationary, then approve Clear All.';
+}
 function controls(){
+ clearAllControls();
  const target=$('cxmNativeSelectedTool').value;
  const current=state?.current_tool;
  const declared=$('cxmCarriageIdentity').value;
@@ -126,6 +141,36 @@ function controls(){
    (state.fault?' · native sync required':'')+
    (offsets.hidden?'. LOAD and UNLOAD automatically set up saved geometry.':'.'));
 }
+async function clearAll(){
+ if(busy||!state||state.sensor!=='RELEASED'||state.native_ready!==true
+    ||!$('cxmClearAllAck')?.checked||panel.inert)return;
+ const revision=state.revision;
+ busy=true;controls();
+ text('cxmClearAllResult','Checking physical EMPTY and clearing CXM toolchange state…');
+ try{
+   const reply=await post('clear-all',{
+     expected_revision:revision,acknowledgement:CLEAR_ALL_ACK});
+   if(reply.cleared!==true||reply.current_tool!==-1||reply.sensor!=='RELEASED'
+      ||reply.running!==false||reply.fault!==0||reply.state!=='idle'){
+     throw Error('Server did not verify a complete EMPTY reset');
+   }
+   const after=await read();
+   if(after.revision!==revision||after.sensor!=='RELEASED'||after.running!==false
+      ||after.current_tool!==-1||after.fault!==0||after.native_ready!==true){
+     throw Error('Live CXM state changed after reset; inspect before continuing');
+   }
+   state=after;
+   text('cxmClearAllResult','CLEAR ALL VERIFIED · Toolchanger EMPTY, test idle, faults cleared. Saved calibration preserved. Continue supervised Dock XY setup.');
+   window.dispatchEvent(new Event('cxm-clear-all-complete'));
+ }catch(e){
+   text('cxmClearAllResult','CLEAR ALL REFUSED / UNVERIFIED: '+e.message+
+     '. Do not attempt tool movement until physically inspected.');
+ }finally{
+   $('cxmClearAllAck').checked=false;
+   busy=false;
+   await refresh();
+ }
+}
 async function refresh(){
  if(busy)return;
  try{
@@ -133,7 +178,9 @@ async function refresh(){
    if(previousSensor!==null&&(next.sensor!==previousSensor||next.current_tool!==previousTool))
      $('cxmNativeToolAck').checked=false;
      $('cxmCalibrationReleaseAck').checked=false;
-   previousSensor=next.sensor;previousTool=next.current_tool;
+   if(previousSensor!==null&&next.sensor!==previousSensor)
+      $('cxmClearAllAck').checked=false;
+    previousSensor=next.sensor;previousTool=next.current_tool;
    state=next;
    const select=$('cxmNativeSelectedTool');
    const old=select.value;
@@ -251,6 +298,8 @@ $('cxmCameraTools').addEventListener('click',e=>{
 $('cxmCameraReference').addEventListener('click',()=>cameraAction('reference'));
 $('cxmCameraCapture').addEventListener('click',()=>cameraAction('capture'));
 $('cxmCameraEnd').addEventListener('click',()=>cameraAction('clear'));
+$('cxmClearAllAck')?.addEventListener('change',clearAllControls);
+$('cxmClearAllButton')?.addEventListener('click',clearAll);
 $('cxmNativeSelectedTool').addEventListener('change',controls);
 $('cxmCarriageIdentity').addEventListener('change',controls);
 $('cxmNativeSelect').addEventListener('click',()=>{
