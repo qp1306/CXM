@@ -18,8 +18,11 @@ class ClearAllRecoveryTests(unittest.TestCase):
         self.store = Store()
         self.before = ({'protocol': 2, 'ready': 1, 'fault': 1, 'current_tool': 3},
                        {'running': 1, 'stop': 1, 'state': 'running'}, 'RELEASED')
-        self.after = ({'protocol': 2, 'ready': 1, 'fault': 0, 'current_tool': -1},
-                      {'running': 0, 'stop': 0, 'state': 'idle'}, 'RELEASED')
+        self.after = ({'protocol': 2, 'ready': 1, 'fault': 0, 'current_tool': -1,
+                       'profile': 'standard', 'camera_reference': [0, 0, 0, 0]},
+                      {'running': 0, 'stop': 0, 'state': 'idle',
+                       'tool_a': -1, 'tool_b': -1, 'tool_c': -1,
+                       'index': 0, 'cycles': 0, 'completed': 0}, 'RELEASED')
 
     def test_stuck_test_and_stale_t3_reset_only_when_empty(self):
         with patch.object(native, '_native_status', side_effect=[self.before, self.after]), \
@@ -32,8 +35,14 @@ class ClearAllRecoveryTests(unittest.TestCase):
             self.assertTrue(result['calibration_preserved'])
             self.assertTrue(result['no_motion'])
             self.assertEqual(rpc.call_count, 2)
-            self.assertEqual(rpc.call_args_list[1].args,
-                             ('/printer/gcode/script', {'script': 'CXM_RECOVER CONFIRM=EMPTY'}))
+            self.assertEqual(rpc.call_args_list[1].args[0], '/printer/gcode/script')
+            commands = rpc.call_args_list[1].args[1]['script'].splitlines()
+            self.assertEqual(commands[0], 'CXM_RECOVER CONFIRM=EMPTY')
+            self.assertEqual(commands[1], 'CXM_SET_PROFILE PROFILE=standard')
+            self.assertIn('VARIABLE=camera_reference VALUE=[0,0,0,0]', commands[2])
+            self.assertIn('VARIABLE=tool_a VALUE=-1', commands[3])
+            self.assertEqual(len(commands), 9)
+            self.assertFalse(any(line.startswith(('G0 ','G1 ')) for line in commands))
             lock.release.assert_called_once()
 
     def test_never_runs_recovery_when_sensor_pressed(self):
