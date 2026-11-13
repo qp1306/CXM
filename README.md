@@ -67,7 +67,10 @@ wrong mounted-tool identity, use **Tools → Load or unload → Clear All**.
 **Verified success:** `current_tool=-1`, `fault=0`, `test.running=0`,
 `test.stop=0`, `test.state=idle`, sensor `RELEASED`.
 This **never** homes or moves the printer, deletes dock coordinates,
-resets tool XY/Z offsets or marks a new tool commissioned. Klipper macros
+resets tool XY/Z offsets or marks a new tool commissioned. The existing
+recovery macro also restores a conservative runtime acceleration limit of
+**4000 mm/s²**, so check printer speed settings after a successful recovery.
+A healthy, actively running tool cycle must be stopped first. Klipper macros
 are unchanged, so no Klipper restart is required by this update.
 If any guard fails, stop and inspect the machine rather than overriding it.
 The CXM Python service auto-reloads updated sources when no tool cycle is active.
