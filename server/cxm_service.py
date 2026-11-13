@@ -20,7 +20,8 @@ from cxm_native import (camera_action, status as multi_status, start as multi_st
                         select as native_select, simple_change as native_simple_change,
                         calibration_release as native_calibration_release,
                         confirm_empty as native_confirm_empty,
-                        recover_empty as native_recover_empty, initialize as native_initialize,
+                        recover_empty as native_recover_empty, clear_all as native_clear_all,
+                        initialize as native_initialize,
                         invalidate_for_config_edit as native_invalidate,
                         NativeError)
 from urllib.parse import parse_qs, urlsplit
@@ -202,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
                 return
             if self.path == '/v1/z-auto/stop':
@@ -271,6 +272,14 @@ class Handler(BaseHTTPRequestHandler):
                 if not printer_safe():
                     raise NativeError('Klipper not safely IDLE: cannot clear a live/uncertain cycle')
                 self.output(200,native_recover_empty())
+                return
+            if self.path == '/v1/native/clear-all':
+                if set(body) != {'expected_revision','acknowledgement'}:
+                    raise ValueError('Clear All requires the current saved revision and explicit physical EMPTY inspection')
+                if not printer_safe():
+                    raise NativeError('Printer not safely IDLE: Clear All blocked')
+                self.output(200,native_clear_all(self.server.store,
+                    body['expected_revision'], body['acknowledgement']))
                 return
             if self.path == '/v1/native/select':
                 if set(body)!={'tool','expected_revision','acknowledgement'} or body['acknowledgement']!='I_CONFIRMED_SELECTED_HOTEND_IDENTITY_AND_FULL_XY_PATH_CLEAR':
