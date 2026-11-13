@@ -243,6 +243,53 @@ def recover_empty():
     finally:
         MOVE_LOCK.release()
 
+CLEAR_ALL_ACK = 'I_REMOVED_THE_HOTEND_FROM_THE_CARRIAGE_RETURNED_IT_TO_ITS_DOCK_AND_VERIFIED_EMPTY'
+
+def clear_all(store, expected_revision, acknowledgement):
+    """Return CXM *runtime* toolchange state to inspected EMPTY, no motion.
+
+    Explicitly retains the saved dock positions, offsets, tool count, and
+    calibration flags. Never infer a physical empty carriage from old
+    current_tool bookkeeping: the live switch must say RELEASED, and the
+    operator must have visually inspected the actual mechanism.
+    """
+    if acknowledgement != CLEAR_ALL_ACK:
+        raise NativeError('Remove the hotend from the carriage, return it to its dock, inspect EMPTY and approve before Clear All')
+    saved = store.read()
+    if saved['migration_required'] or saved['revision'] != expected_revision:
+        raise NativeError('Saved configuration changed; refresh before Clear All')
+    native, test, sensor = _native_status()
+    if native.get('protocol') != 2 or native.get('ready') != 1:
+        raise NativeError('Native dock geometry is not synchronized; cannot safely clear the controller')
+    if sensor != 'RELEASED':
+        raise NativeError('Carriage is not confirmed EMPTY: sensor must read RELEASED; remove the hotend and inspect the switch')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise NativeError('Another calibration or toolchange operation is active')
+    try:
+        if _rpc('/printer/info').get('state') != 'ready':
+            raise NativeError('Klipper is not safely ready; Clear All blocked')
+        if store.read()['revision'] != expected_revision:
+            raise NativeError('Configuration changed during recovery; nothing cleared')
+        # Only the existing guarded Klipper recovery macro owns the reset.
+        # It cancels the delayed native test, checks RELEASED four times,
+        # clears its test state and fault, and declares EMPTY. No G0/G1 or
+        # homing commands are issued. Preserve its fail-closed interlocks.
+        _rpc('/printer/gcode/script', {'script': 'CXM_RECOVER CONFIRM=EMPTY'})
+        after, after_test, after_sensor = _native_status()
+        if (after_sensor != 'RELEASED' or after.get('ready') != 1
+                or after.get('fault') != 0 or after.get('current_tool') != -1
+                or after_test.get('running') != 0 or after_test.get('stop') != 0
+                or after_test.get('state') != 'idle'):
+            raise NativeError('Clear All was not fully verified. Do not move the carriage; inspect live state.')
+        if store.read()['revision'] != expected_revision:
+            raise NativeError('Configuration changed during recovery. Recheck calibration and carriage state.')
+        return {'cleared': True, 'current_tool': -1, 'sensor': 'RELEASED',
+                'running': False, 'fault': 0, 'state': 'idle',
+                'no_motion': True, 'calibration_preserved': True,
+                'note': 'CXM runtime cleared to verified EMPTY. Saved dock and offset calibrations are unchanged.'}
+    finally:
+        MOVE_LOCK.release()
+
 def calibration_release(store,tool,expected_revision,acknowledgement):
     """Operator-supervised release from the EXACT engaged dock position.
 
