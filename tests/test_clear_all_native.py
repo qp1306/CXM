@@ -44,6 +44,15 @@ class ClearAllRecoveryTests(unittest.TestCase):
                 native.clear_all(self.store, 'a'*64, ACK)
             rpc.assert_not_called()
 
+    def test_healthy_active_cycle_requires_stop_before_clear(self):
+        healthy_running = ({'protocol': 2, 'ready': 1, 'fault': 0, 'current_tool': -1},
+                           {'running': 1, 'stop': 0, 'state': 'running'}, 'RELEASED')
+        with patch.object(native, '_native_status', return_value=healthy_running), \
+             patch.object(native, '_rpc') as rpc:
+            with self.assertRaisesRegex(native.NativeError, 'test still active'):
+                native.clear_all(self.store, 'a'*64, ACK)
+            rpc.assert_not_called()
+
     def test_rejects_missing_approval_and_revision_conflict(self):
         with patch.object(native, '_rpc') as rpc:
             with self.assertRaises(native.NativeError):
