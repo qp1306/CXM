@@ -30,6 +30,10 @@ test('backend requires acknowledgement, matching revision and released sensor',(
  assert.match(backend,/saved\['revision'\] != expected_revision/);
  assert.match(backend,/MOVE_LOCK\.acquire\(blocking=False\)/);
  assert.match(backend,/CXM_RECOVER CONFIRM=EMPTY/);
+ assert.match(backend,/CXM_SET_PROFILE PROFILE=standard/);
+ assert.match(backend,/VALUE=\[0,0,0,0\]/);
+ assert.match(backend,/after\.get\('profile'\) != 'standard'/);
+ assert.match(client,/sessionStorage\.removeItem\('cxmCameraProgress'\)/);
  assert.match(backend,/after_test\.get\('running'\) != 0/);
  assert.match(backend,/after_test\.get\('stop'\) != 0/);
  assert.match(backend,/calibration_preserved': True/);
