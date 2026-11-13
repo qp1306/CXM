@@ -26,5 +26,5 @@ test('dock selection waits for new source snapshot instead of falling back to T0
 test('no new path to auto-commission, never invent coordinates',()=>{
  assert.doesNotMatch(ui,/dock_reference_accepted\s*:\s*true|commissioned\s*:\s*true|SET_GCODE_VARIABLE|save_dock/);
  assert.match(ui,/Maintenance lockout · open Settings/);
- assert.match(index,/cxm-approved-v1\.js\?v=1\.1-tool-setup/);
+ assert.match(index,/cxm-approved-v1\.js\?v=1\.2-clear-all/);
 });
