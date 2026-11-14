@@ -139,8 +139,10 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
         store._completed_jog = None
         if expected_revision != before['revision']:
             raise ManualDockError('Settings changed; reload and approve jog')
-        if (camera or axis=='z') and before['jog_revision'] != 1:
-            raise ManualDockError('Loaded Klipper jog macro is outdated. Install the updated native macro and run RESTART while idle.')
+        if (camera or axis=='z') and before['jog_revision'] not in (1, 2):
+            raise ManualDockError('Loaded Klipper jog macro is outdated or incompatible. Update via CXM Updates before jogging.')
+        if not camera and axis in ('x','y') and before['jog_revision'] != 2:
+            raise ManualDockError('50 mm/s Dock XY jog requires native macro revision 2. Update through CXM Updates and restart Klipper.')
         start = dict(before['xy'], z=before['z'])
         if axis not in before['limits']:
             raise ManualDockError('Missing physical Z travel limits')

@@ -17,7 +17,7 @@ async function setup(axiscope=false){
   let initial;
   vm.runInNewContext(source,{window:{addEventListener(){}},document:{getElementById:node,querySelector:s=>axiscope&&s==='#cxmAxisJog'?axisRoot:null,addEventListener(){}},
     performance, setInterval(){},setTimeout(fn){initial=fn;},async fetch(url,opts){
-      if(!opts.body)return {ok:true,json:async()=>({ready:true,revision:'r',xy:{x:10,y:20},z:25})};
+      if(!opts.body)return {ok:true,json:async()=>({ready:true,revision:'r',xy:{x:10,y:20},z:25,jog_revision:2})};
       moves.push(JSON.parse(opts.body));
       return await new Promise(resolve=>replies.push(ok=>resolve({ok,json:async()=>({jogged:ok,revision:'r',position:{x:10,y:20}})})));
     }});

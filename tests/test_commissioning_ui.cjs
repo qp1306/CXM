@@ -60,17 +60,21 @@ test('one T1 Save survives a slow status poll and verifies the selected dock',as
  let interval,initial,release,hold=false;
  const posts=[],events=[],xy={x:251.00625,y:65.73125};
  const config={revision:'first',config:{tools:[{},{}]}};
- const live={revision:'first',ready:true,xy,z:25,sensor:'PRESSED'};
+ const live={revision:'first',ready:true,xy:{...xy},z:25,sensor:'PRESSED',jog_revision:2,native_tool_identity:-2,limits:{y:[55,350]}};
  vm.runInNewContext(manual,{
    document:{getElementById:node,querySelector:()=>null,addEventListener(){}},
-   window:{addEventListener(){},dispatchEvent:e=>events.push(e)},
+   window:{addEventListener(){},dispatchEvent:e=>events.push(e),confirm:()=>true},
    CustomEvent:class{constructor(type,{detail}){this.type=type;this.detail=detail;}},
    setInterval:fn=>{interval=fn;},setTimeout:fn=>{initial=fn;},
    async fetch(path,opts){
      let data=config;
      if(path.endsWith('status?tool=1'))data=live;
      if(hold){hold=false;await new Promise(r=>{release=r;});}
-     if(opts.method==='POST'){
+     if(opts.method==='POST'&&path.endsWith('/manual/jog')){
+       const move=JSON.parse(opts.body);
+       live.xy.y+=move.distance;
+       data={jogged:true,revision:'first',position:{...live.xy}};
+     }else if(opts.method==='POST'){
        assert.ok(path.endsWith('/manual/save'));
        posts.push(JSON.parse(opts.body));
        config.config.tools[1]={dock_x:xy.x,dock_y:xy.y,dock_reference_accepted:true};
@@ -80,6 +84,13 @@ test('one T1 Save survives a slow status poll and verifies the selected dock',as
    }
  });
  await initial();
+ // Saving is blocked until the selected tool returns from a verified 100mm round trip.
+ assert.equal(node('cxmManualCapture').disabled,true);
+ node('cxmManualApproval').checked=true;
+ node('cxmManualApproval').handlers.change();
+ await node('cxmDockRetreat100').handlers.click();
+ await node('cxmDockReturn100').handlers.click();
+ await new Promise(r=>setImmediate(r)); // Let verified-return status polling settle.
  hold=true;interval();
  assert.equal(node('cxmManualCapture').disabled,false);
  const save=node('cxmManualCapture').handlers.click();
