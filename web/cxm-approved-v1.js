@@ -130,6 +130,10 @@ function dock(){const p=make('calibration',[['printer','printer','Klipper'],['ho
  if(sections.length>=2){
    const saveControls=sections[1];saveControls.classList.add('cxma-save-section');
    q('.cxma-inner',s4).append(saveControls);
+   // The coordinate is recorded first. The independent +100/-100 travel
+   // verification follows it on the same Dock XY page, not vice versa.
+   const travel=$('cxmDockTravelCheck');
+   if(travel)q('.cxma-inner',s4).append(travel);
    const oldHeading=q('.panel-heading',saveControls);if(oldHeading)oldHeading.hidden=true;
    const capture=$('cxmManualCapture');if(capture){capture.innerHTML=ico('save')+'Capture & save dock XY';capture.classList.add('big');}
  }
