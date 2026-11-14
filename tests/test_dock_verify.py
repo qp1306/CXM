@@ -1,4 +1,4 @@
-"""Hardware-free tests for LOCKED-dock, carriage EMPTY CXM commissioning."""
+"""Hardware-free tests for supervised dock verification and sensor telemetry."""
 import sys
 import unittest
 from pathlib import Path
@@ -27,7 +27,7 @@ class Tests(unittest.TestCase):
         self.store=Store()
         def rpc(path,payload=None):
             if path.startswith('/printer/objects/query?gcode_macro%20CXM_DOCK_VERIFY_MOVE=version'):
-                return {'status':{'gcode_macro CXM_DOCK_VERIFY_MOVE':{'version':1}}}
+                return {'status':{'gcode_macro CXM_DOCK_VERIFY_MOVE':{'version':2}}}
             if path.startswith('/printer/objects/query?'):
                 return {'status':{
                     'webhooks':{'state':'ready'},
@@ -65,24 +65,36 @@ class Tests(unittest.TestCase):
         self.assertIn('DIST=100.0000',self.store.commands[0])
         self.assertIn('DIST=-100.0000',self.store.commands[1])
         self.assertTrue(m.status(0,self.store)['travel_verified'])
-    def test_absent_preflight_blocks_mounted_carriage(self):
+    def test_pressed_sensor_is_observed_but_does_not_block_supervised_test(self):
         self.store.sensor='PRESSED'
-        with self.assertRaisesRegex(m.ManualDockError,'Expected carriage RELEASED'):
-            m.roundtrip(**self.args())
-        self.assertEqual(self.store.commands,[])
-    def test_sensor_change_after_outward_leg_blocks_return(self):
+        result=m.roundtrip(**self.args())
+        self.assertTrue(result['verified'])
+        self.assertEqual(result['sensor'],'PRESSED')
+        self.assertEqual(len(self.store.commands),2)
+    def test_sensor_transition_during_outward_leg_is_observed_and_return_permitted(self):
         original=m._rpc.side_effect
-        def fault(path,payload=None):
+        def sensor_transition(path,payload=None):
             response=original(path,payload)
             if path=='/printer/gcode/script' and payload['script'].startswith('CXM_DOCK_VERIFY_MOVE '):
                 self.store.sensor='PRESSED'
             return response
-        with patch.object(m,'_rpc',side_effect=fault):
-            with self.assertRaisesRegex(m.ManualDockError,'Expected carriage RELEASED'):
+        with patch.object(m,'_rpc',side_effect=sensor_transition):
+            result=m.roundtrip(**self.args())
+        self.assertEqual(len(self.store.commands),2)
+        self.assertEqual(result['sensor'],'PRESSED')
+        self.assertTrue(result['verified'])
+
+    def test_unhomed_axis_blocks_motion_even_with_sensor_observe_only(self):
+        original=m._rpc.side_effect
+        def unhomed(path,payload=None):
+            response=original(path,payload)
+            if path.startswith('/printer/objects/query?') and 'toolhead' in response.get('status',{}):
+                response['status']['toolhead']['homed_axes']='xy'
+            return response
+        with patch.object(m,'_rpc',side_effect=unhomed):
+            with self.assertRaisesRegex(m.ManualDockError,'Home XYZ'):
                 m.roundtrip(**self.args())
-        self.assertEqual(len(self.store.commands),1)
-        self.assertIn('DIST=100.0000',self.store.commands[0])
-        self.assertFalse(bool(getattr(self.store,'_verified_dock',None)))
+        self.assertEqual(self.store.commands,[])
 
     def test_adjustment_requires_retest(self):
         self.assertTrue(m.roundtrip(**self.args())['verified'])
