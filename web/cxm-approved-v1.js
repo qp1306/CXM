@@ -113,7 +113,7 @@ function tools(){const p=make('tools',[['printer','printer','Klipper'],['car','c
  fromId('cxmClearAllBox',q('.cxma-inner',s3));
  const s4=stage(4,'Verify result','Only the reported carriage sensor and controller state can confirm a change.');
  q('.cxma-inner',s4).append(node('p','cxma-real-status','Waiting for native tool status'));
- const adv=detail('Advanced · Detailed tool cards, speeds and repeated tests');p.stack.append(adv);
+ const adv=detail('Advanced · Detailed tool cards');p.stack.append(adv);
  showOriginalInAdvanced(adv,[$('toolGrid'),$('cxmNoTools'),q('.tool-overview-meta',p.legacy),q('.footer-note',p.legacy)]);
  p.area.append(p.legacy);p.legacy.classList.add('cxma-unused');
 }
