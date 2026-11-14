@@ -28,7 +28,7 @@ const get=id=>document.getElementById(id);
 const select=get('cxmsTool'),checkbox=get('cxmsEnable');
 const buttons=Array.from(root.querySelectorAll('[data-axis]'));
 const api='/cxm/api/v1/dock-simple';
-let live=null,busy=false,enabled=false,revision='',seq=0;
+let live=null,busy=false,enabled=false,revision='',seq=0,savedAtDock=false;
 const selected=()=>Number(select.value);
 function say(msg,error=false){const el=get('cxmsMessage');el.textContent=msg;el.classList.toggle('cxms-error',error);}
 async function request(url,body){
@@ -46,7 +46,7 @@ function controls(){
  const moving=enabled&&!busy&&live?.homed===true;
  for(const b of buttons)b.disabled=!moving;
  get('cxmsTest').disabled=!moving;
- get('cxmsSave').disabled=!moving;
+ get('cxmsSave').disabled=!moving||savedAtDock;
  get('cxmsNext').disabled=busy||!live||selected()>=live.tool_count-1;
 }
 function display(){
@@ -87,14 +87,16 @@ async function act(kind,fields={},done){
   const d=await request(api+'/'+kind,{tool,expected_revision:before,...fields});
   if(selected()!==tool)throw Error('Hotend changed during operation');
   if(kind==='enable'){enabled=true;checkbox.checked=true;}
-  if(kind==='save')window.dispatchEvent(new CustomEvent('cxm-dock-save-completed',{detail:{tool,x:d.xy.x,y:d.xy.y}}));
+  if(kind==='jog')savedAtDock=false;
+  if(kind==='save'&&d.saved===true){savedAtDock=true;
+   window.dispatchEvent(new CustomEvent('cxm-dock-save-completed',{detail:{tool,x:d.xy.x,y:d.xy.y}}));}
   if(done)say(done(d));
  }catch(e){
   if(kind==='enable'){enabled=false;checkbox.checked=false;}
   say(kind.toUpperCase()+' · '+e.message,true);
  }finally{busy=false;await refresh();controls();}
 }
-get('cxmsHome').addEventListener('click',()=>{enabled=false;checkbox.checked=false;act('home',{},()=> 'XYZ homed. Select a hotend and enable jogging.');});
+get('cxmsHome').addEventListener('click',()=>{enabled=false;savedAtDock=false;checkbox.checked=false;act('home',{},()=> 'XYZ homed. Select a hotend and enable jogging.');});
 checkbox.addEventListener('change',()=>{
  if(!checkbox.checked){enabled=false;controls();return;}
  enabled=false;
@@ -107,15 +109,17 @@ for(const b of buttons)b.addEventListener('click',()=>{
 });
 get('cxmsTest').addEventListener('click',()=>act('test',{},
  ()=> 'Dock/undock movement completed; returned to original X/Y. Inspect the result.'));
-get('cxmsSave').addEventListener('click',()=>act('save',{},
- d=>'Saved T'+d.tool+' · X '+d.xy.x.toFixed(3)+' · Y '+d.xy.y.toFixed(3)));
+get('cxmsSave').addEventListener('click',()=>act('save',{},d=>
+ 'Saved T'+d.tool+' · X '+d.xy.x.toFixed(3)+' · Y '+d.xy.y.toFixed(3)+
+ (d.retreated?' · Y +100 mm complete. Ready for next hotend.':
+ ' · Y +100 mm NOT confirmed: '+(d.retreat_error||'Check carriage position'))));
 function changeTool(next){
  if(next<0||next>=Number(live?.tool_count||0))return;
- select.value=String(next);enabled=false;checkbox.checked=false;
+ select.value=String(next);enabled=false;savedAtDock=false;checkbox.checked=false;
  say('T'+next+' selected. Enable jogging to continue.');refresh();
 }
 get('cxmsNext').addEventListener('click',()=>changeTool(selected()+1));
-select.addEventListener('change',()=>{enabled=false;checkbox.checked=false;say('T'+selected()+' selected. Enable jogging to continue.');refresh();});
+select.addEventListener('change',()=>{enabled=false;savedAtDock=false;checkbox.checked=false;say('T'+selected()+' selected. Enable jogging to continue.');refresh();});
 setInterval(()=>{if(!busy&&!page.hidden&&!document.hidden)refresh(true);},1800);
 refresh();
 })();
