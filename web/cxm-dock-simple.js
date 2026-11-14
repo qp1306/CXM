@@ -131,9 +131,14 @@ async function runQueuedJogs(){
  }catch(e){
   jogQueue.length=0;
   say('JOG · '+e.message,true);
- }finally{
   jogRunning=false;busy=false;
+  controls();
   await refresh();
+  return;
+ }finally{
+  // Successful jog responses already contain fresh, server-verified XYZ.
+  // No extra status request or momentary disabled state between clicks.
+  jogRunning=false;busy=false;
   controls();
  }
 }
