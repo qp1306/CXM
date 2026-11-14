@@ -45,6 +45,49 @@ override. Old schema-3 `lineux_raw_x/y` and X/Y correction settings remain on di
 **only for backward-compatible loading**; manual capture does not use them and a new
 save clears the old raw values.
 
+## Full fresh start after physically relocating every CXM dock
+
+**Separate from Clear All errors.** Use **Settings → Start CXM commissioning
+again — from T0 → Back up & reset ALL CXM calibrations**.
+
+1. Ensure no active print, native test, Tool Z run or tool movement. Physically
+   remove any hotend from the carriage, return all tools to their docks and
+   verify the live sensor says `RELEASED`.
+2. Approve the full destructive commissioning reset, review the final browser
+   confirmation and press reset once. The API first invalidates *every* live
+   Klipper accepted dock target and motion state without moving axes. It then
+   writes a blank schema-3 calibration using an atomic write and timestamped
+   backup of the original `CXM_variables.cfg`. Reset results are read back.
+3. All 12 tool profiles, dock XY, XY/Z offset measurements, validation flags,
+   provisional Tool Z history, test history and camera reference are cleared.
+   Only **T0** is enabled for a new manual Dock XY measurement. Tool counts
+   T1–T11 can be enabled again as calibrated; automatic motion remains
+   inhibited until accepted new geometry is synchronized.
+4. **Important Klipper macro update:** the moved T1 dock cannot be used with
+   the OLD hard-coded T1 X264.70/Y65.60 guard. This release changes
+   `vendor/cxm/cxm_native_toolchange.cfg` so all tool coordinates are checked
+   against their newly accepted saved calibration. The CXM Updates page
+   downloads this source file, but **does not install it into live Klipper**.
+   Once idle, inspect and apply the existing backed-up installer:
+
+   ```bash
+   python3 ~/CXM/scripts/cxm_native_install.py
+   python3 ~/CXM/scripts/cxm_native_install.py --apply
+   ```
+
+   Review the installer diff; perform one deliberate Klipper `RESTART` and
+   rehome safely. Do not use T1 automatic pickup/dropoff until the updated
+   macro has been installed and new T1 XY measured and verified.
+5. Start Dock XY with manually mounted T0, normal homing and motor-on
+   supervised alignment. Record its *new physical position*, then each
+   other selected hotend. Prove each individual pickup/dropoff, Tool XY and
+   Tool Z before commissioning it for normal use.
+
+**Not deleted:** `printer.cfg`, homing/MCU/endstop settings, installed scripts,
+or backup history. This is a fresh **CXM tool calibration**, not a reflash or
+printer factory reset. The stored default X latch +4.4 mm and Y clearance
++100 mm still need physical clearance checks with the new dock layout.
+
 ## Clear All — recover from a failed toolchange or stuck test
 
 When a failed sensor check leaves CXM showing a running test, fault or the
