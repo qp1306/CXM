@@ -18,7 +18,7 @@ const travelSay=msg=>{if(travelStatus)travelStatus.textContent=msg;};
 const close=(a,b)=>Math.abs(a-b)<=0.08;
 function resetTravel(message){retreatAnchor=null;verifiedRoundtrip=null;if(travelStatus)travelSay(message);}
 function canJog(){
-  return !byId('cxmNativeToolPanel')?.inert && live?.ready && (suffix || live.jog_revision===2) && tool===selected() && live.revision===revision &&
+  return !byId('cxmNativeToolPanel')?.inert && live?.ready && (suffix || (live.jog_revision===2 && live.calibration_revision===2)) && tool===selected() && live.revision===revision &&
     el('cxmManualApproval').checked && !panel?.hidden && !document.hidden;
 }
 function clearQueue(){
@@ -82,15 +82,15 @@ async function refresh(silent=false){
     }
     el('cxmManualSensor').textContent=live.sensor;
     if(!suffix){
-      const newJog=Number(live.jog_revision)===2;
+      const newJog=Number(live.jog_revision)===2 && Number(live.calibration_revision)===2;
       const label=el('cxmDockJogSpeed');
       if(label)label.textContent=newJog?'50 mm/s · native verified':'Native jog update required';
-      el('cxmManualReadiness').textContent=!newJog?'Native macro update required · jog disabled':
-        live.z<22?'Z22 preparation available · tick Enable jogging':'Ready · T'+tool+' mounted';
+      el('cxmManualReadiness').textContent=!newJog?'Install Dock XY calibration update via Updates':
+        live.z<22?'Tick Enable jogging to prepare Z22':'Ready · supervised dock alignment';
     }else{
       el('cxmManualReadiness').textContent='READY · T'+tool+' mounted';
     }
-    if(!silent) say('READY: sensor confirms MOUNTED, not tool identity. Verify the mounted hotend is physically T'+tool+' before approving any jog.');
+    if(!silent) say(suffix?'Tool XY camera jogging retains its separate tool safety checks.':'Ready to align T'+tool+'. Filament sensor is informational only during Dock XY.');
   }catch(e){
     if(version!==refreshVersion||selectedTool!==selected())return;
     live=null;
@@ -253,10 +253,11 @@ async function enableJogging(){
   const check=el('cxmManualApproval');
   if(!check.checked || suffix){controls();return;}
   if(!live?.prepare_ready || selected()!==tool || !revision || panel?.hidden || document.hidden){
-    check.checked=false;say('Cannot enable jogging until XYZ, mounted tool and printer state are ready.',true);
+    check.checked=false;say('Cannot enable jogging until XYZ, motors, tool selection and printer state are ready.',true);
     controls();return;
   }
   const target=tool,expectedRevision=revision;
+  if(live.calibration_revision!==2){check.checked=false;say('Install Dock XY calibration update first.',true);controls();return;}
   if(live.z>=22){controls();return;}
   busy=true;controls();
   try{
