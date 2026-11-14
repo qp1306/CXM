@@ -194,7 +194,7 @@ class Handler(BaseHTTPRequestHandler):
                 macro=_rpc(q).get('status',{}).get('gcode_macro CXM_DOCK_VERIFY_MOVE',{})
                 self.output(200,{'file_state':info['state'],'sha256':info['sha256'],
                                   'live_version':macro.get('version'),
-                                  'restart_required':info['state']=='installed' and macro.get('version')!=1})
+                                  'restart_required':info['state']=='installed' and macro.get('version')!=2})
             elif self.path == '/v1/update/jog/status':
                 info=inspect_jog_upgrade(self.server.store.path.parent / 'cxm_native_toolchange.cfg')
                 query='/printer/objects/query?gcode_macro%20_CXM_NATIVE=jog_revision'
