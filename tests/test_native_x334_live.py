@@ -18,6 +18,14 @@ def old_source():
     assert old!=fresh
     return old
 
+def with_stale_t1(source, indent='    ', newline='\\n'):
+    # Reproduce exactly the stale X264.70/Y65.60 branch observed in Klipper.
+    target='    {% elif pos.y < safe-0.001 or safe > ymax or x+4.4 > xmax or pos.x < 5 or pos.x > 334 %}'
+    assert source.count(target)==1
+    old=(indent + x334.LEGACY_T1_CONDITION + newline +
+         indent + '  ' + x334.LEGACY_T1_ACTION + newline)
+    return source.replace(target,old+target,1)
+
 class NativeX334Tests(unittest.TestCase):
     def test_exact_old_guard_fixed_and_every_other_byte_preserved(self):
         before=old_source()
@@ -26,6 +34,49 @@ class NativeX334Tests(unittest.TestCase):
         self.assertIn('CXM_FAST_VERIFY EXPECT=PRESSED',after)
         self.assertIn('CXM_FAST_VERIFY EXPECT=RELEASED',after)
         self.assertIn('G1 X{mounted|round(5)}',after)
+    def test_actual_old_T1_release_point_only_is_removed(self):
+        current=SOURCE.read_text()
+        old=with_stale_t1(current)
+        self.assertEqual(x334._transform(old),current)
+        self.assertEqual(x334._transform(x334._transform(old)),current)
+
+    def test_loaded_T1_guard_with_no_indentation_and_crlf(self):
+        current=SOURCE.read_text()
+        old=with_stale_t1(current,indent='',newline='\\r\\n')
+        self.assertEqual(x334._transform(old),current)
+
+    def test_known_old_T1_check_and_old_X325_bounds_are_removed_together(self):
+        current=SOURCE.read_text()
+        old=with_stale_t1(old_source())
+        self.assertEqual(x334._transform(old),current)
+
+    def test_one_time_T1_patch_backed_up_and_verified(self):
+        with TemporaryDirectory() as folder:
+            target=Path(folder)/'cxm_native_toolchange.cfg'
+            old=with_stale_t1(SOURCE.read_text())
+            target.write_text(old)
+            preview=x334.inspect(target)
+            self.assertEqual(preview['state'],'needs_apply')
+            applied=x334.apply(target,preview['sha256'])
+            self.assertTrue(applied['patched'])
+            self.assertTrue(applied['restart_required'])
+            self.assertEqual(target.read_text(),SOURCE.read_text())
+            self.assertEqual(target.with_name(applied['backup']).read_text(),old)
+            again=x334.inspect(target)
+            self.assertEqual(again['state'],'installed')
+
+    def test_unknown_T1_datum_or_duplicate_check_is_refused(self):
+        old=with_stale_t1(SOURCE.read_text())
+        variants=[
+            old.replace('x-264.70','x-270.00'),
+            old.replace(x334.LEGACY_T1_ACTION,x334.LEGACY_T1_ACTION+'\\n      '+x334.LEGACY_T1_ACTION),
+            old.replace(x334.LEGACY_T1_CONDITION,'{% elif t==1 and x > 264.70 %}')
+        ]
+        for source in variants:
+            with self.subTest(source=source[-50:]):
+                with self.assertRaisesRegex(x334.NativeX334Error,'Unexpected T1 release guard'):
+                    x334._transform(source)
+
     def test_existing_new_file_is_idempotent(self):
         with TemporaryDirectory() as folder:
             target=Path(folder)/'cxm_native_toolchange.cfg'
@@ -78,6 +129,15 @@ class NativeX334Tests(unittest.TestCase):
                 x334.apply(target,'0'*64)
             self.assertEqual(target.read_text(),original)
             self.assertFalse(list(target.parent.glob('*.bak')))
+    def test_loaded_t1_guard_status_requires_actual_Klipper_source(self):
+        def mock(source):
+            return lambda path:{'status':{'configfile':{'config':{
+                'gcode_macro _CXM_CLEAR_TRANSFER':{'gcode':source}}}}}
+        old=with_stale_t1(SOURCE.read_text())
+        self.assertEqual(x334.loaded_t1_release_guard(mock(old)),'obsolete_t1')
+        self.assertEqual(x334.loaded_t1_release_guard(mock(SOURCE.read_text())),'clear')
+        self.assertEqual(x334.loaded_t1_release_guard(mock('')),'unknown')
+
     def test_loaded_old_and_new_are_reported_not_inferred(self):
         def mock(source):
             return lambda path:{'status':{'configfile':{'config':{
