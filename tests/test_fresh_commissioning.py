@@ -88,11 +88,14 @@ class FreshCommissioningTests(unittest.TestCase):
             raise AssertionError(path)
         with patch.object(native,'_native_status',return_value=old), \
              patch.object(native,'_rpc',side_effect=rpc), \
+             patch('cxm_z_auto.CONTROLLER.reset_idle_history') as zreset, \
              patch.object(native,'MOVE_LOCK') as lock:
             lock.acquire.return_value=True
             result=native.reset_commissioning(self.store,self.previous['revision'],ACK)
             lock.release.assert_called_once()
+            zreset.assert_called_once()
         self.assertTrue(result['native_inhibited'])
+        self.assertTrue(result['z_session_cleared'])
         sent=dispatched[1][1]['script']
         self.assertIn('UPDATE_DELAYED_GCODE ID=CXM_NATIVE_TEST_STEP DURATION=0',sent)
         self.assertIn('VARIABLE=ready VALUE=0',sent)
