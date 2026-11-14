@@ -18,7 +18,7 @@ def old_source():
     assert old!=fresh
     return old
 
-def with_stale_t1(source, indent='    ', newline='\\n'):
+def with_stale_t1(source, indent='    ', newline='\n'):
     # Reproduce exactly the stale X264.70/Y65.60 branch observed in Klipper.
     target='    {% elif pos.y < safe-0.001 or safe > ymax or x+4.4 > xmax or pos.x < 5 or pos.x > 334 %}'
     assert source.count(target)==1
@@ -42,7 +42,7 @@ class NativeX334Tests(unittest.TestCase):
 
     def test_loaded_T1_guard_with_no_indentation_and_crlf(self):
         current=SOURCE.read_text()
-        old=with_stale_t1(current,indent='',newline='\\r\\n')
+        old=with_stale_t1(current,indent='',newline='\r\n')
         self.assertEqual(x334._transform(old),current)
 
     def test_known_old_T1_check_and_old_X325_bounds_are_removed_together(self):
@@ -69,7 +69,7 @@ class NativeX334Tests(unittest.TestCase):
         old=with_stale_t1(SOURCE.read_text())
         variants=[
             old.replace('x-264.70','x-270.00'),
-            old.replace(x334.LEGACY_T1_ACTION,x334.LEGACY_T1_ACTION+'\\n      '+x334.LEGACY_T1_ACTION),
+            old.replace(x334.LEGACY_T1_ACTION,x334.LEGACY_T1_ACTION+'\n      '+x334.LEGACY_T1_ACTION),
             old.replace(x334.LEGACY_T1_CONDITION,'{% elif t==1 and x > 264.70 %}')
         ]
         for source in variants:
