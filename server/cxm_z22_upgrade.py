@@ -59,10 +59,31 @@ def inspect(path):
     start,end,jog_section=_section(code,JOG)
     if jog_section==approved_jog:
         pass
-    elif jog_section.replace(OLD_GUARD,'') == approved_jog and jog_section.count(OLD_GUARD)==1:
-        code=code[:start]+approved_jog+'\n'+code[end:]
     else:
-        raise Z22UpgradeError('Unrecognised manual Dock XY jog macro; refusing modification')
+        old=jog_section
+        # Exact, narrowly scoped migration of the deployed v2 jog macro.
+        if old.count(OLD_GUARD)!=1 or 'variable_calibration_revision:' in old:
+            raise Z22UpgradeError('Unknown manual Dock XY jog; refusing modification')
+        old=old.replace(OLD_GUARD,'')
+        old=old.replace(
+            'description: Supervised motor-on dock alignment; only Klipper issues physical G1',
+            'description: Supervised motor-on dock alignment; only Klipper issues physical G1\\nvariable_calibration_revision: 2')
+        late='    {% set camera=params.CAMERA|default(0)|int == 1 %}\\n'
+        if old.count(late)!=1:
+            raise Z22UpgradeError('Camera jog state not recognized')
+        old=old.replace(late,'')
+        marker='    {% set axis=params.AXIS|default("")|upper %}'
+        old=old.replace(marker,late+marker,1)
+        guard='''    {% elif run.running|int != 0 %}
+      {action_raise_error("CXM calibration: native tool test running")}'''
+        if old.count(guard)!=1:
+            raise Z22UpgradeError('Manual jog preflight unknown')
+        old=old.replace(guard,guard+'''
+    {% elif camera and printer["gcode_button cxm_tool_detect"].state != "PRESSED" %}
+      {action_raise_error("CXM camera jog: mounted hotend required")}''')
+        if old.rstrip()!=approved_jog:
+            raise Z22UpgradeError('Manual jog differs from approved calibration macro; no changes')
+        code=code[:start]+approved_jog+'\\n'+code[end:]
     if code.count(Z22)==0:
         code=code.rstrip()+'\n\n'+approved_z22+'\n'
     elif code.count(Z22)==1:
