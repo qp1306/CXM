@@ -43,10 +43,19 @@ class ProvenT0BaselineTests(unittest.TestCase):
         self.assertTrue(unchanged['unchanged'])
         self.assertEqual(after['revision'],self.store.read()['revision'])
 
-    def test_refuse_wrong_dock_without_overwriting(self):
-        self.accept_t0(305.50,65.6)
+    def test_accept_relocated_t0_without_overwriting_measured_dock(self):
+        self.accept_t0(305.50,66.10)
+        before=self.store.read()
+        result=self.store.apply_verified_t0_motion(before['revision'])
+        self.assertTrue(result['saved'])
+        self.assertEqual(self.store.read()['config']['tools'][0]['dock_x'],305.50)
+        self.assertEqual(self.store.read()['config']['tools'][0]['dock_y'],66.10)
+        self.assertTrue(self.store.read()['config']['tools'][0]['dock_reference_accepted'])
+
+    def test_refuse_out_of_bounds_dock_without_overwriting(self):
+        self.accept_t0(330.0,65.6)
         rev=self.store.read()['revision']
-        with self.assertRaisesRegex(ValueError,'T0 must already'):
+        with self.assertRaisesRegex(ValueError,'guarded motion region'):
             self.store.apply_verified_t0_motion(rev)
         self.assertEqual(self.store.read()['revision'],rev)
 
@@ -57,7 +66,7 @@ class ProvenT0BaselineTests(unittest.TestCase):
 
     def test_refuse_missing_dock(self):
         rev=self.store.read()['revision']
-        with self.assertRaisesRegex(ValueError,'T0 must already'):
+        with self.assertRaisesRegex(ValueError,'newly measured accepted dock'):
             self.store.apply_verified_t0_motion(rev)
 
 if __name__=='__main__':
