@@ -12,6 +12,11 @@ let busy=false,live=null,revision=null,tool=-1;
 let refreshVersion=0, polling=false;
 const pending=[];
 let jogging=false;
+let travelBusy=false,retreatAnchor=null;
+const travelRetreat=el('cxmDockRetreat100'),travelReturn=el('cxmDockReturn100'),travelStatus=el('cxmDockTravelStatus');
+const travelSay=msg=>{if(travelStatus)travelStatus.textContent=msg;};
+const close=(a,b)=>Math.abs(a-b)<=0.08;
+function resetTravel(message){retreatAnchor=null;if(travelStatus)travelSay(message);}
 function canJog(){
   return !byId('cxmNativeToolPanel')?.inert && live?.ready && tool===selected() && live.revision===revision &&
     el('cxmManualApproval').checked && !panel?.hidden && !document.hidden;
@@ -38,6 +43,10 @@ function controls(){
   el('cxmJogQueue').textContent=jogging ? 'Jog in progress · '+pending.length+' queued' : '';
   if(captureButton)captureButton.disabled=!allowed;
   el('cxmManualRefresh').disabled=busy;
+  if(travelRetreat)travelRetreat.disabled=busy||!canJog()||!!retreatAnchor||pending.length>0;
+  if(travelReturn)travelReturn.disabled=busy||!canJog()||!retreatAnchor||!live||
+    !close(live.xy.x,retreatAnchor.x)||!close(live.xy.y,retreatAnchor.y+100)||
+    tool!==retreatAnchor.tool||revision!==retreatAnchor.revision;
 }
 async function refresh(silent=false){
   if(busy||panel?.hidden||(silent&&polling))return;
@@ -56,6 +65,9 @@ async function refresh(silent=false){
       el('cxmManualApproval').checked=false;
       if(captureAck)captureAck.checked=false;
     }
+    if(retreatAnchor && (selectedTool!==retreatAnchor.tool || latest.revision!==retreatAnchor.revision ||
+       latest.native_tool_identity!==retreatAnchor.identity || !close(latest.xy.x,retreatAnchor.x) ||
+       !close(latest.xy.y,retreatAnchor.y+100)))resetTravel('Release-point reference invalidated. Realign and repeat the 100 mm test.');
     revision=latest.revision;tool=selectedTool;live=latest;
     if (!window.CXMDockPosition?.streaming()) {
       el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
@@ -68,6 +80,7 @@ async function refresh(silent=false){
   }catch(e){
     if(version!==refreshVersion||selectedTool!==selected())return;
     live=null;
+    resetTravel('Travel verification invalidated: '+e.message);
     el('cxmManualApproval').checked=false;
     if(captureAck)captureAck.checked=false;
     el('cxmManualReadiness').textContent='NOT READY · '+e.message;
@@ -75,7 +88,9 @@ async function refresh(silent=false){
   }finally{if(version===refreshVersion){polling=false;controls();}}
 }
 async function jog(button){
+  if(travelBusy)return;
   if(!canJog() || (busy&&!jogging))return;
+  resetTravel('Manual jog changed release-point verification. Repeat the 100 mm test.');
   pending.push({button, tool, revision});
   if(jogging){controls();return;}
   ++refreshVersion;polling=false;busy=true;jogging=true;
@@ -114,12 +129,72 @@ async function jog(button){
     say('Jog unconfirmed. Queue cleared. '+e.message+'. Inspect the carriage before retrying.',true);
   }finally{jogging=false;busy=false;if(changeControls)changeControls.disabled=false;clearQueue();}
 }
+async function travel100(returning){
+  if(suffix || !travelRetreat || travelBusy || busy || jogging || pending.length || !canJog())return;
+  const target=tool,rev=revision,identity=live.native_tool_identity;
+  const start={...live.xy};
+  if(returning){
+    if(!retreatAnchor || retreatAnchor.tool!==target || retreatAnchor.revision!==rev ||
+       retreatAnchor.identity!==identity || !close(start.x,retreatAnchor.x) ||
+       !close(start.y,retreatAnchor.y+100))return;
+  }else{
+    if(retreatAnchor || !live.limits?.y || start.y+100>live.limits.y[1] ||
+       start.y<live.limits.y[0]){
+      travelSay('Guarded Y travel cannot accommodate the full +100 mm. No motion sent.');return;
+    }
+  }
+  const goal=returning?retreatAnchor.y:start.y+100;
+  if(!window.confirm((returning?'Return to release point':'Retreat +100 mm Y')+
+    ' for T'+target+'? Verify all dock hardware and the entire travel path are clear.'))return;
+  ++refreshVersion;polling=false;busy=true;travelBusy=true;controls();
+  const changeControls=byId('cxmChangeControls');
+  if(changeControls)changeControls.disabled=true;
+  try{
+    for(let step=1;step<=10;step++){
+      if(!canJog() || selected()!==target || revision!==rev || document.hidden)
+        throw Error('Approval, selected tool, or page state changed');
+      travelSay((returning?'Returning':'Retreating')+' · verified increment '+step+' of 10');
+      const answer=await request('/manual/jog',{
+        tool:target,axis:'y',distance:returning?-10:10,expected_revision:rev,
+        acknowledgement:'I_APPROVE_SUPERVISED_MOTOR_ON_JOG'});
+      if(answer.jogged!==true||answer.revision!==rev||!live||
+         !close(answer.position.x,start.x)||
+         !close(answer.position.y,start.y+(returning?-10:10)*step))
+        throw Error('Position or saved revision not verified at increment '+step);
+      live.xy=answer.position;
+      if(!window.CXMDockPosition?.streaming()){
+        el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
+        el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
+      }
+    }
+    const latest=await request('/manual/status?tool='+target);
+    if(latest.revision!==rev||latest.native_tool_identity!==identity||
+       latest.sensor!=='PRESSED'||!close(latest.xy.x,start.x)||!close(latest.xy.y,goal))
+      throw Error('Final sensor or machine position did not match expected state');
+    live=latest;
+    if(returning){
+      resetTravel('Return verified at the original release-side XY. Visually inspect alignment before Save.');
+    }else{
+      retreatAnchor={tool:target,revision:rev,identity,x:start.x,y:start.y};
+      travelSay('Retreat +100 mm verified. Check clearance, then press Return −100 mm Y.');
+    }
+  }catch(e){
+    resetTravel('Travel incomplete or uncertain: '+e.message+'. Inspect carriage and realign before retrying.');
+    live=null;el('cxmManualApproval').checked=false;
+    say('100 mm travel unconfirmed. No further movements sent. '+e.message,true);
+  }finally{
+    busy=false;travelBusy=false;
+    if(changeControls)changeControls.disabled=false;
+    controls();refresh(true);
+  }
+}
 async function capture(){
  if(busy||!live?.ready||tool!==selected())return;
  const target=tool;
  ++refreshVersion;polling=false;busy=true;controls();
  say('Saving T'+tool+' dock X/Y…');
  try{
+   if(retreatAnchor)throw Error('Return 100 mm to the inspected release point before Save');
    const saved=await request('/manual/save',{
      tool:target,expected_revision:live.revision,
      acknowledgement:'I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON'});
@@ -141,29 +216,31 @@ async function capture(){
  }finally{busy=false;controls();refresh(true);}
 }
 root.querySelectorAll('[data-manual-axis]').forEach(b=>b.addEventListener('click',()=>jog(b)));
+travelRetreat?.addEventListener('click',()=>travel100(false));
+travelReturn?.addEventListener('click',()=>travel100(true));
 el('cxmManualRefresh').addEventListener('click',()=>refresh(false));
 captureButton?.addEventListener('click',capture);
-el('cxmManualApproval').addEventListener('change',clearQueue);
+el('cxmManualApproval').addEventListener('change',()=>{clearQueue();resetTravel('Approval changed. Recheck release-point alignment.');controls();});
 el('cxmJogClear').addEventListener('click',clearQueue);
 function leaveJogPanel(){
   if(document.hidden || panel?.hidden){
     el('cxmManualApproval').checked=false;
-    clearQueue();
+    clearQueue();resetTravel('Page hidden. Travel verification cancelled.');
   }
 }
 document.addEventListener('visibilitychange',leaveJogPanel);
 for(const event of ['pagehide','offline'])window.addEventListener(event,()=>{
-  el('cxmManualApproval').checked=false;clearQueue();
+  el('cxmManualApproval').checked=false;clearQueue();resetTravel('Connection changed. Travel verification cancelled.');
 });
 if(panel)new MutationObserver(()=>{leaveJogPanel();if(!panel.hidden)refresh(true);}).observe(panel,{attributes:true,attributeFilter:['hidden']});
 captureAck?.addEventListener('change',controls);
 selector.addEventListener('change',()=>{
-  pending.length=0;live=null;tool=-1;
+  pending.length=0;live=null;tool=-1;resetTravel('Tool changed. Align and repeat travel verification.');
   el('cxmManualApproval').checked=false;if(captureAck)captureAck.checked=false;
   controls();refresh();
 });
-window.addEventListener('cxm-dock-saved',()=>{live=null;refresh();});
-window.addEventListener('cxm-config-migrated',()=>{live=null;refresh();});
+window.addEventListener('cxm-dock-saved',()=>{live=null;resetTravel('Dock save invalidated previous travel reference.');refresh();});
+window.addEventListener('cxm-config-migrated',()=>{live=null;resetTravel('Configuration changed; repeat travel verification.');refresh();});
 // Read-only Klipper position/state refresh, not a movement command. Do not poll
 // while a jog/capture is in flight; any failed preflight revokes approval.
 setInterval(()=>{
