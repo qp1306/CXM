@@ -84,13 +84,8 @@ test('one T1 Save survives a slow status poll and verifies the selected dock',as
    }
  });
  await initial();
- // Saving is blocked until the selected tool returns from a verified 100mm round trip.
- assert.equal(node('cxmManualCapture').disabled,true);
- node('cxmManualApproval').checked=true;
- node('cxmManualApproval').handlers.change();
- await node('cxmDockRetreat100').handlers.click();
- await node('cxmDockReturn100').handlers.click();
- await new Promise(r=>setImmediate(r)); // Let verified-return status polling settle.
+ // Release-point capture precedes the separate 100mm travel verification.
+ assert.equal(node('cxmManualCapture').disabled,false);
  hold=true;interval();
  assert.equal(node('cxmManualCapture').disabled,false);
  const save=node('cxmManualCapture').handlers.click();
