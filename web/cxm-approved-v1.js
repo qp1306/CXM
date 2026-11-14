@@ -145,7 +145,11 @@ function dock(){const p=make('calibration',[['printer','printer','Klipper'],['ho
  const recovery=$('cxmClearAllBox');
  if(recovery)q('.cxma-inner',s6).append(recovery);
  const reset=$('cxmCommissionResetPanel');
- if(reset)q('.cxma-inner',s6).append(reset);
+ if(reset){
+   const more=detail('Advanced · Reset ALL CXM calibrations');
+   q('.cxma-advanced-inner',more).append(reset);
+   q('.cxma-inner',s6).append(more);
+ }
  const adv=detail('Advanced · Fine X adjustment and backups');p.stack.append(adv);
  showOriginalInAdvanced(adv,[$('cxmFineDock'),q('.dock-columns',p.legacy),q('.dock-bottom',p.legacy)]);
  p.area.append(p.legacy);p.legacy.classList.add('cxma-unused');
