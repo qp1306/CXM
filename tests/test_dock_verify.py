@@ -70,6 +70,20 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(m.ManualDockError,'Expected carriage RELEASED'):
             m.roundtrip(**self.args())
         self.assertEqual(self.store.commands,[])
+    def test_sensor_change_after_outward_leg_blocks_return(self):
+        original=m._rpc.side_effect
+        def fault(path,payload=None):
+            response=original(path,payload)
+            if path=='/printer/gcode/script' and payload['script'].startswith('CXM_DOCK_VERIFY_MOVE '):
+                self.store.sensor='PRESSED'
+            return response
+        with patch.object(m,'_rpc',side_effect=fault):
+            with self.assertRaisesRegex(m.ManualDockError,'Expected carriage RELEASED'):
+                m.roundtrip(**self.args())
+        self.assertEqual(len(self.store.commands),1)
+        self.assertIn('DIST=100.0000',self.store.commands[0])
+        self.assertFalse(bool(getattr(self.store,'_verified_dock',None)))
+
     def test_adjustment_requires_retest(self):
         self.assertTrue(m.roundtrip(**self.args())['verified'])
         d=m.adjust(tool=0,axis='x',distance=.1,**{k:v for k,v in self.args().items() if k!='tool'})
