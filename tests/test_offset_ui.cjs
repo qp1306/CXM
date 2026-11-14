@@ -24,7 +24,7 @@ test('XY and Z editors have active inputs, saving and clear failure feedback',()
 });
 test('high-density diagnostics are optional while baseline editors are visible',()=>{
  const xy=html.split('<section data-panel="offsets" hidden>')[1].split('</section>')[0];
- const z=html.split('<section data-panel="z-calibration" hidden>')[1].split('</section>')[0];
+ const z=html.split('<section data-panel="z-calibration" hidden>')[1].split('<section data-panel="tests" hidden>')[0];
  assert.ok(xy.indexOf('<h3>Axiscope camera')<xy.indexOf('Save tool XY offset'));
  assert.ok(z.indexOf('Save tool Z offset')<z.indexOf('Advanced · Cartographer Touch'));
  assert.match(xy,/id="cxmAxisTool"/);
