@@ -67,8 +67,8 @@ def inspect(path):
         old=old.replace(OLD_GUARD,'')
         old=old.replace(
             'description: Supervised motor-on dock alignment; only Klipper issues physical G1',
-            'description: Supervised motor-on dock alignment; only Klipper issues physical G1\\nvariable_calibration_revision: 2')
-        late='    {% set camera=params.CAMERA|default(0)|int == 1 %}\\n'
+            'description: Supervised motor-on dock alignment; only Klipper issues physical G1\nvariable_calibration_revision: 2')
+        late='    {% set camera=params.CAMERA|default(0)|int == 1 %}\n'
         if old.count(late)!=1:
             raise Z22UpgradeError('Camera jog state not recognized')
         old=old.replace(late,'')
@@ -83,7 +83,7 @@ def inspect(path):
       {action_raise_error("CXM camera jog: mounted hotend required")}''')
         if old.rstrip()!=approved_jog:
             raise Z22UpgradeError('Manual jog differs from approved calibration macro; no changes')
-        code=code[:start]+approved_jog+'\\n'+code[end:]
+        code=code[:start]+approved_jog+'\n'+code[end:]
     if code.count(Z22)==0:
         code=code.rstrip()+'\n\n'+approved_z22+'\n'
     elif code.count(Z22)==1:
