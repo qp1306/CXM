@@ -31,11 +31,31 @@ def inspect(path):
     approved=source[source.index(MARKER):].strip()
     if '\n[' in approved:
         raise DockVerifyInstallError('Dock verification macro must be last in source')
+    # Recognise only the EXACT previously released v1 macro. Do not match
+    # arbitrary user-edited code or replace any preceding proven toolchange.
+    legacy=approved.replace(
+        'description: Supervised 50mm/s dock XY calibration; filament sensor is telemetry',
+        'description: Locked-hotend EMPTY-carriage 50mm/s dock alignment and travel'
+    ).replace('variable_version: 2','variable_version: 1')
+    legacy=legacy.replace(
+        '    {% elif printer["gcode_macro _CXM_TEST_STATE"].running|int != 0 %}',
+        '    {% elif printer["gcode_button cxm_tool_detect"].state != "RELEASED" %}\\n'
+        '      {action_raise_error("CXM dock verify: carriage must be EMPTY (FILAMENT ABSENT)")}\\n'
+        '    {% elif printer["gcode_macro _CXM_TEST_STATE"].running|int != 0 %}'
+    )
     if installed.count(MARKER):
-        if installed.count(MARKER)!=1 or not installed.rstrip().endswith(approved):
-            raise DockVerifyInstallError('Installed dock verification macro differs; manual inspection required')
-        result='installed'
-        changed=original
+        if installed.count(MARKER)!=1:
+            raise DockVerifyInstallError('Duplicated installed dock macro')
+        head,old_section=installed.split(MARKER,1)
+        old_macro=MARKER+old_section.strip()
+        if old_macro==approved:
+            result='installed'
+            changed=original
+        elif old_macro==legacy:
+            changed=(head.rstrip()+'\\n\\n'+approved+'\\n').encode('utf8')
+            result='needs_apply'
+        else:
+            raise DockVerifyInstallError('Unknown modified dock macro; refusing replacement')
     else:
         try:
             jog=inspect_jog(target)
