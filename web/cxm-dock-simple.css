@@ -17,9 +17,14 @@ section[data-panel="calibration"].cxm-dock-simple-active > :not(#cxmSimpleDock){
 #cxmSimpleDock button:disabled{cursor:not-allowed;opacity:.42}
 #cxmSimpleDock button.btn{width:max-content;max-width:100%;font-size:15px;font-weight:700;padding:12px 22px}
 #cxmSimpleDock #cxmsTool{background:#193854;color:white;border:1px solid #6282a0;border-radius:10px;padding:11px 15px;font-size:17px;max-width:220px;width:100%}
-#cxmSimpleDock .cxms-enable{display:flex;align-items:center;gap:14px;border:1px solid #4c779a;background:#193854;border-radius:12px;padding:14px;cursor:pointer;font-size:15px;font-weight:750}
-#cxmSimpleDock .cxms-enable:has(input:checked){border-color:#56d9a5;background:#153e3c}
-#cxmSimpleDock .cxms-enable input{width:27px;height:27px;accent-color:#44c896;flex:0 0 auto}
+#cxmSimpleDock .cxms-step-enable{background:linear-gradient(120deg,#123e35,#143a3b);border:2px solid #63dba6;gap:9px;padding:15px 17px}
+#cxmSimpleDock .cxms-step-enable .cxms-heading b{background:#247f65;border-color:#7fe2b8}
+#cxmSimpleDock .cxms-enable{display:flex;align-items:center;gap:20px;border:2px solid #66dcae;background:#174138;border-radius:14px;padding:19px 23px;cursor:pointer;color:#c8ffe1}
+#cxmSimpleDock .cxms-enable:has(input:checked){border-color:#81f1b9;background:#205446}
+#cxmSimpleDock .cxms-enable input{width:42px;height:42px;accent-color:#52e6a6;flex:0 0 auto;cursor:pointer}
+#cxmSimpleDock .cxms-enable-copy{display:flex;flex-direction:column;gap:6px}
+#cxmSimpleDock .cxms-enable-copy strong{font-size:24px;font-weight:800;color:#bafad8}
+#cxmSimpleDock .cxms-enable-copy small{font-size:14px;font-weight:500;color:#bdded1;line-height:1.4}
 #cxmSimpleDock .cxms-jogrow{display:grid;grid-template-columns:36px repeat(8,minmax(0,1fr));gap:7px;align-items:center}
 #cxmSimpleDock .cxms-jogrow+.cxms-jogrow{margin-top:9px}
 #cxmSimpleDock .cxms-jogrow strong{text-align:center;font-size:17px}
