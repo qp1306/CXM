@@ -118,8 +118,12 @@ def _check_after_own_command(tool, store, *, jog=False):
             time.sleep(0.15)
 
 def status(tool,store):
-    result = _check(tool, store.read(), getattr(store, '_completed_jog', None))
+    # Readiness for preparing Z is different from readiness for XY movement.
+    # The prepare endpoint retains every existing non-Z interlock.
+    result = _check(tool, store.read(), getattr(store, '_completed_jog', None), allow_low_z=True)
     result.pop('_motion_signature')
+    result['prepare_ready'] = True
+    result['ready'] = result['z'] >= 20.0
     return result
 
 
