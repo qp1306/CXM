@@ -24,6 +24,7 @@ def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor=None
         'virtual_sdcard': 'is_active', 'pause_resume': 'is_paused',
         'stepper_enable': 'steppers', 'gcode_button cxm_tool_detect': 'state',
         'gcode_macro _CXM_TEST_STATE': 'running', 'gcode_macro _CXM_NATIVE': 'current_tool,jog_revision',
+        'gcode_macro CXM_MANUAL_DOCK_JOG': 'calibration_revision',
     }
     query = urllib.parse.urlencode(fields, quote_via=urllib.parse.quote)
     state = _rpc('/printer/objects/query?' + query).get('status', {})
@@ -99,7 +100,9 @@ def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor=None
             'limits':limits,
             '_motion_signature':signature,'z':float(pos[2]),'homed':True,'motors_enabled':True,
             'sensor':signal,'identity_source':'operator_selected',
-            'jog_revision':native.get('jog_revision',0),'native_tool_identity':identity,'revision':saved['revision'],'ready':True}
+            'jog_revision':native.get('jog_revision',0),
+            'calibration_revision':state.get('gcode_macro CXM_MANUAL_DOCK_JOG',{}).get('calibration_revision',0),
+            'native_tool_identity':identity,'revision':saved['revision'],'ready':True}
 
 def _check_after_own_command(tool, store, *, jog=False, expected_sensor=None):
     """Wait for Klipper's transient idle_timeout=Printing after our own M400.
@@ -146,8 +149,8 @@ def prepare_jog_z22(*, tool, expected_revision, acknowledgement, store):
         initial=_check(tool,store.read(),allow_low_z=True)
         if initial['revision']!=expected_revision:
             raise ManualDockError('Configuration changed; refresh before enabling jogging')
-        if initial['jog_revision']!=2:
-            raise ManualDockError('Verified 50 mm/s native jog required')
+        if initial['jog_revision']!=2 or initial['calibration_revision']!=2:
+            raise ManualDockError('Dock XY calibration macro update required in CXM Updates')
         if initial['z'] < 22.0:
             limits=initial['limits'].get('z')
             if not limits or 22.0>limits[1]:
@@ -190,6 +193,8 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
             raise ManualDockError('Settings changed; reload and approve jog')
         if (camera or axis=='z') and before['jog_revision'] not in (1, 2):
             raise ManualDockError('Loaded Klipper jog macro is outdated or incompatible. Update via CXM Updates before jogging.')
+        if not camera and before['calibration_revision'] != 2:
+            raise ManualDockError('Dock XY calibration macro v2 not loaded. Install via CXM Updates.')
         if not camera and axis in ('x','y') and before['jog_revision'] != 2:
             raise ManualDockError('50 mm/s Dock XY jog requires native macro revision 2. Update through CXM Updates and restart Klipper.')
         start = dict(before['xy'], z=before['z'])
