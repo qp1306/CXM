@@ -32,7 +32,7 @@ def mock_rpc(path, body=None, **kwargs):
                                       'fault':0,'current_tool':-1,
                                       'tool_count':6,'profile':'standard'},
             'gcode_macro _CXM_TEST_STATE':{'running':0,'stop':0,'index':0,'cycles':0,
-                                           'completed':0,'tool_a':-1,
+                                           'completed':0,'batch_revision':2,'tool_mask':0,'tool_count':0,'tool_a':-1,
                                            'tool_b':-1,'tool_c':-1,'state':'idle'},
             'gcode_button cxm_tool_detect':{'state':'RELEASED'}}}
     if path=='/printer/gcode/script':
@@ -392,12 +392,12 @@ class NativeBridgeTests(unittest.TestCase):
                          'I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH',
                          travel_profile='standard',cycles=1)
         self.assertEqual(scripts,['CXM_SET_PROFILE PROFILE=standard\n'
-                                  'CXM_TEST_START A=0 B=1 C=2 CYCLES=1'])
+                                  'CXM_TEST_START MASK=7 CYCLES=1'])
         with patch.object(native,'_rpc',side_effect=rpc):
             native.start(self.store,[2],'rev1',
                          'I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH',
                          travel_profile='boost',cycles=2)
-        self.assertEqual(scripts[-1], 'CXM_SET_PROFILE PROFILE=boost\nCXM_TEST_START A=2 CYCLES=2')
+        self.assertEqual(scripts[-1], 'CXM_SET_PROFILE PROFILE=boost\nCXM_TEST_START MASK=4 CYCLES=2')
 
     def test_stop_is_native_macro_request_not_gcode_motion(self):
         scripts=[]
@@ -414,7 +414,7 @@ class NativeBridgeTests(unittest.TestCase):
         self.assertIn('variable_current_tool: -2',src)
         self.assertIn('variable_fault: 1',src)
         self.assertIn('UPDATE_DELAYED_GCODE ID=CXM_NATIVE_TEST_STEP',src)
-        self.assertIn('CXM_SELECT_TOOL TOOL={t}',src)
+        self.assertIn('CXM_SELECT_TOOL TOOL={ns.tool}',src)
         self.assertIn('CXM_SELECT_TOOL TOOL=-1',src)
         self.assertIn('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=1',src)
         self.assertIn('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=0',src)
