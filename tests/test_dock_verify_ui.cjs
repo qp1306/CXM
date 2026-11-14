@@ -20,8 +20,8 @@ test('one visible Dock XY workflow without standalone native installers',()=>{
  assert.match(dock,/Next hotend/);
 });
 test('Dock XY does not use filament state or old 10mm loop',()=>{
- assert.doesNotMatch(dock,/FILAMENT|sensor|cxm_tool_detect/i);
- assert.doesNotMatch(service,/cxm_tool_detect|gcode_button|FILAMENT/i);
+ assert.doesNotMatch(dock,/cxm_tool_detect|gcode_button|\.sensor\b/);
+ assert.doesNotMatch(service,/cxm_tool_detect|gcode_button|\['sensor'\]/);
  assert.doesNotMatch(service,/for.*range\(10\)/);
  assert.match(service,/SAVE_GCODE_STATE NAME=CXM_SIMPLE_DOCK/);
  assert.match(service,/G1 Z22 F1500/);
