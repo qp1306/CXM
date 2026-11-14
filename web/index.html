@@ -274,13 +274,14 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 #cxmNativeSync,#cxmNativeConfirm,#cxmNativeRecover,#cxmMultiRefresh,#cxmMultiApproval,.cxm-capture-ack:has(#cxmNativeEmptyAck){display:none!important}
 </style><style>.cxm-custom-speeds{padding:15px;background:#1b3040;border:1px solid #416481;border-radius:10px;display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:12px;margin:10px 0}.cxm-custom-speeds[hidden]{display:none!important}.cxm-custom-speeds label{font-size:13px;display:flex;flex-direction:column;gap:7px}.cxm-custom-speeds input{font-size:17px;padding:10px;background:#101c29;border:1px solid #6486a3;border-radius:7px;color:#fff;width:100%}.cxm-custom-speeds small{grid-column:1/-1;color:#b9cad7}@media(max-width:650px){.cxm-custom-speeds{grid-template-columns:1fr}}</style><link rel="stylesheet" href="cxm-ui-v2.css?v=2.3-arrow-steps" /><link rel="stylesheet" href="cxm-approved-v1.css?v=1.4-compact-dock" />
 <link rel="stylesheet" href="cxm-dock-simple.css?v=3-hotend-cards">
+<link rel="stylesheet" href="cxm-dock-batch.css?v=1-standard-custom">
 </head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
 <header class="topbar"><div class="brand"><div class="brand-mark">C<span>X</span>M</div><div><strong>Control Centre</strong><small>Single extruder · multi-hotend</small></div></div><div class="top-actions"><span id="connection" class="status-indicator"><i></i><span>Connecting to Moonraker</span></span><span id="saveStatus" class="mini-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l4 4L19 6"/></svg> Config sync: not connected</span></div></header>
 <main>
 <div class="page-heading"><div><div class="eyebrow">CXM / PRINTER CONTROL</div><h1 id="cxmPageTitle">Hotends</h1><p id="cxmPageSubtitle">Select a hotend or begin calibration.</p></div></div>
-<nav class="tabs" aria-label="CXM pages"><button class="tab active" data-tab="tools">Tools</button><button class="tab" data-tab="calibration">Dock XY</button><button class="tab" data-tab="offsets">Tool XY</button><button class="tab" data-tab="z-calibration">Tool Z</button><button class="tab" data-tab="tests" hidden>Diagnostics</button><button class="tab" data-tab="updates">Updates <span id="updateDot" class="new-dot" hidden></span></button><button class="tab" data-tab="settings">Settings</button></nav>
+<nav class="tabs" aria-label="CXM pages"><button class="tab active" data-tab="tools">Tools</button><button class="tab" data-tab="calibration">Dock XY</button><button class="tab" data-tab="dock-batch">Dock Batch</button><button class="tab" data-tab="offsets">Tool XY</button><button class="tab" data-tab="z-calibration">Tool Z</button><button class="tab" data-tab="tests" hidden>Diagnostics</button><button class="tab" data-tab="updates">Updates <span id="updateDot" class="new-dot" hidden></span></button><button class="tab" data-tab="settings">Settings</button></nav>
 <section class="printer-strip" aria-label="Printer status"><div class="stat"><span class="stat-label">KLIPPER</span><strong id="klipperStatus">Unknown</strong></div><div class="stat"><span class="stat-label">HOMING</span><strong id="homing">—</strong></div><div class="stat"><span class="stat-label">PRINT STATE</span><strong id="printStatus">—</strong></div><span id="activeTool" hidden>Not integrated</span><span id="cxmActiveTools" hidden>Awaiting config</span></section>
 <div id="message" class="notice" role="status" aria-live="polite"></div>
 <section data-panel="tools"><div class="section-title"><div><h2>Hotends</h2><p>Permanent carriage extruder · Cartographer · shared filament switch</p></div><div class="tool-count-control"><label for="cxmCountSelect">Hotends in use</label><select id="cxmCountSelect" disabled aria-label="Choose how many hotends are configured"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select><span class="count-pill" id="cxmToolSummary">Awaiting saved configuration</span></div></div><div class="tool-overview-meta"><span id="cxmSafeY">Safe Y: —</span><span id="cxmXAdjust">X docking adjust: —</span><span id="cxmCountHint">Selected hotends only</span></div><div class="tool-grid" id="toolGrid"></div><div class="notice" id="cxmNoTools" hidden>Configuration unavailable. Tool controls remain disabled.</div><div class="footer-note">Use <strong>Dock XY</strong> to calibrate a hotend or <strong>Settings</strong> to edit its profile. The <strong>NOT READY</strong> banner remains until all required verification is complete.</div>
@@ -409,6 +410,10 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <div class="cxm-multi-log" id="cxmMultiLog" aria-label="Multi-tool test events"></div>
  <p class="helper">The Stop button waits until the current hotend has been dropped off. Use the printer's <strong>physical emergency stop</strong> for immediate danger. A failed sensor or position check prevents all further automatic movements.</p>
 </div></section>
+<section data-panel="dock-batch" hidden>
+<div class="section-title"><div><h2>Dock Batch</h2><p>Repeated native pickup/dropoff testing at Standard or your saved Custom speed.</p></div></div>
+<div id="cxmDockBatchSlot"></div>
+</section>
 <section data-panel="calibration" hidden>
 <div class="section-title"><div><h2>Dock XY</h2><p>Home → Jog with motors ON → Capture → Save</p></div><span class="count-pill">Provisional only</span></div>
 <div class="panel dock-top"><div class="dock-toolbar"><label for="cxmDockTool">Hotend</label><select id="cxmDockTool" disabled></select><span class="dock-status" id="cxmDockStatus">Loading configuration</span><button class="btn" id="cxmDockRefresh">Refresh</button></div><p class="muted" id="cxmDockSummary">Reading saved dock position…</p><div class="dock-safety">Shared extruder · saved dock XY is provisional until pickup is checked</div>
@@ -878,7 +883,7 @@ for (let n = 0; n < 12; n++) {
   toolGrid.append(card);
 }
 const tabs = [...document.querySelectorAll('[data-tab]')];
-const pageLabels={tools:['Hotends','Check hotend readiness.'],calibration:['Dock calibration','Approve each step, then start.'],offsets:['Tool XY','Offsets relative to T0.'],'z-calibration':['Tool Z','Height offsets relative to T0.'],tests:['Diagnostics','Machine status and verification.'],updates:['Updates','Check for CXM software updates.'],settings:['Settings','Configuration and maintenance.']};
+const pageLabels={tools:['Hotends','Check hotend readiness.'],'dock-batch':['Dock Batch','Repeat pickup and dropoff tests at Standard or Custom speed.'],calibration:['Dock calibration','Approve each step, then start.'],offsets:['Tool XY','Offsets relative to T0.'],'z-calibration':['Tool Z','Height offsets relative to T0.'],tests:['Diagnostics','Machine status and verification.'],updates:['Updates','Check for CXM software updates.'],settings:['Settings','Configuration and maintenance.']};
 function selectTab(tab) {
   if(pageLabels[tab]){$('cxmPageTitle').textContent=pageLabels[tab][0];$('cxmPageSubtitle').textContent=pageLabels[tab][1];}
   for (const el of tabs) { el.classList.toggle('active', el.dataset.tab === tab); el.setAttribute('aria-selected', el.dataset.tab === tab ? 'true' : 'false'); }
@@ -1090,4 +1095,5 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-approved-v1.js?v=1.4-compact-dock" defer></script>
 
 <script src="cxm-dock-simple.js?v=3-hotend-cards" defer></script>
+<script src="cxm-dock-batch.js?v=1-standard-custom" defer></script>
 </body></html>
