@@ -1,4 +1,4 @@
-"""Patch only obsolete native X325 CxChanger bounds to X334 in Klipper cfg.
+"""Patch obsolete X325 limits and one hard-coded T1 release guard in Klipper cfg.
 
 This is a targeted in-place config correction, not a macro replacement.
 Preserve ALL other native macro code, dock geometry, timings, sensor checks
@@ -27,6 +27,14 @@ RULES={
         ('pos.x > 325','pos.x > 334'),
     )
 }
+# This two-line condition is known from the operator's LIVE Klipper evidence.
+# It incorrectly forces T1 to an older X264.70/Y65.60 datum instead of the
+# saved, synchronized T1 XY. Remove it only on an exact match.
+LEGACY_T1 = (
+    '    {% elif t == 1 and ((x-264.70)|abs > 0.00001 or (y-65.60)|abs > 0.00001) %}\n'
+    '      {action_raise_error("CXM: T1 synchronized coordinates differ from the proven release point")}\n'
+)
+LEGACY_ERROR = 'CXM: T1 synchronized coordinates differ from the proven release point'
 MACRO=re.compile(r'(?m)^\[gcode_macro ([^\]]+)\]\s*$')
 SHA=re.compile(r'^[a-f0-9]{64}$')
 
@@ -54,6 +62,13 @@ def _transform(source):
                 continue
             else:
                 raise NativeX334Error(name+' has unknown or duplicated X guard: '+old)
+        if name=='_CXM_CLEAR_TRANSFER':
+            count=changed.count(LEGACY_T1)
+            if count==1:
+                changed=changed.replace(LEGACY_T1,'',1)
+            elif count!=0 or LEGACY_ERROR in changed:
+                raise NativeX334Error(
+                    'Unexpected T1 release guard; no automatic modification')
         spans.append((start,end,changed))
     for start,end,section in sorted(spans,reverse=True):
         source=source[:start]+section+source[end:]
@@ -110,6 +125,19 @@ def apply(path,expected_sha256):
     finally:
         if tmp is not None:
             tmp.unlink(missing_ok=True)
+
+def loaded_t1_release_guard(rpc):
+    """Report whether active Klipper still contains the obsolete T1 datum."""
+    try:
+        data=rpc('/printer/objects/query?configfile=config')
+        source=(data.get('status',{}).get('configfile',{})
+                  .get('config',{}).get('gcode_macro _CXM_CLEAR_TRANSFER',{})
+                  .get('gcode',''))
+        if not isinstance(source,str) or not source:
+            return 'unknown'
+        return 'obsolete_t1' if LEGACY_ERROR in source else 'clear'
+    except (OSError,ValueError,TypeError,KeyError,RuntimeError,AttributeError):
+        return 'unknown'
 
 def live_status(rpc):
     """Inspect loaded Klipper config; never infer activation from disk alone."""
