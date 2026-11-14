@@ -1,4 +1,4 @@
-"""Patch only obsolete native X325 CxChanger bounds to X334 in Klipper cfg.
+"""Patch obsolete X325 limits and one hard-coded T1 release guard in Klipper cfg.
 
 This is a targeted in-place config correction, not a macro replacement.
 Preserve ALL other native macro code, dock geometry, timings, sensor checks
@@ -27,6 +27,22 @@ RULES={
         ('pos.x > 325','pos.x > 334'),
     )
 }
+# This two-line condition is known from the operator's LIVE Klipper evidence.
+# It incorrectly forces T1 to an older X264.70/Y65.60 datum instead of the
+# saved, synchronized T1 XY. Remove it only on an exact match.
+LEGACY_T1_CONDITION = (
+    '{% elif t == 1 and ((x-264.70)|abs > 0.00001 or (y-65.60)|abs > 0.00001) %}'
+)
+LEGACY_ERROR = 'CXM: T1 synchronized coordinates differ from the proven release point'
+LEGACY_T1_ACTION = '{action_raise_error("' + LEGACY_ERROR + '")}'
+# Klipper's live config strips indentation; installed source may preserve it.
+# Only accept the exact old condition and associated exception on two lines,
+# allowing indentation and LF/CRLF, not arbitrary source-code substitutions.
+LEGACY_T1_PATTERN = re.compile(
+    r'(?m)^[ \t]*' + re.escape(LEGACY_T1_CONDITION) +
+    r'[ \t]*\r?\n[ \t]*' + re.escape(LEGACY_T1_ACTION) +
+    r'[ \t]*(?:\r?\n|$)'
+)
 MACRO=re.compile(r'(?m)^\[gcode_macro ([^\]]+)\]\s*$')
 SHA=re.compile(r'^[a-f0-9]{64}$')
 
@@ -54,6 +70,17 @@ def _transform(source):
                 continue
             else:
                 raise NativeX334Error(name+' has unknown or duplicated X guard: '+old)
+        if name=='_CXM_CLEAR_TRANSFER':
+            matches=list(LEGACY_T1_PATTERN.finditer(changed))
+            if len(matches)==1:
+                changed=LEGACY_T1_PATTERN.sub('',changed,count=1)
+                if LEGACY_ERROR in changed:
+                    raise NativeX334Error(
+                        'Unexpected T1 release guard; refusing partial removal')
+            elif (matches or LEGACY_ERROR in changed or
+                  re.search(r'(?m)^[ \t]*\{%\s*elif\s+t\s*==\s*1\b', changed)):
+                raise NativeX334Error(
+                    'Unexpected T1 release guard; refusing to change installed macro')
         spans.append((start,end,changed))
     for start,end,section in sorted(spans,reverse=True):
         source=source[:start]+section+source[end:]
@@ -110,6 +137,19 @@ def apply(path,expected_sha256):
     finally:
         if tmp is not None:
             tmp.unlink(missing_ok=True)
+
+def loaded_t1_release_guard(rpc):
+    """Report whether active Klipper still contains the obsolete T1 datum."""
+    try:
+        data=rpc('/printer/objects/query?configfile=config')
+        source=(data.get('status',{}).get('configfile',{})
+                  .get('config',{}).get('gcode_macro _CXM_CLEAR_TRANSFER',{})
+                  .get('gcode',''))
+        if not isinstance(source,str) or not source:
+            return 'unknown'
+        return 'obsolete_t1' if LEGACY_ERROR in source else 'clear'
+    except (OSError,ValueError,TypeError,KeyError,RuntimeError,AttributeError):
+        return 'unknown'
 
 def live_status(rpc):
     """Inspect loaded Klipper config; never infer activation from disk alone."""

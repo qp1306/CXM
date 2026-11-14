@@ -13,7 +13,7 @@ import urllib.request
 from cxm_config import Store
 from cxm_runtime import MOVE_LOCK, _rpc
 from cxm_jog_upgrade import inspect as inspect_jog_upgrade, apply as apply_jog_upgrade, JogUpgradeError
-from cxm_x334_live import inspect as inspect_x334_live, apply as apply_x334_live, live_status as x334_live_status, NativeX334Error
+from cxm_x334_live import inspect as inspect_x334_live, apply as apply_x334_live, live_status as x334_live_status, loaded_t1_release_guard, NativeX334Error
 from cxm_dock_verify_install import inspect as inspect_dock_verify_install, apply as apply_dock_verify_install, DockVerifyInstallError
 from cxm_dock_verify import status as dock_verify_status, roundtrip as dock_verify_roundtrip, adjust as dock_verify_adjust, save as dock_verify_save
 from cxm_cxchanger import plan
@@ -208,7 +208,8 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/v1/native/x334/status':
                 installed=inspect_x334_live(self.server.store.path.parent/'cxm_native_toolchange.cfg')
                 self.output(200,{'file_state':installed['state'],
-                    'sha256':installed['sha256'],'loaded_guard':x334_live_status(_rpc)})
+                    'sha256':installed['sha256'],'loaded_guard':x334_live_status(_rpc),
+                    'loaded_release_guard':loaded_t1_release_guard(_rpc)})
             elif self.path == '/v1/update/jog/status':
                 info=inspect_jog_upgrade(self.server.store.path.parent / 'cxm_native_toolchange.cfg')
                 query='/printer/objects/query?gcode_macro%20_CXM_NATIVE=jog_revision'
