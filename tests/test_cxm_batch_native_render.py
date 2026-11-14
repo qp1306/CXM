@@ -7,7 +7,8 @@ from validate_cxm_native import macro_sections
 from jinja2 import Environment
 
 B=macro_sections()
-E=Environment()
+# Klipper uses single-brace expression delimiters, unlike stock Jinja2.
+E=Environment(variable_start_string='{',variable_end_string='}')
 def fail(message):
     raise ValueError(message)
 
