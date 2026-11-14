@@ -144,13 +144,21 @@ async function jog(button){
   }finally{jogging=false;busy=false;if(changeControls)changeControls.disabled=false;clearQueue();}
 }
 async function travel100(returning){
-  if(suffix || !travelRetreat || travelBusy || busy || jogging || pending.length || !canJog())return;
+  if(suffix || !travelRetreat)return;
+  if(travelBusy || busy || jogging || pending.length){
+    travelSay('Movement already running. Complete or clear pending jogs first.');return;
+  }
+  if(!canJog()){
+    travelSay('100 mm movement blocked. Select a mounted tool, home XYZ and enable jogging.');return;
+  }
   const target=tool,rev=revision,identity=live.native_tool_identity;
   const start={...live.xy};
   if(returning){
     if(!retreatAnchor || retreatAnchor.tool!==target || retreatAnchor.revision!==rev ||
        retreatAnchor.identity!==identity || !close(start.x,retreatAnchor.x) ||
-       !close(start.y,retreatAnchor.y+100))return;
+       !close(start.y,retreatAnchor.y+100)){
+      travelSay('Return blocked: carriage is not at the verified +100 mm point. Inspect the position.');return;
+    }
   }else{
     if(retreatAnchor || !live.limits?.y || start.y+100>live.limits.y[1] ||
        start.y<live.limits.y[0]){
@@ -158,8 +166,9 @@ async function travel100(returning){
     }
   }
   const goal=returning?retreatAnchor.y:start.y+100;
-  if(!window.confirm((returning?'Return to release point':'Retreat +100 mm Y')+
-    ' for T'+target+'? Verify all dock hardware and the entire travel path are clear.'))return;
+  // Enabling supervised jogging is the operator's movement approval. Avoid a
+  // second browser confirm (whose cancellation previously left no diagnostics).
+  // Every subsequent 10 mm increment still passes the native safety guards.
   ++refreshVersion;polling=false;busy=true;travelBusy=true;controls();
   const changeControls=byId('cxmChangeControls');
   if(changeControls)changeControls.disabled=true;
@@ -167,7 +176,7 @@ async function travel100(returning){
     for(let step=1;step<=10;step++){
       if(!canJog() || selected()!==target || revision!==rev || document.hidden)
         throw Error('Approval, selected tool, or page state changed');
-      travelSay((returning?'Returning':'Retreating')+' · verified increment '+step+' of 10');
+      travelSay((returning?'Returning':'Retreating')+' · moving increment '+step+' of 10');
       const answer=await request('/manual/jog',{
         tool:target,axis:'y',distance:returning?-10:10,expected_revision:rev,
         acknowledgement:'I_APPROVE_SUPERVISED_MOTOR_ON_JOG'});
