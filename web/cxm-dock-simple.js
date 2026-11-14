@@ -6,12 +6,25 @@ if(!page||!window.CXM_SIMPLE_DOCK_XY)return;
 page.classList.add('cxm-dock-simple-active');
 const root=document.createElement('div');
 root.id='cxmSimpleDock';
+// Match the prominent 12-hotend bank already used on the Tools page.
+// Every card selects a hotend ON THIS PAGE; no toolchange is commanded.
+const toolCardMarkup=Array.from({length:12},(_,n)=>
+ '<button type="button" class="cxma-tool-choice cxms-tool-choice unready" '+
+ 'data-dock-tool="'+n+'" aria-pressed="false" aria-label="Calibrate T'+n+'">'+
+ '<span class="toolname"><b>T'+n+'</b>'+
+ '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" '+
+ 'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '+
+ 'stroke-linejoin="round" aria-hidden="true">'+
+ '<path d="m12 2 9 5-9 5-9-5 9-5Z"/>'+
+ '<path d="m3 12 9 5 9-5M3 17l9 5 9-5"/></svg></span>'+
+ '<small>Add slot · set up Dock XY</small></button>'
+).join('');
 root.innerHTML=`
 <header class="cxms-header"><h1>Dock XY Calibration</h1><p>Home · Select · Enable · Jog · Test · Adjust · Save · Next</p></header>
 <div class="cxms-status"><span id="cxmsPosition">X — · Y — · Z —</span><span id="cxmsSaved">Not saved</span><span id="cxmsPrinter">Checking Klipper…</span></div>
 <div class="cxms-grid">
 <section class="cxms-step"><div class="cxms-heading"><b>1</b><h2>Home printer</h2></div><button class="btn primary" id="cxmsHome">Home XYZ</button></section>
-<section class="cxms-step"><div class="cxms-heading"><b>2</b><h2>Select hotend</h2></div><select id="cxmsTool" aria-label="Hotend"><option value="0">T0</option></select></section>
+<section class="cxms-step cxms-wide"><div class="cxms-heading"><b>2</b><h2>Select hotend</h2></div><div class="cxma-toolbank cxms-toolbank" id="cxmsToolCards" role="group" aria-label="Select hotend for Dock XY calibration">${toolCardMarkup}</div><input id="cxmsTool" type="hidden" value="0"></section>
 <section class="cxms-step cxms-step-enable cxms-wide"><div class="cxms-heading"><b>3</b><h2>Enable jogging</h2></div><label class="cxms-enable"><input type="checkbox" id="cxmsEnable"><span class="cxms-enable-copy"><strong>Enable jogging</strong><small>Automatically raises Z to 22 mm. Jog X/Y below to align the selected hotend.</small></span></label></section>
 <section class="cxms-step cxms-wide"><div class="cxms-heading"><b>4</b><h2>Jog carriage into position</h2></div><div id="cxmsJogs">
 <div class="cxms-jogrow"><strong>X</strong><button data-axis="x" data-dist="-10">−10</button><button data-axis="x" data-dist="-1">−1</button><button data-axis="x" data-dist="-0.1">−0.1</button><button data-axis="x" data-dist="-0.01">−0.01</button><button data-axis="x" data-dist="0.01">+0.01</button><button data-axis="x" data-dist="0.1">+0.1</button><button data-axis="x" data-dist="1">+1</button><button data-axis="x" data-dist="10">+10</button></div>
@@ -27,6 +40,7 @@ page.append(root);
 const get=id=>document.getElementById(id);
 const select=get('cxmsTool'),checkbox=get('cxmsEnable');
 const buttons=Array.from(root.querySelectorAll('[data-axis]'));
+const toolCards=Array.from(root.querySelectorAll('[data-dock-tool]'));
 const api='/cxm/api/v1/dock-simple';
 let live=null,busy=false,enabled=false,revision='',seq=0,savedAtDock=false;
 const jogQueue=[];
@@ -44,7 +58,26 @@ async function request(url,body){
 function controls(){
  const blocked=busy||jogRunning||jogQueue.length>0;
  get('cxmsHome').disabled=blocked||!live;
+ // Hotend cards and the Next button share the same current selection.
+ // Changes are disabled only while physical movement is in progress.
  select.disabled=blocked;
+ for(const card of toolCards){
+  const n=Number(card.dataset.dockTool);
+  const cardStatus=live?.tool_cards?.find(t=>t.tool===n);
+  const configured=cardStatus?.enabled===true;
+  const saved=cardStatus?.saved===true;
+  const active=selected()===n;
+  card.disabled=blocked||!configured;
+  card.classList.toggle('selected',active);
+  card.classList.toggle('unready',!saved);
+  card.classList.toggle('setup-needed',configured&&!saved);
+  card.setAttribute('aria-pressed',String(active));
+  const hint=card.querySelector('small');
+  if(hint)hint.textContent=!configured?'Add slot · set up Dock XY':
+    saved?'Dock XY saved · select to calibrate':'Set up dock XY';
+  card.title=!configured?'Enable this tool slot from Tools first':
+    saved?'Select T'+n+' to check or recalibrate':'Select T'+n+' to calibrate';
+ }
  checkbox.disabled=blocked||!live?.homed;
  const moving=enabled&&!blocked&&live?.homed===true;
  // Queued jog requests execute in order. Do not grey out the jog buttons
@@ -71,11 +104,11 @@ async function refresh(silent=false){
   const d=await request(api+'/status?tool='+tool);
   if(marker!==seq||tool!==selected())return;
   live=d;revision=d.revision;
-  if(select.options.length!==d.tool_count){
-   const prior=select.value;
-   select.replaceChildren();
-   for(let n=0;n<d.tool_count;n++){const op=document.createElement('option');op.value=String(n);op.textContent='T'+n;select.append(op);}
-   select.value=Number(prior)<d.tool_count?prior:'0';
+  if(selected()>=d.tool_count){
+   // A Tools-page slot-count reduction can invalidate the former selection.
+   select.value='0';enabled=false;savedAtDock=false;checkbox.checked=false;
+   await refresh(true);
+   return;
   }
   display();
  }catch(e){
@@ -159,7 +192,10 @@ function changeTool(next){
  say('T'+next+' selected. Enable jogging to continue.');refresh();
 }
 get('cxmsNext').addEventListener('click',()=>changeTool(selected()+1));
-select.addEventListener('change',()=>{enabled=false;savedAtDock=false;checkbox.checked=false;say('T'+selected()+' selected. Enable jogging to continue.');refresh();});
+for(const card of toolCards)card.addEventListener('click',()=>{
+ if(card.disabled)return;
+ changeTool(Number(card.dataset.dockTool));
+});
 setInterval(()=>{if(!busy&&!page.hidden&&!document.hidden)refresh(true);},1800);
 refresh();
 })();
