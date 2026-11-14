@@ -191,18 +191,19 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,dock_verify_status(int(args['tool'][0]),self.server.store))
             elif self.path == '/v1/update/z22/status':
                 info=inspect_z22_upgrade(self.server.store.path.parent/'cxm_native_toolchange.cfg')
-                q='/printer/objects/query?gcode_macro%20CXM_MANUAL_JOG_PREPARE_Z22=version'
+                q='/printer/objects/query?gcode_macro%20CXM_MANUAL_JOG_PREPARE_Z22=version&gcode_macro%20CXM_MANUAL_DOCK_JOG=calibration_revision'
                 data=_rpc(q).get('status',{}).get('gcode_macro CXM_MANUAL_JOG_PREPARE_Z22',{})
                 self.output(200,{'file_state':info['state'],'sha256':info['sha256'],
                     'live_version':data.get('version'),
-                    'restart_required':info['state']=='installed' and data.get('version')!=1})
+                    'jog_calibration_revision':_rpc('/printer/objects/query?gcode_macro%20CXM_MANUAL_DOCK_JOG=calibration_revision').get('status',{}).get('gcode_macro CXM_MANUAL_DOCK_JOG',{}).get('calibration_revision'),
+                    'restart_required':info['state']=='installed' and (data.get('version')!=1 or _rpc('/printer/objects/query?gcode_macro%20CXM_MANUAL_DOCK_JOG=calibration_revision').get('status',{}).get('gcode_macro CXM_MANUAL_DOCK_JOG',{}).get('calibration_revision')!=2)})
             elif self.path == '/v1/update/dock-verify/status':
                 info=inspect_dock_verify_install(self.server.store.path.parent/'cxm_native_toolchange.cfg')
                 q='/printer/objects/query?gcode_macro%20CXM_DOCK_VERIFY_MOVE=version'
                 macro=_rpc(q).get('status',{}).get('gcode_macro CXM_DOCK_VERIFY_MOVE',{})
                 self.output(200,{'file_state':info['state'],'sha256':info['sha256'],
                                   'live_version':macro.get('version'),
-                                  'restart_required':info['state']=='installed' and macro.get('version')!=1})
+                                  'restart_required':info['state']=='installed' and macro.get('version')!=2})
             elif self.path == '/v1/update/jog/status':
                 info=inspect_jog_upgrade(self.server.store.path.parent / 'cxm_native_toolchange.cfg')
                 query='/printer/objects/query?gcode_macro%20_CXM_NATIVE=jog_revision'
