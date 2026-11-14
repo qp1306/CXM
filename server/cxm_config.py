@@ -374,7 +374,7 @@ class Store:
             if (t0['dock_reference_accepted'] is not True
                 or type(t0['dock_x']) not in (int,float)
                 or type(t0['dock_y']) not in (int,float)
-                or not (10 <= t0['dock_x'] <= 320)
+                or not (10 <= t0['dock_x'] <= 334 - 4.4)
                 or not (10 <= t0['dock_y'] <= 320)):
                 raise ValueError('T0 must have a newly measured accepted dock XY inside the guarded motion region')
             updated=copy.deepcopy(data)
