@@ -102,7 +102,7 @@ class FreshCommissioningTests(unittest.TestCase):
         self.assertIn('VARIABLE=current_tool VALUE=-2',sent)
         self.assertIn('VARIABLE=t11_accepted VALUE=0',sent)
         self.assertIn('VARIABLE=t0_x VALUE=-1.0',sent)
-        self.assertNotRegex(sent,r'(?m)^\\s*(?:G0|G1|G28)\\s')
+        self.assertNotRegex(sent,r'(?m)^\s*(?:G0|G1|G28)\s')
         self.assertEqual(self.store.read()['config']['globals']['tool_count'],1)
 
 if __name__=='__main__':
