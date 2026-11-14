@@ -188,7 +188,25 @@ def save(store,tool,expected_revision):
         entry=current['config']['tools'][tool]
         if entry['dock_x']!=xy['x'] or entry['dock_y']!=xy['y'] or not entry['dock_reference_accepted']:
             raise DockSimpleError('Saved coordinates did not read back correctly')
-        return {'saved':True,'tool':tool,'xy':xy,'revision':current['revision'],
-                'backup':result.get('backup')}
+        # The measured dock datum is already committed above. Now withdraw
+        # the carriage along the proven release-side Y+ path to the next
+        # hotend's clear staging position. Never save this staging Y as dock Y.
+        # Use the same 100 mm and feed as the working dock test.
+        retreat_y=pos['y']+100.0
+        try:
+            _inside(state,'y',retreat_y)
+            _send([f'G1 Y{retreat_y:.5f} F6000'])
+            end=_after(store,tool,current['revision'],
+                       {'x':pos['x'],'y':retreat_y,'z':pos['z']})
+        except Exception as exc:
+            # Disk Save succeeded, even if Klipper refused the withdrawal or
+            # its result is uncertain. Report both facts distinctly; never
+            # pretend Save failed and never automatically repeat the motion.
+            return {'saved':True,'tool':tool,'xy':xy,
+                    'revision':current['revision'],'backup':result.get('backup'),
+                    'retreated':False,'retreat_error':str(exc)}
+        return {'saved':True,'tool':tool,'xy':xy,
+                'revision':current['revision'],'backup':result.get('backup'),
+                'retreated':True,'staging_xy':{'x':end['xyz']['x'],'y':end['xyz']['y']}}
     finally:
         MOVE_LOCK.release()
