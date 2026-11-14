@@ -47,7 +47,7 @@ const SVG={
 const ico=(name,size=18)=>`<svg class="ic" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${SVG[name]||SVG.verify}</svg>`;
 const configs={
  tools:{title:'Hotend Control',sub:'Select and change a verified hotend',icon:'tools',steps:[['layers','Select Hotend'],['car','Confirm Carriage'],['upload','Load / Unload'],['verify','Verify Result']]},
- calibration:{title:'Dock XY Calibration',sub:'Supervised motor-on dock alignment',icon:'dock',steps:[['layers','Select Tool'],['printer','Check Printer'],['move','Align Dock'],['save','Save Dock XY'],['verify','Prove Toolchange']]},
+ calibration:{title:'Dock XY Calibration',sub:'Supervised motor-on dock alignment',icon:'dock',steps:[['layers','Select Tool'],['printer','Check Printer'],['move','Align Dock'],['save','Save Dock XY'],['verify','Prove Toolchange'],['refresh','Recover / Reset']]},
  offsets:{title:'Tool XY Calibration',sub:'Camera-aligned nozzle offsets relative to T0',icon:'target',steps:[['target','Set T0 Reference'],['layers','Select Hotend'],['camera','Align Nozzle'],['save','Save Hotend'],['results','Review']]},
  'z-calibration':{title:'Tool Z Calibration',sub:'Cold commissioning · Z offsets not applied',icon:'tools',steps:[['target','T0 Reference'],['layers','Select Tools'],['printer','Prepare'],['play','Calibrate'],['results','Results']]},
  tests:{title:'Diagnostics',sub:'Read-only machine checks and troubleshooting',icon:'verify',steps:[['link','Connect'],['printer','Check Machine'],['save','Verify AutoSave'],['download','Export']]},
@@ -114,7 +114,7 @@ function tools(){const p=make('tools',[['printer','printer','Klipper'],['car','c
  const s4=stage(4,'Verify result','Only the reported carriage sensor and controller state can confirm a change.');
  q('.cxma-inner',s4).append(node('p','cxma-real-status','Waiting for native tool status'));
  const adv=detail('Advanced · Detailed tool cards, speeds and repeated tests');p.stack.append(adv);
- showOriginalInAdvanced(adv,[$('toolGrid'),$('cxmNoTools'),q('.tool-overview-meta',p.legacy),q('.footer-note',p.legacy),$('cxmMultiPanel')]);
+ showOriginalInAdvanced(adv,[$('toolGrid'),$('cxmNoTools'),q('.tool-overview-meta',p.legacy),q('.footer-note',p.legacy)]);
  p.area.append(p.legacy);p.legacy.classList.add('cxma-unused');
 }
 function dock(){const p=make('calibration',[['printer','printer','Klipper'],['homing','move','Homing'],['car','car','Carriage'],['dock','dock','Dock']]);
@@ -135,10 +135,20 @@ function dock(){const p=make('calibration',[['printer','printer','Klipper'],['ho
    const oldHeading=q('.panel-heading',saveControls);if(oldHeading)oldHeading.hidden=true;
    const capture=$('cxmManualCapture');if(capture){capture.innerHTML=ico('save')+'Capture & save dock XY';capture.classList.add('big');}
  }
- const s5=p.stage(5,'Prove pickup / dropoff','Use the commissioned native controls and real carriage feedback.');
- q('.cxma-inner',s5).append(safeLink('tools','Open Tools · Load / Unload'));
- q('.cxma-inner',s5).append(note('Tool selection here does not authorise uncommissioned dock movement.'));
- const adv=detail('Advanced · Fine X adjustment, backups and fault recovery');p.stack.append(adv);
+ const s5=p.stage(5,'Prove pickup / dropoff','Run the existing native Klipper motion test without leaving Dock XY.');
+ const test=$('cxmMultiPanel');
+ if(test){
+   q('.cxma-inner',s5).append(test);
+   const heading=q('.panel-heading h3',test);
+   if(heading)heading.textContent='Native pickup / dropoff · repeatable reliability cycles';
+ }
+ q('.cxma-inner',s5).append(note('Use the existing native speed profile and cycle count. The original Klipper dock movement and sensor checks are unchanged. Start with one selected tool and one complete cycle.'));
+ const s6=p.stage(6,'Reset and recommission','Use verified EMPTY recovery or a backed-up full calibration reset on this page.');
+ const recovery=$('cxmClearAllBox');
+ if(recovery)q('.cxma-inner',s6).append(recovery);
+ const reset=$('cxmCommissionResetPanel');
+ if(reset)q('.cxma-inner',s6).append(reset);
+ const adv=detail('Advanced · Fine X adjustment and backups');p.stack.append(adv);
  showOriginalInAdvanced(adv,[$('cxmFineDock'),q('.dock-columns',p.legacy),q('.dock-bottom',p.legacy)]);
  p.area.append(p.legacy);p.legacy.classList.add('cxma-unused');
 }
@@ -198,8 +208,9 @@ function settings(){const p=make('settings',[['store','save','AutoSave'],['backu
    const target=i===0?$('cxmToolChoice'):i===1?q('[data-key="cxm_shift_x"]',editor):i===2?q('[data-key="approach_speed"]',editor):$('cxmHistory');
    (target||editor).scrollIntoView({behavior:'smooth',block:'center'});
  });row.append(b)});q('.cxma-inner',s1).append(row);
- // Full re-commissioning is a separate operation from Clear All errors.
- fromId('cxmCommissionResetPanel',q('.cxma-inner',s1));
+ // Full recommissioning is owned by Dock XY; do not move the live reset
+ // widget back into Settings after Dock XY has mounted it.
+ q('.cxma-inner',s1).append(note('Full commissioning reset and native fault recovery are on Dock XY, alongside its supervised calibration and reliability test.'));
  const s2=p.stage(2,'Edit tool configuration','Edit real CXM settings with the existing AutoSave controls.');fromId('configEditor',q('.cxma-inner',s2));
  const s3=p.stage(3,'AutoSave to disk','Only disk persistence is confirmed, not live Klipper macro activation.');
  q('.cxma-inner',s3).append(note('AutoSave is handled by the existing CXM settings editor. Changes to motion macros may need a separate reload.'));

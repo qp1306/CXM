@@ -8,12 +8,13 @@ const css=read('web','cxm-approved-v1.css'),svc=read('server','cxm_service.py');
 const native=read('server','cxm_native.py'),db=read('server','cxm_config.py');
 const macro=read('vendor/cxm','cxm_native_toolchange.cfg');
 
-test('Settings visibly offers full reset and explicit consent',()=>{
+test('Dock XY visibly offers full reset and explicit consent',()=>{
  for(const id of ['cxmCommissionResetPanel','cxmFreshAck','cxmFreshReset',
                    'cxmFreshStatus','cxmFreshResult']) assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/All 12 saved dock XY positions, tool XY\/Z offsets/);
  assert.match(html,/return it to its dock/);
- assert.match(approved,/fromId\('cxmCommissionResetPanel'/);
+ assert.match(approved,/const reset=\$\('cxmCommissionResetPanel'\)/);
+ assert.match(approved,/const s6=p\.stage\(6,'Reset and recommission'/);
  assert.match(html,/cxm-fresh-reset\.js\?v=1/);
  assert.match(html,/cxm-approved-v1\.js\?v=1\.3-fresh-start/);
  assert.match(css,/\.cxm-fresh-start/);
