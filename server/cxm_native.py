@@ -161,7 +161,7 @@ def initialize(store,expected_revision,carriage_tool):
     return {'ready':True,'current_tool':carriage_tool,'sensor':sensor,
             'note':'Geometry and carriage identity checked; Klipper raises Z to 25 mm only if needed and safe'}
 
-def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False, store=None, tool=None):
+def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False, permit_supervised_dock_calibration=False, store=None, tool=None):
     """Invalidate Klipper geometry BEFORE any disk edits, without moving axes.
 
     A mounted dock-datum save is allowed only with a selected tool passing
@@ -173,6 +173,29 @@ def invalidate_for_config_edit(*, permit_mounted_provisional_dock=False, store=N
     native,test,signal=_native_status()
     if test.get('running')==1:
         raise NativeError('Cannot edit tool configuration during native test')
+    if permit_supervised_dock_calibration:
+        # Supervised dock alignment is operator-selected and mechanically
+        # inspected. Sensor is TELEMETRY ONLY here; it cannot determine
+        # whether the hotend is engaged or the tool's identity.
+        # This is a state-only disarm; automatic pickup/dropoff remains strict.
+        if store is None or type(tool) is not int:
+            raise NativeError('Dock calibration needs a selected hotend')
+        from cxm_manual import _check
+        initial=_check(tool,store.read())
+        if initial['revision']!=store.read()['revision']:
+            raise NativeError('Dock configuration changed before native disarm')
+        if (native.get('ready')==0 and native.get('fault')==1
+                and native.get('current_tool')==-2):
+            return {'invalidated':True,'already_invalidated':True,'needs_native_sync':True}
+        _rpc('/printer/gcode/script',{'script':
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=ready VALUE=0\n'
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=1\n'
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE=-2'})
+        after,after_test,after_signal=_native_status()
+        if (after_test.get('running')==1 or after.get('ready')!=0
+                or after.get('fault')!=1 or after.get('current_tool')!=-2):
+            raise NativeError('Native disarm unverified; dock coordinates NOT saved')
+        return {'invalidated':True,'needs_native_sync':True}
     if permit_mounted_provisional_dock and signal=='PRESSED':
         if store is None or type(tool) is not int:
             raise NativeError('Mounted dock save requires a selected tool and live preflight')
