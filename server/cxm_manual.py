@@ -65,8 +65,10 @@ def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor='PRE
     if expected_sensor not in ('PRESSED','RELEASED'):
         raise ManualDockError('Invalid expected carriage sensor state')
     if signal!=expected_sensor:
-        raise ManualDockError('Expected carriage '+expected_sensor+', got '+str(signal)+
-                              '. Inspect hotend engagement before moving')
+        if expected_sensor=='PRESSED':
+            raise ManualDockError('Manual dock alignment requires a MOUNTED hotend (sensor PRESSED)')
+        raise ManualDockError('Expected carriage RELEASED, got '+str(signal)+
+                              '. Inspect locked hotend and carriage before moving')
     test=state.get('gcode_macro _CXM_TEST_STATE',{})
     native=state.get('gcode_macro _CXM_NATIVE',{})
     if test.get('running')==1:
