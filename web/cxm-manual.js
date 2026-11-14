@@ -85,11 +85,15 @@ async function refresh(silent=false){
       const newJog=Number(live.jog_revision)===2;
       const label=el('cxmDockJogSpeed');
       if(label)label.textContent=newJog?'50 mm/s · native verified':'Native jog update required';
-      el('cxmManualReadiness').textContent=newJog?'Ready · T'+tool+' mounted':'Native macro update required · jog disabled';
+      el('cxmManualReadiness').textContent=!newJog?'Native macro update required · jog disabled':
+        live.ready?'Ready · T'+tool+' mounted':
+        'Z below 20 mm · Enable jogging to prepare Z21 automatically';
     }else{
       el('cxmManualReadiness').textContent='READY · T'+tool+' mounted';
     }
-    if(!silent) say('READY: sensor confirms MOUNTED, not tool identity. Verify the mounted hotend is physically T'+tool+' before approving any jog.');
+    if(!silent) say(!suffix&&live.z<21?
+      'Tool mounted. Check clearance, then Enable jogging to prepare Z21 automatically.':
+      'Ready for supervised motion. Verify selected hotend and clear travel path.');
   }catch(e){
     if(version!==refreshVersion||selectedTool!==selected())return;
     live=null;
@@ -247,7 +251,33 @@ travelRetreat?.addEventListener('click',()=>travel100(false));
 travelReturn?.addEventListener('click',()=>travel100(true));
 el('cxmManualRefresh').addEventListener('click',()=>refresh(false));
 captureButton?.addEventListener('click',capture);
-el('cxmManualApproval').addEventListener('change',()=>{clearQueue();resetTravel('Approval changed. Recheck release-point alignment.');controls();});
+async function handleJogApproval(){
+  clearQueue();resetTravel('Jog approval changed. Verify release-side position.');
+  const approval=el('cxmManualApproval');
+  if(!approval.checked){controls();return;}
+  if(suffix){controls();return;}
+  if(!live?.prepare_ready || selected()!==tool || !revision){
+    approval.checked=false;
+    say('Cannot enable: select the mounted tool and restore printer readiness first.',true);
+    controls();return;
+  }
+  if(live.z>=21){controls();return;}
+  const selectedTool=tool,expectedRevision=revision;
+  busy=true;controls();
+  try{
+    say('Preparing Z21 through guarded Klipper macro…');
+    const result=await request('/manual/prepare',{
+      tool:selectedTool,expected_revision:expectedRevision,
+      acknowledgement:'I_APPROVE_GUARDED_DOCK_Z21'});
+    if(!result.prepared||result.revision!==expectedRevision||result.z<20.92)
+      throw Error('Klipper did not confirm Z21 clearance');
+    say('Z21 verified · jogging enabled');
+  }catch(e){
+    approval.checked=false;
+    say('Automatic Z21 preparation blocked: '+e.message+'. No XY motion authorised.',true);
+  }finally{busy=false;controls();refresh(true);}
+}
+el('cxmManualApproval').addEventListener('change',handleJogApproval);
 el('cxmJogClear').addEventListener('click',clearQueue);
 function leaveJogPanel(){
   if(document.hidden || panel?.hidden){
