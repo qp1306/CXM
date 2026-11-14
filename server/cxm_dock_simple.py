@@ -64,12 +64,13 @@ def _after(store,tool,expected_revision,expected_xyz,*,tol=0.08):
     # M400 completes queued moves; allow a brief idle_timeout transition.
     deadline=time.monotonic()+3.0
     while True:
-        state=_checked(store.read(),tool)
-        if state['idle']:
+        try:
+            state=_checked(store.read(),tool)
             break
-        if time.monotonic()>deadline:
-            raise DockSimpleError('Movement completed but printer remains busy')
-        time.sleep(0.12)
+        except DockSimpleError as exc:
+            if str(exc)!='Printer is busy' or time.monotonic()>deadline:
+                raise
+            time.sleep(0.12)
     if store.read()['revision']!=expected_revision:
         raise DockSimpleError('Configuration changed during movement')
     if any(abs(state['xyz'][axis]-value)>tol for axis,value in expected_xyz.items()):
