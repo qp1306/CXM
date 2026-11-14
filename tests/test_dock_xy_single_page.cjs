@@ -39,5 +39,6 @@ test('compact Dock XY has no redundant Check printer stage and retains motion pr
   assert.match(native,/CXM calibration: home XYZ before jogging/);
   assert.match(native,/CXM calibration: disabled motor/);
   assert.match(native,/CXM calibration: mounted hotend required/);
-  assert.match(html,/XY · 50 mm\/s/);
+  assert.match(html,/id="cxmDockJogSpeed"/);
+  assert.match(jog,/live\.jog_revision===2/);
 });
