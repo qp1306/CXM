@@ -114,7 +114,7 @@ function tools(){const p=make('tools',[['printer','printer','Klipper'],['car','c
  const s4=stage(4,'Verify result','Only the reported carriage sensor and controller state can confirm a change.');
  q('.cxma-inner',s4).append(node('p','cxma-real-status','Waiting for native tool status'));
  const adv=detail('Advanced · Detailed tool cards, speeds and repeated tests');p.stack.append(adv);
- showOriginalInAdvanced(adv,[$('toolGrid'),$('cxmNoTools'),q('.tool-overview-meta',p.legacy),q('.footer-note',p.legacy),$('cxmMultiPanel')]);
+ showOriginalInAdvanced(adv,[$('toolGrid'),$('cxmNoTools'),q('.tool-overview-meta',p.legacy),q('.footer-note',p.legacy)]);
  p.area.append(p.legacy);p.legacy.classList.add('cxma-unused');
 }
 function dock(){const p=make('calibration',[['printer','printer','Klipper'],['homing','move','Homing'],['car','car','Carriage'],['dock','dock','Dock']]);
@@ -135,10 +135,20 @@ function dock(){const p=make('calibration',[['printer','printer','Klipper'],['ho
    const oldHeading=q('.panel-heading',saveControls);if(oldHeading)oldHeading.hidden=true;
    const capture=$('cxmManualCapture');if(capture){capture.innerHTML=ico('save')+'Capture & save dock XY';capture.classList.add('big');}
  }
- const s5=p.stage(5,'Prove pickup / dropoff','Use the commissioned native controls and real carriage feedback.');
- q('.cxma-inner',s5).append(safeLink('tools','Open Tools · Load / Unload'));
- q('.cxma-inner',s5).append(note('Tool selection here does not authorise uncommissioned dock movement.'));
- const adv=detail('Advanced · Fine X adjustment, backups and fault recovery');p.stack.append(adv);
+ const s5=p.stage(5,'Prove pickup / dropoff','Run the existing native Klipper motion test without leaving Dock XY.');
+ const test=$('cxmMultiPanel');
+ if(test){
+   q('.cxma-inner',s5).append(test);
+   const heading=q('.panel-heading h3',test);
+   if(heading)heading.textContent='Native pickup / dropoff · repeatable reliability cycles';
+ }
+ q('.cxma-inner',s5).append(note('Use the existing native speed profile and cycle count. The original Klipper dock movement and sensor checks are unchanged. Start with one selected tool and one complete cycle.'));
+ const s6=p.stage(6,'Reset and recommission','Use verified EMPTY recovery or a backed-up full calibration reset on this page.');
+ const recovery=$('cxmClearAllBox');
+ if(recovery)q('.cxma-inner',s6).append(recovery);
+ const reset=$('cxmCommissionResetPanel');
+ if(reset)q('.cxma-inner',s6).append(reset);
+ const adv=detail('Advanced · Fine X adjustment and backups');p.stack.append(adv);
  showOriginalInAdvanced(adv,[$('cxmFineDock'),q('.dock-columns',p.legacy),q('.dock-bottom',p.legacy)]);
  p.area.append(p.legacy);p.legacy.classList.add('cxma-unused');
 }
