@@ -19,10 +19,7 @@ if(!speed||!custom)return;
 // Only two choices for this commissioning page; the native speed engine still
 // supports its old presets, but they no longer clutter this simple UI.
 for(const option of Array.from(speed.options)){
- if(option.value!=='standard'&&option.value!=='custom'){
-  option.hidden=true;
-  option.disabled=true;
- }
+ if(option.value!=='standard'&&option.value!=='custom')option.remove();
 }
 if(speed.value!=='standard'&&speed.value!=='custom'){
  speed.value='standard';
