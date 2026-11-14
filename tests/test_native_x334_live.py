@@ -128,6 +128,43 @@ class NativeX334Tests(unittest.TestCase):
             self.assertEqual(target.read_text(),SOURCE.read_text())
             self.assertEqual(target.with_name(done['backup']).read_text(),old)
 
+    def test_only_old_t1_guard_patched_when_live_native_contains_custom_sections(self):
+        with TemporaryDirectory() as folder:
+            target=Path(folder)/'cxm_native_toolchange.cfg'
+            current=SOURCE.read_text()
+            # Reproduce user's installed custom macro divergence: another
+            # checked guard has been modified, but the exact old T1 check remains.
+            old=with_stale_t1(current).replace('pos.x|float > 334.0',
+                                                'pos.x|float > 330.0',1)
+            target.write_text(old)
+            with self.assertRaises(x334.NativeX334Error):
+                x334.inspect(target)
+            state=x334.inspect_compat(target)
+            self.assertEqual(state['mode'],'t1_only')
+            self.assertEqual(state['state'],'needs_apply')
+            done=x334.apply_compat(target,state['sha256'])
+            self.assertEqual(done['mode'],'t1_only')
+            self.assertTrue(done['patched'])
+            expected=old.replace(x334.LEGACY_T1_CONDITION+'\\n','')
+            # Compare with direct exact T1-only transformer, never vendor file.
+            self.assertEqual(target.read_text(),
+                             x334._transform_stale_t1_only(old))
+            self.assertEqual(target.with_name(done['backup']).read_text(),old)
+            verified=x334.inspect_compat(target)
+            self.assertEqual(verified['state'],'installed')
+            self.assertEqual(verified['mode'],'t1_only_cleared')
+
+    def test_unknown_t1_condition_in_custom_macro_is_never_rewritten(self):
+        with TemporaryDirectory() as folder:
+            target=Path(folder)/'cxm_native_toolchange.cfg'
+            old=with_stale_t1(SOURCE.read_text())
+            old=old.replace('x-264.70','x-280.00')
+            old=old.replace('pos.x|float > 334.0','pos.x|float > 330.0',1)
+            target.write_text(old)
+            with self.assertRaises(x334.NativeX334Error):
+                x334.inspect_compat(target)
+            self.assertEqual(target.read_text(),old)
+
     def test_existing_new_file_is_idempotent(self):
         with TemporaryDirectory() as folder:
             target=Path(folder)/'cxm_native_toolchange.cfg'
