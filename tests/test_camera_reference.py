@@ -12,7 +12,9 @@ import cxm_native
 
 Point = namedtuple('Point', 'x y z')
 source = (ROOT/'vendor/cxm/cxm_native_toolchange.cfg').read_text()
-body = source.split('[gcode_macro CXM_CAMERA]', 1)[1].split('gcode:\n', 1)[1]
+body = source.split('[gcode_macro CXM_CAMERA]', 1)[1].split('[gcode_macro CXM_CAMERA_RETURN]', 1)[0].split('gcode:\n', 1)[1]
+return_body = source.split('[gcode_macro CXM_CAMERA_RETURN]', 1)[1].split('gcode:\n', 1)[1]
+return_template = jinja2.Environment('{%', '%}', '{', '}').from_string(return_body)
 template = jinja2.Environment('{%', '%}', '{', '}').from_string(body)
 
 
@@ -36,11 +38,31 @@ class CameraTests(TestCase):
     def test_lift_before_dock_then_verify_tool_before_return(self):
         change = self.render('CHANGE')
         self.assertLess(change.index('G1 Z37'),change.index('CXM_SELECT_TOOL TOOL=1'))
-        self.assertLess(change.index('CXM_SELECT_TOOL TOOL=1'),change.index('ACTION=RETURN'))
+        self.assertLess(change.index('CXM_SELECT_TOOL TOOL=1'),change.index('CXM_CAMERA_RETURN TOOL=1'))
         with self.assertRaisesRegex(ValueError,'unexpected fitted'):
             self.render('RETURN',mounted=0)
         cmd = self.render('RETURN',mounted=1,pos=Point(264,166,37))
         self.assertLess(cmd.index('G1 X200 Y230'),cmd.index('G1 Z32 F60'))
+
+    def test_independent_camera_return_checks_new_tool_identity(self):
+        st = dict(camera_reference=[7,200,230,32],ready=1,fault=0,current_tool=1,
+                  tool_count=2,t0_accepted=1,t1_accepted=1,t0_y=65,t1_y=66,clearance_y=100)
+        pos = Point(264,166,37)
+        printer = {'gcode_macro _CXM_NATIVE':st,'gcode_macro _CXM_TEST_STATE':{'running':0},
+                   'toolhead':dict(position=pos,homed_axes='xyz',
+                                   axis_minimum=Point(0,0,0),axis_maximum=Point(350,350,350)),
+                   'gcode_move':dict(gcode_position=pos)}
+        def fail(message):
+            raise ValueError(message)
+        def render():
+            return return_template.render(printer=printer,params=dict(TOOL=1,TOKEN=7),
+                                          action_raise_error=fail)
+        cmd = render()
+        self.assertLess(cmd.index('CXM_FAST_VERIFY EXPECT=PRESSED'),cmd.index('G1 X200 Y230'))
+        self.assertLess(cmd.index('G1 X200 Y230'),cmd.index('G1 Z32 F60'))
+        st['current_tool'] = 0
+        with self.assertRaisesRegex(ValueError,'selected hotend not confirmed'):
+            render()
 
     def test_stale_or_obstructed_reference_blocks_motion(self):
         for action,opts in [('CHANGE',dict(token=4)),('REFERENCE',dict(pos=Point(200,65,32))),
