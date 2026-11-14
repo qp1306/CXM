@@ -149,64 +149,91 @@ async function travel100(returning){
     travelSay('Movement already running. Complete or clear pending jogs first.');return;
   }
   if(!canJog()){
-    travelSay('100 mm movement blocked. Select a mounted tool, home XYZ and enable jogging.');return;
+    travelSay('Travel blocked. Select a mounted tool, home XYZ and enable jogging.');return;
   }
   const target=tool,rev=revision,identity=live.native_tool_identity;
   const start={...live.xy};
+  const anchor=retreatAnchor;
   if(returning){
-    if(!retreatAnchor || retreatAnchor.tool!==target || retreatAnchor.revision!==rev ||
-       retreatAnchor.identity!==identity || !close(start.x,retreatAnchor.x) ||
-       !close(start.y,retreatAnchor.y+100)){
-      travelSay('Return blocked: carriage is not at the verified +100 mm point. Inspect the position.');return;
+    // Guarded recovery button is available only from the exact verified
+    // +100 mm end point. A partial/uncertain movement is never auto-retried.
+    if(!anchor || anchor.tool!==target || anchor.revision!==rev ||
+       anchor.identity!==identity || !close(start.x,anchor.x) ||
+       !close(start.y,anchor.y+100)){
+      travelSay('Return unavailable: carriage is not at the verified +100 mm point. Inspect first.');return;
     }
-  }else{
-    if(retreatAnchor || !live.limits?.y || start.y+100>live.limits.y[1] ||
-       start.y<live.limits.y[0]){
-      travelSay('No movement: full +100 mm Y would exceed machine travel, or a test is already active.');return;
-    }
+  }else if(anchor || !live.limits?.y || start.y+100>live.limits.y[1] ||
+           start.y<live.limits.y[0]){
+    travelSay('No movement: full +100 mm would exceed Y limits or a test is already pending.');return;
   }
-  const goal=returning?retreatAnchor.y:start.y+100;
-  // Enabling supervised jogging is the operator's movement approval. Avoid a
-  // second browser confirm (whose cancellation previously left no diagnostics).
-  // Every subsequent 10 mm increment still passes the native safety guards.
+  // One click runs OUT and BACK. No browser confirmation is needed because
+  // Enable jogging is an explicit, continuously revocable operator approval.
+  // At every step the server and native Klipper macro re-check motor power,
+  // homing, tool presence, XY bounds and printer state.
   ++refreshVersion;polling=false;busy=true;travelBusy=true;controls();
   const changeControls=byId('cxmChangeControls');
   if(changeControls)changeControls.disabled=true;
+  let phase=returning?'return':'out';
+  let step=0;
   try{
-    for(let step=1;step<=10;step++){
-      if(!canJog() || selected()!==target || revision!==rev || document.hidden)
-        throw Error('Approval, selected tool, or page state changed');
-      travelSay((returning?'Returning':'Retreating')+' · moving increment '+step+' of 10');
-      const answer=await request('/manual/jog',{
-        tool:target,axis:'y',distance:returning?-10:10,expected_revision:rev,
-        acknowledgement:'I_APPROVE_SUPERVISED_MOTOR_ON_JOG'});
-      if(answer.jogged!==true||answer.revision!==rev||!live||
-         !close(answer.position.x,start.x)||
-         !close(answer.position.y,start.y+(returning?-10:10)*step))
-        throw Error('Position or saved revision not verified at increment '+step);
-      live.xy=answer.position;
-      if(!window.CXMDockPosition?.streaming()){
-        el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
-        el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
+    const outwardOrigin=returning?{x:anchor.x,y:anchor.y}:start;
+    async function leg(back,origin){
+      const expectedY=origin.y+(back?-100:100);
+      const direction=back?-10:10;
+      for(step=1;step<=10;step++){
+        if(!canJog() || selected()!==target || revision!==rev || document.hidden){
+          const approval=el('cxmManualApproval').checked;
+          throw Error('Travel stopped at '+phase+' '+step+'/10: '+(
+            !approval?'jogging approval was revoked':
+            document.hidden?'browser page became hidden':
+            panel?.hidden?'Dock XY page was hidden':
+            selected()!==target?'selected tool changed':
+            revision!==rev?'saved configuration changed':
+            'printer or UI readiness changed'));
+        }
+        travelSay((back?'Returning −100':'Retreating +100')+
+          ' mm · increment '+step+'/10');
+        const answer=await request('/manual/jog',{
+          tool:target,axis:'y',distance:direction,expected_revision:rev,
+          acknowledgement:'I_APPROVE_SUPERVISED_MOTOR_ON_JOG'});
+        if(answer.jogged!==true || answer.revision!==rev || !live ||
+           !close(answer.position.x,origin.x) ||
+           !close(answer.position.y,origin.y+direction*step)){
+          throw Error('Position or revision not verified at '+phase+' '+step+'/10');
+        }
+        live.xy=answer.position;
+        if(!window.CXMDockPosition?.streaming()){
+          el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
+          el('cxmManualY').textContent=live.xy.y.toFixed(3)+' mm';
+        }
       }
+      // Independent post-leg position, identity, sensor and config check.
+      const latest=await request('/manual/status?tool='+target);
+      if(latest.revision!==rev || latest.native_tool_identity!==identity ||
+         latest.sensor!=='PRESSED' || !close(latest.xy.x,origin.x) ||
+         !close(latest.xy.y,expectedY))
+        throw Error('End of '+phase+' leg did not verify sensor, identity or position');
+      live=latest;
     }
-    const latest=await request('/manual/status?tool='+target);
-    if(latest.revision!==rev||latest.native_tool_identity!==identity||
-       latest.sensor!=='PRESSED'||!close(latest.xy.x,start.x)||!close(latest.xy.y,goal))
-      throw Error('Final sensor or machine position did not match expected state');
-    live=latest;
-    if(returning){
-      const verified={tool:target,revision:rev,identity,x:retreatAnchor.x,y:retreatAnchor.y};
-      resetTravel('Return verified at the saved release point.');
-      verifiedRoundtrip=verified;
-    }else{
+    if(!returning){
+      await leg(false,start);
       retreatAnchor={tool:target,revision:rev,identity,x:start.x,y:start.y};
-      travelSay('Retreat +100 mm verified. Check clearance, then press Return −100 mm Y.');
+      phase='return';
+      step=0;
     }
+    await leg(true,returning?start:live.xy);
+    // Return starts at the +100 endpoint; verify against original start.
+    if(!close(live.xy.x,outwardOrigin.x) || !close(live.xy.y,outwardOrigin.y))
+      throw Error('Final return did not match original XY');
+    resetTravel('PASS · +100 mm and −100 mm verified at original XY.');
+    verifiedRoundtrip={tool:target,revision:rev,identity,
+                       x:outwardOrigin.x,y:outwardOrigin.y};
+    say('100 mm out-and-back PASS · returned to original X/Y.');
   }catch(e){
-    resetTravel('Travel incomplete or uncertain: '+e.message+'. Inspect carriage and realign before retrying.');
-    live=null;el('cxmManualApproval').checked=false;
-    say('100 mm travel unconfirmed. No further movements sent. '+e.message,true);
+    resetTravel('STOPPED · '+e.message+'. Inspect physical position before any retry.');
+    live=null;
+    el('cxmManualApproval').checked=false;
+    say('100 mm travel unconfirmed. No further movement commanded. '+e.message,true);
   }finally{
     busy=false;travelBusy=false;
     if(changeControls)changeControls.disabled=false;
