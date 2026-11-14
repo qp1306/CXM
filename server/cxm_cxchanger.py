@@ -26,13 +26,13 @@ def plan(saved, shift_x=None, dodge_y=None, tool=0):
         raise ValueError('Save CxChanger T'+str(tool)+' dock XY datum first')
     if not t.get('dock_reference_accepted',False):
         raise ValueError('CxChanger dock reference not accepted. Re-measure with Lineux and save the CxChanger datum.')
-    x=finite(t['dock_x'],'CxChanger dock X',10,325)
+    x=finite(t['dock_x'],'CxChanger dock X',10,334)
     y=finite(t['dock_y'],'CxChanger dock Y',10,320)
     dx=finite(g['cxm_shift_x'] if shift_x is None else shift_x,'positive X pickup latch travel',0.1,8)
     dy=finite(g['cxm_dodge_y'] if dodge_y is None else dodge_y,'legacy Y dodge',5,25)
     clearance=finite(g['cxm_safe_clearance_y'],'Y safe travel from dock',35,160)
     safe=y+clearance
-    if x+dx>325 or safe>362:
+    if x+dx>334 or safe>362:
         raise ValueError('CxChanger docking path exceeds guarded X/Y travel')
     return {
         'stage':[(x,safe)],
