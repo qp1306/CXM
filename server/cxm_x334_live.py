@@ -39,9 +39,9 @@ LEGACY_T1_ACTION = '{action_raise_error("' + LEGACY_ERROR + '")}'
 # Only accept the exact old condition and associated exception on two lines,
 # allowing indentation and LF/CRLF, not arbitrary source-code substitutions.
 LEGACY_T1_PATTERN = re.compile(
-    r'(?m)^[ \\t]*' + re.escape(LEGACY_T1_CONDITION) +
-    r'[ \\t]*\\r?\\n[ \\t]*' + re.escape(LEGACY_T1_ACTION) +
-    r'[ \\t]*(?:\\r?\\n|$)'
+    r'(?m)^[ \t]*' + re.escape(LEGACY_T1_CONDITION) +
+    r'[ \t]*\r?\n[ \t]*' + re.escape(LEGACY_T1_ACTION) +
+    r'[ \t]*(?:\r?\n|$)'
 )
 MACRO=re.compile(r'(?m)^\[gcode_macro ([^\]]+)\]\s*$')
 SHA=re.compile(r'^[a-f0-9]{64}$')
