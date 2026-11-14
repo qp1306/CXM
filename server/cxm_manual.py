@@ -12,7 +12,7 @@ from cxm_runtime import MOVE_LOCK, _rpc
 class ManualDockError(RuntimeError):
     pass
 
-def _check(tool, saved, completed=None, *, after_jog=False):
+def _check(tool, saved, completed=None, *, after_jog=False, allow_low_z=False):
     if type(tool) is not int or not 0 <= tool < saved['config']['globals']['tool_count']:
         raise ManualDockError('Select an active T0–T11 dock')
     if saved['migration_required'] or saved['config']['tools'][tool]['maintenance_lockout']:
@@ -34,7 +34,7 @@ def _check(tool, saved, completed=None, *, after_jog=False):
     pos=head.get('position')
     if not all(k in axes for k in 'xyz') or not isinstance(pos,list) or len(pos)<3:
         raise ManualDockError('Home XYZ before motor-on alignment')
-    if type(pos[2]) not in (int,float) or pos[2]<20:
+    if type(pos[2]) not in (int,float) or (pos[2]<20 and not allow_low_z):
         raise ManualDockError('Physical Z clearance below 20 mm; stop')
     idle = state.get('idle_timeout', {}).get('state')
     print_state = state.get('print_stats', {}).get('state')
@@ -121,6 +121,47 @@ def status(tool,store):
     result = _check(tool, store.read(), getattr(store, '_completed_jog', None))
     result.pop('_motion_signature')
     return result
+
+
+def prepare(*,tool,expected_revision,acknowledgement,store):
+    """On explicit Enable Jogging, request *only* the guarded Klipper Z21 macro.
+
+    Klipper owns motion. Never attempt a Z move with an unhomed or unlocked axis,
+    uncertain selected/mounted tool, active job, or unrecognized native macro.
+    """
+    if acknowledgement!='I_APPROVE_GUARDED_DOCK_Z21':
+        raise ManualDockError('Fresh supervised Z21 approval required')
+    if type(tool) is not int or type(expected_revision) is not str:
+        raise ManualDockError('Select a valid dock and configuration revision')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise ManualDockError('Another CXM operation is running')
+    try:
+        before=_check(tool,store.read(),allow_low_z=True)
+        if expected_revision!=before['revision']:
+            raise ManualDockError('Configuration changed; refresh before enabling jog')
+        if before['jog_revision']!=2:
+            raise ManualDockError('Loaded native jog revision 2 is required')
+        if before['z']<21.0:
+            # The presence of the new macro is checked before sending any motion.
+            state=_rpc('/printer/objects/query?gcode_macro%20CXM_MANUAL_DOCK_PREPARE=version').get('status',{})
+            if state.get('gcode_macro CXM_MANUAL_DOCK_PREPARE',{}).get('version')!=1:
+                raise ManualDockError('Guarded Z21 preparation macro not loaded. Install it through Updates and restart Klipper.')
+            _rpc('/printer/gcode/script',{'script':'CXM_MANUAL_DOCK_PREPARE TOOL=%d' % tool})
+        after=_check_after_own_command(tool,store,jog=True)
+        if after['revision']!=before['revision'] or after['sensor']!='PRESSED':
+            raise ManualDockError('State changed during Z preparation')
+        if after['native_tool_identity']!=before['native_tool_identity']:
+            raise ManualDockError('Tool identity changed during Z preparation')
+        if any(abs(after['xy'][ax]-before['xy'][ax])>0.02 for ax in 'xy'):
+            raise ManualDockError('XY changed during Z preparation; inspect carriage')
+        expected_z=max(before['z'],21.0)
+        if abs(after['z']-expected_z)>0.08:
+            raise ManualDockError('Z21 movement not verified; inspect gantry')
+        store._completed_jog=(time.monotonic()+3.0,after['_motion_signature'])
+        return {'prepared':True,'z':after['z'],'revision':after['revision'],
+                'moved':before['z']<21.0}
+    finally:
+        MOVE_LOCK.release()
 
 def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
     camera = acknowledgement == 'I_APPROVE_SUPERVISED_CAMERA_JOG'
