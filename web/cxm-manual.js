@@ -85,7 +85,8 @@ async function refresh(silent=false){
       const newJog=Number(live.jog_revision)===2;
       const label=el('cxmDockJogSpeed');
       if(label)label.textContent=newJog?'50 mm/s · native verified':'Native jog update required';
-      el('cxmManualReadiness').textContent=newJog?'Ready · T'+tool+' mounted':'Native macro update required · jog disabled';
+      el('cxmManualReadiness').textContent=!newJog?'Native macro update required · jog disabled':
+        live.z<22?'Z22 preparation available · tick Enable jogging':'Ready · T'+tool+' mounted';
     }else{
       el('cxmManualReadiness').textContent='READY · T'+tool+' mounted';
     }
@@ -247,7 +248,33 @@ travelRetreat?.addEventListener('click',()=>travel100(false));
 travelReturn?.addEventListener('click',()=>travel100(true));
 el('cxmManualRefresh').addEventListener('click',()=>refresh(false));
 captureButton?.addEventListener('click',capture);
-el('cxmManualApproval').addEventListener('change',()=>{clearQueue();resetTravel('Approval changed. Recheck release-point alignment.');controls();});
+async function enableJogging(){
+  clearQueue();resetTravel('Approval changed. Recheck release-point alignment.');
+  const check=el('cxmManualApproval');
+  if(!check.checked || suffix){controls();return;}
+  if(!live?.prepare_ready || selected()!==tool || !revision || panel?.hidden || document.hidden){
+    check.checked=false;say('Cannot enable jogging until XYZ, mounted tool and printer state are ready.',true);
+    controls();return;
+  }
+  const target=tool,expectedRevision=revision;
+  if(live.z>=22){controls();return;}
+  busy=true;controls();
+  try{
+    say('Preparing safe Z22 clearance automatically…');
+    const result=await request('/manual/prepare-z22',{
+      tool:target,expected_revision:expectedRevision,
+      acknowledgement:'I_APPROVE_SUPERVISED_DOCK_Z22'});
+    if(result.ready!==true || result.revision!==expectedRevision || result.z<21.92)
+      throw Error('Klipper did not verify Z22 clearance');
+    say('Z22 prepared and verified · jogging ready.');
+  }catch(e){
+    check.checked=false;
+    say('Z22 preparation refused: '+e.message+'. No jog authorised.',true);
+  }finally{
+    busy=false;controls();refresh(true);
+  }
+}
+el('cxmManualApproval').addEventListener('change',enableJogging);
 el('cxmJogClear').addEventListener('click',clearQueue);
 function leaveJogPanel(){
   if(document.hidden || panel?.hidden){
