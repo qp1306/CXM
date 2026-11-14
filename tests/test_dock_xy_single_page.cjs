@@ -14,7 +14,7 @@ test('Reliability and reset reuse existing DOM handlers on the Dock XY page',()=
   assert.match(layout,/const test=\$\('cxmMultiPanel'\)/);
   assert.match(layout,/const recovery=\$\('cxmClearAllBox'\)/);
   assert.match(layout,/const reset=\$\('cxmCommissionResetPanel'\)/);
-  assert.match(layout,/const s6=p\.stage\(6,'Reset and recommission'/);
+  assert.match(layout,/const s6=p\.stage\(5,'Recover \/ Reset'/);
   assert.doesNotMatch(layout,/Open Tools · Load \/ Unload/);
 });
 test('100mm travel has ten separately verified native 10mm moves',()=>{

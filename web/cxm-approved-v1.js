@@ -47,7 +47,7 @@ const SVG={
 const ico=(name,size=18)=>`<svg class="ic" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${SVG[name]||SVG.verify}</svg>`;
 const configs={
  tools:{title:'Hotend Control',sub:'Select and change a verified hotend',icon:'tools',steps:[['layers','Select Hotend'],['car','Confirm Carriage'],['upload','Load / Unload'],['verify','Verify Result']]},
- calibration:{title:'Dock XY Calibration',sub:'Supervised motor-on dock alignment',icon:'dock',steps:[['layers','Select Tool'],['printer','Check Printer'],['move','Align Dock'],['save','Save Dock XY'],['verify','Prove Toolchange'],['refresh','Recover / Reset']]},
+ calibration:{title:'Dock XY Calibration',sub:'Select · Align · Save · Prove',icon:'dock',steps:[['layers','Select Tool'],['move','Align Dock'],['save','Save XY'],['verify','Prove'],['refresh','Reset']]},
  offsets:{title:'Tool XY Calibration',sub:'Camera-aligned nozzle offsets relative to T0',icon:'target',steps:[['target','Set T0 Reference'],['layers','Select Hotend'],['camera','Align Nozzle'],['save','Save Hotend'],['results','Review']]},
  'z-calibration':{title:'Tool Z Calibration',sub:'Cold commissioning · Z offsets not applied',icon:'tools',steps:[['target','T0 Reference'],['layers','Select Tools'],['printer','Prepare'],['play','Calibrate'],['results','Results']]},
  tests:{title:'Diagnostics',sub:'Read-only machine checks and troubleshooting',icon:'verify',steps:[['link','Connect'],['printer','Check Machine'],['save','Verify AutoSave'],['download','Export']]},
@@ -121,13 +121,11 @@ function dock(){const p=make('calibration',[['printer','printer','Klipper'],['ho
  const s1=p.stage(1,'Choose hotend','Choose a saved tool position for supervised setup.');
  populateBank(q('.cxma-inner',s1),'dock','cxmDockTool');
  const top=q('.dock-top',p.legacy);if(top){wrapPart(s1,top);top.classList.add('cxma-simple-panel')}
- const s2=p.stage(2,'Check printer','Confirm live homing and inspect the real movement path.');
- q('.cxma-inner',s2).append(node('p','cxma-real-status','Checking printer and carriage…'));
- const s3=p.stage(3,'Align dock position','Live motor-on jogging; save only after physical alignment.');
+ const s3=p.stage(2,'Align dock','Position the mounted tool at its release point.');
  // Keep the genuine motor-on jog controls and their existing listeners together;
  // move only the existing Save controls into the intended next step.
  const dockPanel=fromId('cxmManualDock',q('.cxma-inner',s3));
- const s4=p.stage(4,'Save dock XY','Capture the selected dock release-side position.');
+ const s4=p.stage(3,'Save dock XY','Save the aligned release point.');
  const sections=dockPanel?qa(':scope > .cxm-step',dockPanel):[];
  if(sections.length>=2){
    const saveControls=sections[1];saveControls.classList.add('cxma-save-section');
@@ -135,15 +133,15 @@ function dock(){const p=make('calibration',[['printer','printer','Klipper'],['ho
    const oldHeading=q('.panel-heading',saveControls);if(oldHeading)oldHeading.hidden=true;
    const capture=$('cxmManualCapture');if(capture){capture.innerHTML=ico('save')+'Capture & save dock XY';capture.classList.add('big');}
  }
- const s5=p.stage(5,'Prove pickup / dropoff','Run the existing native Klipper motion test without leaving Dock XY.');
+ const s5=p.stage(4,'Prove pickup / dropoff','Run verified pickup and dropoff cycles.');
  const test=$('cxmMultiPanel');
  if(test){
    q('.cxma-inner',s5).append(test);
    const heading=q('.panel-heading h3',test);
    if(heading)heading.textContent='Native pickup / dropoff · repeatable reliability cycles';
  }
- q('.cxma-inner',s5).append(note('Use the existing native speed profile and cycle count. The original Klipper dock movement and sensor checks are unchanged. Start with one selected tool and one complete cycle.'));
- const s6=p.stage(6,'Reset and recommission','Use verified EMPTY recovery or a backed-up full calibration reset on this page.');
+ q('.cxma-inner',s5).append(note('Select a calibrated tool and number of cycles. Native motion and sensor checks remain unchanged.'));
+ const s6=p.stage(5,'Recover / Reset','Guarded recovery and backup reset.');
  const recovery=$('cxmClearAllBox');
  if(recovery)q('.cxma-inner',s6).append(recovery);
  const reset=$('cxmCommissionResetPanel');
@@ -254,7 +252,7 @@ function checkState(page){const x=texts();const state=[];const hom=x('homing'),k
  state.push(tgt!==undefined&&tgt!=='',carriage,/verified|completed|success/i.test(native)&&!/failed|error/i.test(native),/sensor confirmed|carriage (EMPTY|T\d+ mounted)/i.test(change)&&carriage&&/verified|completed|success/i.test(native));break;}
  case 'calibration':{
  const selected=$('cxmDockTool')?.value||'';const mr=x('cxmManualReadiness'),feed=x('cxmManualFeedback');
- state.push(selected!=='',homed&&/ready|jog allowed/i.test(mr),false,/saved|confirmed/i.test(feed)&&!/not saved|unsaved|error|failed/i.test(feed),false);break;}
+ state.push(selected!=='',homed&&/ready|jog allowed/i.test(mr),/saved|confirmed/i.test(feed)&&!/not saved|unsaved|error|failed/i.test(feed),false,false);break;}
  case 'offsets':{
  const ref=$('cxmCameraReference'),res=x('cxmCameraResult'),next=x('cxmCameraNext');
  state.push(cameraRef,!!$('cxmAxisTool')?.value,false,/saved/i.test(res)&&!/unsaved|cannot|error|failed/i.test(res),/complete/i.test(next));break;}
@@ -377,8 +375,7 @@ function updateAll(){const x=texts();const printer=x('printStatus');const state=
  as('tools','available',eligible.length?eligible.join(', '):'Not verified',eligible.length?'ok':'warn');
  as('tools','remaining','12 slots visible','blue');
  const realTool=q('[data-panel="tools"] .cxma-real-status');if(realTool)realTool.textContent=x('cxmChangeResult')||x('cxmNativeToolStatus')||'Waiting for native tool status';
- const dockSave=q('[data-panel="calibration"] [data-stage="4"] .cxma-real-status');if(dockSave)dockSave.textContent=x('cxmManualFeedback')||'Awaiting saved coordinates';
- const dockReady=q('[data-panel="calibration"] [data-stage="2"] .cxma-real-status');if(dockReady)dockReady.textContent=x('cxmManualReadiness')||'Checking printer and carriage…';
+ const dockSave=q('[data-panel="calibration"] [data-stage="3"] .cxma-real-status');if(dockSave)dockSave.textContent=x('cxmManualFeedback')||'Awaiting saved coordinates';
  as('calibration','homing',h||'Unknown',state.homed?'ok':'warn');as('calibration','car',state.carriage?'Verified':'Inspect',state.carriage?'ok':'warn');
  as('calibration','dock',$('cxmDockTool')?.selectedOptions?.[0]?.textContent||'Choose','blue');
  as('offsets','camera',/unavailable|configure|not/i.test(x('cxmAxisCameraMessage'))?'Unavailable':'Check feed','blue');

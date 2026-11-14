@@ -22,7 +22,7 @@ class ManualDockTests(unittest.TestCase):
                     'print_stats':{'state':'standby'},
                     'stepper_enable':{'steppers':motors},
                     'gcode_button cxm_tool_detect':{'state':'PRESSED'},
-                    'gcode_macro _CXM_NATIVE':{'current_tool':-2,'jog_revision':1},
+                    'gcode_macro _CXM_NATIVE':{'current_tool':-2,'jog_revision':2},
                     'gcode_macro _CXM_TEST_STATE':{'running':0},
                     'configfile':{'settings':{'stepper_x':{'position_min':0,'position_max':335},
                                              'stepper_y':{'position_min':0,'position_max':362}}}}
@@ -88,6 +88,13 @@ class ManualDockTests(unittest.TestCase):
         self.state['gcode_macro _CXM_NATIVE']['jog_revision']=1
         self.assertAlmostEqual(m.jog(**args)['z'],25.1)
         self.assertTrue(self.command_log[0].endswith(' CAMERA=1'))
+
+    def test_dock_jog_requires_revision_two_before_movement(self):
+        self.state['gcode_macro _CXM_NATIVE']['jog_revision']=1
+        with self.assertRaisesRegex(m.ManualDockError,'revision 2'):
+            m.jog(tool=0, axis='x', distance=1.0, expected_revision='a'*64,
+                  acknowledgement='I_APPROVE_SUPERVISED_MOTOR_ON_JOG',store=self.store)
+        self.assertEqual(self.command_log,[])
 
     def test_micron_jog_in_both_directions(self):
         for axis in ('x', 'y'):

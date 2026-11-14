@@ -240,3 +240,20 @@ body.cxm-approved-v1 .cxm-fresh-start #cxmFreshReset{
 }
 body.cxm-approved-v1 .cxm-fresh-start #cxmFreshReset:disabled{opacity:.46}
 body.cxm-approved-v1 .cxm-fresh-start #cxmFreshResult{font-weight:700;overflow-wrap:anywhere}
+
+
+/* Dock XY compact workflow: original CXM palette, controls and safety gating. */
+body.cxm-approved-v1 [data-panel="calibration"] .cxma-stack{gap:10px}
+body.cxm-approved-v1 [data-panel="calibration"] .cxma-stage{padding:14px 18px}
+body.cxm-approved-v1 [data-panel="calibration"] .cxma-stage .panel-head{margin-bottom:8px}
+body.cxm-approved-v1 [data-panel="calibration"] .cxma-stage .panel-head p{font-size:12px;margin:2px 0 0}
+body.cxm-approved-v1 [data-panel="calibration"] .cxma-inner .cxm-xy-lab{margin:0}
+body.cxm-approved-v1 [data-panel="calibration"] #cxmManualDock>.panel-heading{display:none}
+body.cxm-approved-v1 [data-panel="calibration"] #cxmManualDock>.helper{margin:5px 0}
+body.cxm-approved-v1 [data-panel="calibration"] .cxm-dock-safety{margin:5px 0}
+body.cxm-approved-v1 [data-panel="calibration"] .cxm-dock-safety summary{font-size:12px}
+body.cxm-approved-v1 [data-panel="calibration"] #cxmDockTravelCheck{margin:7px 0}
+body.cxm-approved-v1 [data-panel="calibration"] .cxm-multi-cycle{max-width:none;margin:8px 0}
+body.cxm-approved-v1 [data-panel="calibration"] .dock-live-preflight{gap:8px}
+body.cxm-approved-v1 [data-panel="calibration"] .cxm-step{padding:10px}
+body.cxm-approved-v1 [data-panel="calibration"] .cxma-toolbank{gap:7px}

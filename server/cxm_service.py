@@ -11,6 +11,8 @@ import time
 import urllib.error
 import urllib.request
 from cxm_config import Store
+from cxm_runtime import MOVE_LOCK, _rpc
+from cxm_jog_upgrade import inspect as inspect_jog_upgrade, apply as apply_jog_upgrade, JogUpgradeError
 from cxm_cxchanger import plan
 from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
                     confirm_staging as t0_confirm_staging, T0Error)
@@ -179,11 +181,18 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,zauto_controller.status())
             elif self.path.startswith('/v1/z-auto/preflight?'):
                 self.output(200,zauto_assess(self.server.store,parse_z_tool_query(self.path)))
+            elif self.path == '/v1/update/jog/status':
+                info=inspect_jog_upgrade(self.server.store.path.parent / 'cxm_native_toolchange.cfg')
+                query='/printer/objects/query?gcode_macro%20_CXM_NATIVE=jog_revision'
+                native=_rpc(query).get('status',{}).get('gcode_macro _CXM_NATIVE',{})
+                self.output(200,{'file_state':info['state'],'sha256':info['sha256'],
+                                 'live_revision':native.get('jog_revision'),
+                                 'restart_required':info['state']=='installed' and native.get('jog_revision')!=2})
             elif self.path == '/v1/health':
                 self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
-        except (OSError, ValueError, SyntaxError, ManualDockError) as e:
+        except (OSError, ValueError, SyntaxError, ManualDockError, JogUpgradeError) as e:
             self.output(503,{'error':str(e)})
     def do_POST(self):
         # No CORS, strict same-origin and custom header to prevent cross-site form submits.
@@ -204,8 +213,29 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/update/jog/apply':
+                if set(body)!={'sha256','acknowledgement'} or body['acknowledgement']!='I_INSPECTED_EMPTY_CARRIAGE_AND_STOPPED_ALL_TESTS':
+                    raise JogUpgradeError('Confirm physically EMPTY carriage before updating Klipper')
+                if type(body['sha256']) is not str or not re.fullmatch('[a-f0-9]{64}',body['sha256']):
+                    raise JogUpgradeError('Invalid reviewed native macro fingerprint')
+                if not printer_safe() or zauto_controller.status()['running']:
+                    raise JogUpgradeError('Printer must be ready and idle; no active calibration')
+                if not MOVE_LOCK.acquire(blocking=False):
+                    raise JogUpgradeError('Another CXM motion or configuration operation is active')
+                try:
+                    q='/printer/objects/query?gcode_button%20cxm_tool_detect=state&gcode_macro%20_CXM_TEST_STATE=running'
+                    state=_rpc(q).get('status',{})
+                    if state.get('gcode_button cxm_tool_detect',{}).get('state')!='RELEASED':
+                        raise JogUpgradeError('Carriage sensor not RELEASED; remove tool and inspect')
+                    if state.get('gcode_macro _CXM_TEST_STATE',{}).get('running')!=0:
+                        raise JogUpgradeError('Native tool test active; update refused')
+                    target=self.server.store.path.parent / 'cxm_native_toolchange.cfg'
+                    self.output(200,apply_jog_upgrade(target,body['sha256']))
+                finally:
+                    MOVE_LOCK.release()
                 return
             if self.path == '/v1/z-auto/stop':
                 if body != {'acknowledgement':'STOP_AFTER_CURRENT_COMMAND'}:
@@ -427,7 +457,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected rollback parameters')
                 result=self.server.store.rollback(**body)
             self.output(200,result)
-        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError,ZAutoError) as e:
+        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError,ZAutoError,JogUpgradeError) as e:
             self.output(400,{'error':str(e)})
         except RuntimeError as e:
             self.output(409,{'error':str(e)})
@@ -447,7 +477,7 @@ def main():
     # GitHub updates modify repository files but should not need an SSH step.
     # systemd Restart=always relaunches the new Python code after a source change.
     watched=[Path(__file__),Path(__file__).with_name('cxm_config.py'),
-             Path(__file__).with_name('cxm_manual.py'),Path(__file__).with_name('cxm_runtime.py'),
+             Path(__file__).with_name('cxm_manual.py'),Path(__file__).with_name('cxm_jog_upgrade.py'),Path(__file__).with_name('cxm_runtime.py'),
              Path(__file__).with_name('cxm_t0.py'),
              Path(__file__).with_name('cxm_cxchanger.py'),
              Path(__file__).with_name('cxm_tools.py'),
