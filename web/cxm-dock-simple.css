@@ -1,0 +1,34 @@
+
+/* CXM Dock XY: the only visible calibration UI. No legacy cards or gates. */
+section[data-panel="calibration"].cxm-dock-simple-active > :not(#cxmSimpleDock){display:none!important}
+#cxmSimpleDock{max-width:1370px;margin:0 auto;padding:4px 0 22px;display:grid;gap:16px;color:#e8f2ff}
+#cxmSimpleDock .cxms-header h1{font-size:clamp(24px,2.7vw,36px);font-weight:800;letter-spacing:-.045em;margin:0 0 5px}
+#cxmSimpleDock .cxms-header p{font-size:14px;color:#9db7d4;margin:0}
+#cxmSimpleDock .cxms-status{display:flex;flex-wrap:wrap;gap:9px}
+#cxmSimpleDock .cxms-status span{background:#182d46;border:1px solid #33516d;padding:11px 16px;border-radius:12px;font-weight:650;font-size:14px}
+#cxmSimpleDock .cxms-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+#cxmSimpleDock .cxms-step{background:linear-gradient(160deg,#132b47,#0c1e33);border:1px solid #365673;border-radius:15px;padding:17px 18px;display:grid;align-content:start;gap:12px;min-width:0}
+#cxmSimpleDock .cxms-step.cxms-wide{grid-column:1/-1}
+#cxmSimpleDock .cxms-heading{display:flex;align-items:center;gap:11px}
+#cxmSimpleDock .cxms-heading b{display:inline-grid;place-items:center;flex:0 0 33px;width:33px;height:33px;background:#1267ba;border:1px solid #478ce0;border-radius:50%;font-size:16px;color:white}
+#cxmSimpleDock .cxms-heading h2{font-size:17px;font-weight:750;letter-spacing:-.02em;margin:0;line-height:1.2}
+#cxmSimpleDock .cxms-step p{margin:0;font-size:14px;color:#abc2d9}
+#cxmSimpleDock button{cursor:pointer}
+#cxmSimpleDock button:disabled{cursor:not-allowed;opacity:.42}
+#cxmSimpleDock button.btn{width:max-content;max-width:100%;font-size:15px;font-weight:700;padding:12px 22px}
+#cxmSimpleDock #cxmsTool{background:#193854;color:white;border:1px solid #6282a0;border-radius:10px;padding:11px 15px;font-size:17px;max-width:220px;width:100%}
+#cxmSimpleDock .cxms-enable{display:flex;align-items:center;gap:14px;border:1px solid #4c779a;background:#193854;border-radius:12px;padding:14px;cursor:pointer;font-size:15px;font-weight:750}
+#cxmSimpleDock .cxms-enable:has(input:checked){border-color:#56d9a5;background:#153e3c}
+#cxmSimpleDock .cxms-enable input{width:27px;height:27px;accent-color:#44c896;flex:0 0 auto}
+#cxmSimpleDock .cxms-jogrow{display:grid;grid-template-columns:36px repeat(8,minmax(0,1fr));gap:7px;align-items:center}
+#cxmSimpleDock .cxms-jogrow+.cxms-jogrow{margin-top:9px}
+#cxmSimpleDock .cxms-jogrow strong{text-align:center;font-size:17px}
+#cxmSimpleDock .cxms-jogrow button{border:1px solid #537796;background:#254663;color:#f2f7ff;border-radius:9px;font-size:15px;font-weight:750;padding:12px 4px}
+#cxmSimpleDock .cxms-jogrow button:not(:disabled):hover{background:#276ab5}
+#cxmSimpleDock .cxms-message{margin:0;background:#172b42;border:1px solid #426383;border-radius:12px;padding:14px 16px;font-weight:650;font-size:15px;color:#c9e3ff}
+#cxmSimpleDock .cxms-message.cxms-error{color:#ffb1b1;border-color:#c75b5b}
+@media(max-width:800px){
+ #cxmSimpleDock .cxms-grid{grid-template-columns:1fr}
+ #cxmSimpleDock .cxms-jogrow{grid-template-columns:30px repeat(4,minmax(0,1fr))}
+ #cxmSimpleDock .cxms-jogrow button:nth-child(n+6){margin-top:3px}
+}

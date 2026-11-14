@@ -409,7 +409,7 @@ function mount(){if(document.body.classList.contains('cxm-approved-v1'))return;d
  const main=q('main');if(main)main.classList.add('cxma-shell');
  applyIcons();
  // Existing Tool Z keeps the tested five-arrow workflow unchanged.
- tools();dock();offsets();z();updates();settings();tests();proxies();
+ tools();if(!window.CXM_SIMPLE_DOCK_XY)dock();offsets();z();updates();settings();tests();proxies();
  // Visually remove previous generic ribbons. They never owned live state.
  qa('.cxm-workflow-ribbon').forEach(e=>e.remove());
  updateAll();setInterval(updateAll,1600);

@@ -19,6 +19,7 @@ from cxm_cxchanger import plan
 from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
                     confirm_staging as t0_confirm_staging, T0Error)
 from cxm_manual import status as manual_status, jog as manual_jog, capture as manual_capture, save as manual_save, ManualDockError
+from cxm_dock_simple import status as simple_status, home as simple_home, enable as simple_enable, jog as simple_jog, test as simple_test, save as simple_save, DockSimpleError
 from cxm_native import (camera_action, status as multi_status, start as multi_start,
                         stop as multi_stop, sync as native_sync,
                         select as native_select, simple_change as native_simple_change,
@@ -174,6 +175,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,{'tool':int(params['tool'][0]),'ready':False,'blockers':['Native Klipper tool-state interface: use /v1/native/status after accepted geometry sync']})
             elif self.path == '/v1/t0/cycles/status':
                 self.output(200,{'running':False,'phase':'retired','error':'Python toolchange cycles removed; use native Klipper cycle'})
+            elif self.path.startswith('/v1/dock-simple/status?'):
+                params=parse_qs(urlsplit(self.path).query)
+                if set(params)!={'tool'} or len(params['tool'])!=1 or not params['tool'][0].isdigit():
+                    raise ValueError('Select a Dock XY hotend')
+                self.output(200,simple_status(self.server.store,int(params['tool'][0])))
             elif self.path.startswith('/v1/manual/status?'):
                 args=parse_qs(urlsplit(self.path).query)
                 if set(args)!={'tool'} or len(args['tool'])!=1 or not args['tool'][0].isdigit():
@@ -206,7 +212,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
-        except (OSError, ValueError, SyntaxError, ManualDockError, JogUpgradeError, DockVerifyInstallError) as e:
+        except (OSError, ValueError, SyntaxError, ManualDockError, DockSimpleError, JogUpgradeError, DockVerifyInstallError) as e:
             self.output(503,{'error':str(e)})
     def do_POST(self):
         # No CORS, strict same-origin and custom header to prevent cross-site form submits.
@@ -227,7 +233,7 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/dock-verify/roundtrip','/v1/dock-verify/adjust','/v1/dock-verify/save','/v1/update/dock-verify/apply','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/dock-simple/home','/v1/dock-simple/enable','/v1/dock-simple/jog','/v1/dock-simple/test','/v1/dock-simple/save','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/dock-verify/roundtrip','/v1/dock-verify/adjust','/v1/dock-verify/save','/v1/update/dock-verify/apply','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
                 return
             if self.path == '/v1/update/dock-verify/apply':
@@ -452,6 +458,16 @@ class Handler(BaseHTTPRequestHandler):
                     raise ManualDockError('Printer not idle; dock save refused')
                 self.output(200,dock_verify_save(store=self.server.store,**body))
                 return
+            if self.path.startswith('/v1/dock-simple/'):
+                step=self.path.rsplit('/',1)[-1]
+                required={'tool','expected_revision'} | ({'axis','distance'} if step=='jog' else set())
+                if set(body)!=required:
+                    raise ValueError('Invalid Dock XY request')
+                method={'home':simple_home,'enable':simple_enable,'jog':simple_jog,'test':simple_test,'save':simple_save}.get(step)
+                if method is None:
+                    raise ValueError('Unknown Dock XY action')
+                self.output(200,method(self.server.store,**body))
+                return
             if self.path == '/v1/manual/jog':
                 if set(body)!={'tool','axis','distance','expected_revision','acknowledgement'}:
                     raise ValueError('Invalid supervised XY jog request')
@@ -509,7 +525,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected rollback parameters')
                 result=self.server.store.rollback(**body)
             self.output(200,result)
-        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError,ZAutoError,JogUpgradeError,DockVerifyInstallError) as e:
+        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError,DockSimpleError,ZAutoError,JogUpgradeError,DockVerifyInstallError) as e:
             self.output(400,{'error':str(e)})
         except RuntimeError as e:
             self.output(409,{'error':str(e)})
@@ -529,7 +545,7 @@ def main():
     # GitHub updates modify repository files but should not need an SSH step.
     # systemd Restart=always relaunches the new Python code after a source change.
     watched=[Path(__file__),Path(__file__).with_name('cxm_config.py'),
-             Path(__file__).with_name('cxm_manual.py'),Path(__file__).with_name('cxm_jog_upgrade.py'),Path(__file__).with_name('cxm_dock_verify.py'),Path(__file__).with_name('cxm_dock_verify_install.py'),Path(__file__).with_name('cxm_runtime.py'),
+             Path(__file__).with_name('cxm_manual.py'),Path(__file__).with_name('cxm_dock_simple.py'),Path(__file__).with_name('cxm_jog_upgrade.py'),Path(__file__).with_name('cxm_dock_verify.py'),Path(__file__).with_name('cxm_dock_verify_install.py'),Path(__file__).with_name('cxm_runtime.py'),
              Path(__file__).with_name('cxm_t0.py'),
              Path(__file__).with_name('cxm_cxchanger.py'),
              Path(__file__).with_name('cxm_tools.py'),

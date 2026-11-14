@@ -1,26 +1,35 @@
+/* The old ABSENT-locked-dock UI is retired from Dock XY.
+ * These tests guard that it does not reappear as a second workflow.
+ */
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
 const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
-const page=read('web/index.html'),ui=read('web/cxm-dock-verify.js'),
-      updates=read('web/cxm-dock-verify-update.js'),native=read('vendor/cxm/cxm_native_toolchange.cfg');
-test('isolated locked-dock flow requires ABSENT, physical lock acknowledgment and loaded native macro',()=>{
- assert.match(page,/cxm-dock-verify\.js\?v=/);
- assert.match(page,/cxm-dock-verify-update\.js\?v=/);
- assert.match(ui,/macro_loaded===true/);
- assert.match(ui,/sensor==='RELEASED'/);
- assert.match(ui,/I_INSPECTED_LOCKED_DOCK_AND_CLEAR_PATH/);
- assert.match(ui,/Test \+100 mm → −100 mm/);
- assert.match(ui,/Save verified dock XY/);
+const html=read('web/index.html');
+const dock=read('web/cxm-dock-simple.js');
+const service=read('server/cxm_dock_simple.py');
+
+test('one visible Dock XY workflow without standalone native installers',()=>{
+ assert.match(html,/CXM_SIMPLE_DOCK_XY=true/);
+ assert.match(html,/cxm-dock-simple\.js\?v=/);
+ assert.doesNotMatch(html,/script src="cxm-dock-verify(?:-update)?\.js/);
+ assert.doesNotMatch(html,/script src="cxm-jog-update\.js/);
+ assert.match(dock,/Home printer/);
+ assert.match(dock,/Enable jogging/);
+ assert.match(dock,/Test docking \/ undocking/);
+ assert.match(dock,/Save coordinates/);
+ assert.match(dock,/Next hotend/);
 });
-test('any fine adjustment requires a repeat, save is blocked until verified',()=>{
- assert.match(ui,/verified=false/);
- assert.match(ui,/!verified\|\|!live\?\.travel_verified/);
- assert.match(ui,/Repeat the \+100\/−100 test before Save/);
- assert.match(native,/\[gcode_macro CXM_DOCK_VERIFY_MOVE\]/);
- assert.match(native,/G1 \{axis\}\{dist\} F3000/);
+test('Dock XY does not use filament state or old 10mm loop',()=>{
+ assert.doesNotMatch(dock,/cxm_tool_detect|gcode_button|\.sensor\b/);
+ assert.doesNotMatch(service,/cxm_tool_detect|gcode_button|\['sensor'\]/);
+ assert.doesNotMatch(service,/for.*range\(10\)/);
+ assert.match(service,/SAVE_GCODE_STATE NAME=CXM_SIMPLE_DOCK/);
+ assert.match(service,/G1 Z22 F1500/);
 });
-test('Updates uses a dedicated guarded append-only macro installer',()=>{
- assert.match(updates,/update\/dock-verify\/apply/);
- assert.match(updates,/restart_required/);
- assert.match(updates,/Inspect the printer before installing/);
+test('automatic native toolchanges retain their separate safety checks',()=>{
+ const native=read('vendor/cxm/cxm_native_toolchange.cfg');
+ assert.match(native,/CXM_FAST_VERIFY EXPECT=PRESSED/);
+ assert.match(native,/CXM_FAST_VERIFY EXPECT=RELEASED/);
+ assert.match(native,/\[gcode_macro _CXM_PICKUP_MOTION\]/);
+ assert.match(native,/\[gcode_macro _CXM_RELEASE_MOTION\]/);
 });
