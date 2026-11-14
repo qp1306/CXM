@@ -43,7 +43,8 @@
       if(state.code==='READY')ready++;
       else if(state.code==='LOCKED_OUT')locked++;
       else unready++;
-      if(['AWAITING_VERIFICATION','PRINTER_OFFLINE','READY'].includes(state.code))calibrated++;
+      if(tool.dock_reference_accepted===true &&
+         Number.isFinite(tool.dock_x) && Number.isFinite(tool.dock_y))calibrated++;
       const result=card(tool,n,count,{migrationRequired});
       element.dataset.profileState=result.state;
       element.classList?.toggle('cxm-needs-attention',state.code!=='READY');
@@ -59,7 +60,7 @@
     });
     const summary=document.getElementById('cxmToolSummary');
     if(summary)summary.textContent=config
-      ? shown+' selected · '+calibrated+' calibration accepted · '+ready+' ready · '+unready+' not ready'+(locked?' · '+locked+' locked out':'')
+      ? shown+' selected · '+calibrated+' dock XY saved · '+ready+' fully ready · '+unready+' not fully ready'+(locked?' · '+locked+' locked out':'')
       : 'Configuration unavailable';
     const stat=document.getElementById('cxmActiveTools');
     if(stat)stat.textContent=config

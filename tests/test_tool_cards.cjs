@@ -58,7 +58,7 @@ test('12 selected means all cards; no Ready without physical verification',()=>{
   cards.render({config:{globals:{tool_count:12,safe_y:120,x_docking_adjust:3},tools:profiles}});
   assert.equal(nodes.filter(x=>!x.hidden).length,12);
   assert.match(out.cxmToolSummary.textContent,/12 selected/);
-  assert.match(out.cxmToolSummary.textContent,/0 ready · 12 not ready/);
+  assert.match(out.cxmToolSummary.textContent,/0 dock XY saved · 0 fully ready · 12 not fully ready/);
   assert.equal(out.cxmActiveTools.textContent,'0 READY / 12 selected');
   assert.match(nodes[10].innerHTML,/NOT CALIBRATED/);
   cards.render({config:{globals:{tool_count:6,safe_y:120,x_docking_adjust:3},tools:profiles}});
