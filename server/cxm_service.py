@@ -14,11 +14,12 @@ from cxm_config import Store
 from cxm_runtime import MOVE_LOCK, _rpc
 from cxm_jog_upgrade import inspect as inspect_jog_upgrade, apply as apply_jog_upgrade, JogUpgradeError
 from cxm_dock_verify_install import inspect as inspect_dock_verify_install, apply as apply_dock_verify_install, DockVerifyInstallError
+from cxm_z22_upgrade import inspect as inspect_z22_upgrade, apply as apply_z22_upgrade, Z22UpgradeError
 from cxm_dock_verify import status as dock_verify_status, roundtrip as dock_verify_roundtrip, adjust as dock_verify_adjust, save as dock_verify_save
 from cxm_cxchanger import plan
 from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
                     confirm_staging as t0_confirm_staging, T0Error)
-from cxm_manual import status as manual_status, jog as manual_jog, capture as manual_capture, save as manual_save, ManualDockError
+from cxm_manual import status as manual_status, jog as manual_jog, prepare_jog_z22 as manual_prepare_jog_z22, capture as manual_capture, save as manual_save, ManualDockError
 from cxm_native import (camera_action, status as multi_status, start as multi_start,
                         stop as multi_stop, sync as native_sync,
                         select as native_select, simple_change as native_simple_change,
@@ -188,6 +189,13 @@ class Handler(BaseHTTPRequestHandler):
                 if set(args)!={'tool'} or len(args['tool'])!=1 or not args['tool'][0].isdigit():
                     raise ValueError('Select a valid dock verification tool')
                 self.output(200,dock_verify_status(int(args['tool'][0]),self.server.store))
+            elif self.path == '/v1/update/z22/status':
+                info=inspect_z22_upgrade(self.server.store.path.parent/'cxm_native_toolchange.cfg')
+                q='/printer/objects/query?gcode_macro%20CXM_MANUAL_JOG_PREPARE_Z22=version'
+                data=_rpc(q).get('status',{}).get('gcode_macro CXM_MANUAL_JOG_PREPARE_Z22',{})
+                self.output(200,{'file_state':info['state'],'sha256':info['sha256'],
+                    'live_version':data.get('version'),
+                    'restart_required':info['state']=='installed' and data.get('version')!=1})
             elif self.path == '/v1/update/dock-verify/status':
                 info=inspect_dock_verify_install(self.server.store.path.parent/'cxm_native_toolchange.cfg')
                 q='/printer/objects/query?gcode_macro%20CXM_DOCK_VERIFY_MOVE=version'
@@ -206,7 +214,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
-        except (OSError, ValueError, SyntaxError, ManualDockError, JogUpgradeError, DockVerifyInstallError) as e:
+        except (OSError, ValueError, SyntaxError, ManualDockError, JogUpgradeError, DockVerifyInstallError, Z22UpgradeError) as e:
             self.output(503,{'error':str(e)})
     def do_POST(self):
         # No CORS, strict same-origin and custom header to prevent cross-site form submits.
@@ -227,8 +235,28 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/dock-verify/roundtrip','/v1/dock-verify/adjust','/v1/dock-verify/save','/v1/update/dock-verify/apply','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/prepare-z22','/v1/update/z22/apply','/v1/manual/capture','/v1/manual/save','/v1/dock-verify/roundtrip','/v1/dock-verify/adjust','/v1/dock-verify/save','/v1/update/dock-verify/apply','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/update/z22/apply':
+                if set(body)!={'sha256','acknowledgement'} or body['acknowledgement']!='I_INSPECTED_EMPTY_CARRIAGE_AND_STOPPED_ALL_TESTS':
+                    raise Z22UpgradeError('Printer must be physically EMPTY and idle for native macro installation')
+                if type(body['sha256']) is not str or not re.fullmatch('[a-f0-9]{64}',body['sha256']):
+                    raise Z22UpgradeError('Invalid reviewed macro fingerprint')
+                if not printer_safe() or zauto_controller.status()['running']:
+                    raise Z22UpgradeError('Printer must be safely idle')
+                if not MOVE_LOCK.acquire(blocking=False):
+                    raise Z22UpgradeError('Another CXM operation is running')
+                try:
+                    q='/printer/objects/query?gcode_button%20cxm_tool_detect=state&gcode_macro%20_CXM_TEST_STATE=running'
+                    state=_rpc(q).get('status',{})
+                    if state.get('gcode_button cxm_tool_detect',{}).get('state')!='RELEASED':
+                        raise Z22UpgradeError('Empty carriage sensor required for installing Klipper macro')
+                    if state.get('gcode_macro _CXM_TEST_STATE',{}).get('running')!=0:
+                        raise Z22UpgradeError('Native tool test is running')
+                    self.output(200,apply_z22_upgrade(self.server.store.path.parent/'cxm_native_toolchange.cfg',body['sha256']))
+                finally:
+                    MOVE_LOCK.release()
                 return
             if self.path == '/v1/update/dock-verify/apply':
                 if set(body)!={'sha256','acknowledgement'} or body['acknowledgement']!='I_INSPECTED_EMPTY_CARRIAGE_AND_STOPPED_ALL_TESTS':
@@ -452,6 +480,11 @@ class Handler(BaseHTTPRequestHandler):
                     raise ManualDockError('Printer not idle; dock save refused')
                 self.output(200,dock_verify_save(store=self.server.store,**body))
                 return
+            if self.path == '/v1/manual/prepare-z22':
+                if set(body)!={'tool','expected_revision','acknowledgement'}:
+                    raise ManualDockError('Invalid Z22 preparation request')
+                self.output(200,manual_prepare_jog_z22(store=self.server.store,**body))
+                return
             if self.path == '/v1/manual/jog':
                 if set(body)!={'tool','axis','distance','expected_revision','acknowledgement'}:
                     raise ValueError('Invalid supervised XY jog request')
@@ -509,7 +542,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected rollback parameters')
                 result=self.server.store.rollback(**body)
             self.output(200,result)
-        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError,ZAutoError,JogUpgradeError,DockVerifyInstallError) as e:
+        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError,ZAutoError,JogUpgradeError,DockVerifyInstallError,Z22UpgradeError) as e:
             self.output(400,{'error':str(e)})
         except RuntimeError as e:
             self.output(409,{'error':str(e)})
@@ -529,7 +562,7 @@ def main():
     # GitHub updates modify repository files but should not need an SSH step.
     # systemd Restart=always relaunches the new Python code after a source change.
     watched=[Path(__file__),Path(__file__).with_name('cxm_config.py'),
-             Path(__file__).with_name('cxm_manual.py'),Path(__file__).with_name('cxm_jog_upgrade.py'),Path(__file__).with_name('cxm_dock_verify.py'),Path(__file__).with_name('cxm_dock_verify_install.py'),Path(__file__).with_name('cxm_runtime.py'),
+             Path(__file__).with_name('cxm_manual.py'),Path(__file__).with_name('cxm_jog_upgrade.py'),Path(__file__).with_name('cxm_dock_verify.py'),Path(__file__).with_name('cxm_dock_verify_install.py'),Path(__file__).with_name('cxm_z22_upgrade.py'),Path(__file__).with_name('cxm_runtime.py'),
              Path(__file__).with_name('cxm_t0.py'),
              Path(__file__).with_name('cxm_cxchanger.py'),
              Path(__file__).with_name('cxm_tools.py'),
