@@ -12,7 +12,7 @@ from cxm_runtime import MOVE_LOCK, _rpc
 class ManualDockError(RuntimeError):
     pass
 
-def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor='PRESSED'):
+def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor='PRESSED', allow_low_z=False):
     if type(tool) is not int or not 0 <= tool < saved['config']['globals']['tool_count']:
         raise ManualDockError('Select an active T0–T11 dock')
     if saved['migration_required'] or saved['config']['tools'][tool]['maintenance_lockout']:
@@ -34,7 +34,7 @@ def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor='PRE
     pos=head.get('position')
     if not all(k in axes for k in 'xyz') or not isinstance(pos,list) or len(pos)<3:
         raise ManualDockError('Home XYZ before motor-on alignment')
-    if type(pos[2]) not in (int,float) or pos[2]<20:
+    if type(pos[2]) not in (int,float) or (pos[2]<20 and not allow_low_z):
         raise ManualDockError('Physical Z clearance below 20 mm; stop')
     idle = state.get('idle_timeout', {}).get('state')
     print_state = state.get('print_stats', {}).get('state')
@@ -125,6 +125,51 @@ def status(tool,store):
     result = _check(tool, store.read(), getattr(store, '_completed_jog', None))
     result.pop('_motion_signature')
     return result
+
+
+def prepare_jog_z22(*, tool, expected_revision, acknowledgement, store):
+    """One-click Dock XY supervised clearance. Physical motion lives in Klipper.
+
+    The user explicitly approves the step via Enable Jogging. Never move
+    without XYZ homed, all four Z motors active, mounted selected hotend,
+    idle printer and a loaded independent Z22 macro.
+    """
+    if acknowledgement!='I_APPROVE_SUPERVISED_DOCK_Z22':
+        raise ManualDockError('Supervised Z22 approval is required')
+    if type(tool) is not int or type(expected_revision) is not str:
+        raise ManualDockError('Select valid hotend and current revision')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise ManualDockError('Another CXM operation is running')
+    try:
+        initial=_check(tool,store.read(),allow_low_z=True)
+        if initial['revision']!=expected_revision:
+            raise ManualDockError('Configuration changed; refresh before enabling jogging')
+        if initial['jog_revision']!=2:
+            raise ManualDockError('Verified 50 mm/s native jog required')
+        if initial['z'] < 22.0:
+            limits=initial['limits'].get('z')
+            if not limits or 22.0>limits[1]:
+                raise ManualDockError('Z22 outside configured travel; no movement')
+            q='/printer/objects/query?gcode_macro%20CXM_MANUAL_JOG_PREPARE_Z22=version'
+            loaded=_rpc(q).get('status',{}).get('gcode_macro CXM_MANUAL_JOG_PREPARE_Z22',{})
+            if loaded.get('version')!=1:
+                raise ManualDockError('Z22 prepare macro not loaded. Install from CXM Updates.')
+            _rpc('/printer/gcode/script',{'script':'CXM_MANUAL_JOG_PREPARE_Z22 TOOL=%d'%tool})
+        final=_check_after_own_command(tool,store,jog=True)
+        if final['revision']!=initial['revision'] or final['native_tool_identity']!=initial['native_tool_identity']:
+            raise ManualDockError('Tool identity or configuration changed during Z22 preparation')
+        if final['sensor']!='PRESSED':
+            raise ManualDockError('Mounted hotend sensor changed during preparation')
+        if abs(final['xy']['x']-initial['xy']['x'])>0.02 or abs(final['xy']['y']-initial['xy']['y'])>0.02:
+            raise ManualDockError('Unexpected XY movement during Z22 preparation')
+        expected_z=max(22.0,initial['z'])
+        if abs(final['z']-expected_z)>0.08:
+            raise ManualDockError('Z22 endpoint not verified; inspect printer')
+        store._completed_jog=(time.monotonic()+3.0,final['_motion_signature'])
+        return {'ready':True,'moved':initial['z']<22,'z':final['z'],
+                'revision':final['revision'],'xy':final['xy']}
+    finally:
+        MOVE_LOCK.release()
 
 def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
     camera = acknowledgement == 'I_APPROVE_SUPERVISED_CAMERA_JOG'
