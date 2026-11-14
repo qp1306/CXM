@@ -204,6 +204,9 @@ async function refresh(){
      const option=document.createElement('option');
      option.value=String(t.tool);option.textContent='T'+t.tool+(t.eligible?' · available':t.xy?.x!=null&&t.xy?.y!=null?' · dock saved; review pickup':' · dock not saved');
      option.disabled=!t.eligible;
+     option.dataset.savedDock=String(t.xy?.x!=null&&t.xy?.y!=null);
+     option.dataset.reason=t.reason||'';
+     option.title=t.reason||'';
      select.append(option);
    }
    select.value=old;
