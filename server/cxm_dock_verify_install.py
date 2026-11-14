@@ -76,6 +76,18 @@ def apply(path,expected_sha256):
         if inspect(target)['state']!='installed':
             raise DockVerifyInstallError('Installed macro did not verify')
         return {'installed':True,'backup':backup.name,'restart_required':True}
+    except BaseException:
+        # A failed post-install readback must not leave a partially accepted
+        # Klipper source on disk. Restore byte-for-byte original from backup.
+        if target.read_bytes()!=data['original']:
+            with tempfile.NamedTemporaryFile(dir=target.parent,delete=False) as fd:
+                restore=Path(fd.name)
+                os.fchmod(fd.fileno(),target.stat().st_mode&0o777)
+                fd.write(data['original'])
+                fd.flush()
+                os.fsync(fd.fileno())
+            os.replace(restore,target)
+        raise
     finally:
         if tmp is not None:
             tmp.unlink(missing_ok=True)
