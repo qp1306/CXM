@@ -33,8 +33,8 @@ async function status(){
   info=await request(source+'status');
   controls();
   if(info.file_state==='needs_apply')say(
-    'Installed native macro contains an obsolete dock limit or T1 X264.70/Y65.60 release check. '+
-    'This one-time correction backs up the file, removes only the outdated check/limit, and restarts Klipper. Saved dock XY and motions stay unchanged.');
+    'Installed native macro still has an obsolete staging check, X limit, or T1 release datum. '+
+    'This one-time correction backs up the file, enables automatic Y+ staging for Dock Batch, and restarts Klipper. Saved dock XY and pickup/dropoff movements stay unchanged.');
   else if(info.loaded_release_guard==='obsolete_t1'||info.loaded_guard==='x325')say(
     'Corrected file is saved, but Klipper still has the older macro loaded. Restart Klipper to activate it.');
  }catch(e){
