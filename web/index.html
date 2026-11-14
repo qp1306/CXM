@@ -457,6 +457,12 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
    <button class="btn" data-manual-axis="y" data-distance="1" aria-label="Jog Y +1 mm" disabled>+1</button>
    <button class="btn" data-manual-axis="y" data-distance="10" aria-label="Jog Y +10 mm" disabled>+10</button>
   </div></div>
+  <div class="cxm-step" id="cxmDockTravelCheck">
+   <div class="panel-heading"><h3>Verify release point · 100 mm Y</h3><span class="panel-label">Guarded native jog</span></div>
+   <p class="helper">Inspect release-side alignment with selected tool mounted. Approve supervised jog. Move back +100 mm Y and return to the exact start before saving. Each 10 mm move is checked; existing macro path and feed rate are unchanged.</p>
+   <div class="buttons"><button class="btn primary" id="cxmDockRetreat100" type="button" disabled>Move back +100 mm Y</button><button class="btn" id="cxmDockReturn100" type="button" disabled>Return −100 mm Y</button></div>
+   <p class="helper" id="cxmDockTravelStatus" role="status" aria-live="polite">Align at release point and approve supervised jog.</p>
+  </div>
   <div class="buttons"><button class="btn" id="cxmJogClear" disabled>Clear queued jogs</button>
    <span class="helper" id="cxmJogQueue" role="status"></span></div>
  </div>
