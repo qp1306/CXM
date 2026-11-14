@@ -29,9 +29,15 @@ def with_stale_t1(source, indent='    ', newline='\n'):
     return source.replace(target,old+target,1)
 
 def old_stage_source(source):
-    assert source.count(x334.NEW_STAGE_CLEARANCE)==1
+    # Files predating X334 also contain this staging block with X325.
+    new_clear=x334.NEW_STAGE_CLEARANCE
+    old_clear=x334.OLD_STAGE_CLEARANCE
+    if new_clear not in source:
+        new_clear=new_clear.replace('334.0','325.0')
+        old_clear=old_clear.replace('334.0','325.0')
+    assert source.count(new_clear)==1
     assert source.count(x334.NEW_STAGE_START)==1
-    return (source.replace(x334.NEW_STAGE_CLEARANCE,x334.OLD_STAGE_CLEARANCE,1)
+    return (source.replace(new_clear,old_clear,1)
                   .replace(x334.NEW_STAGE_START,x334.OLD_STAGE_START,1))
 
 class NativeX334Tests(unittest.TestCase):
