@@ -67,7 +67,7 @@ test('Dock editor requires migration completed and no manual lockout',()=>{
 test('primary calibration has one Save button, advanced duplicate is hidden',()=>{
  const manual=fs.readFileSync(path.join(__dirname,'../web/cxm-manual.js'),'utf8');
  assert.match(html,/<h3>Set dock location<\/h3>/);
- assert.match(html,/cxm-manual\.js\?v=4\.3/);
+ assert.match(html,/cxm-manual\.js\?v=4\.4-compact/);
  assert.match(html,/id="cxmManualCapture" disabled>Save dock position/);
  assert.match(html,/<div class="dock-columns" hidden style="display:none!important" aria-hidden="true">/);
  for(const id of ['cxmManualApproval','cxmManualCapture',
