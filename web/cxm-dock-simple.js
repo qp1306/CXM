@@ -196,6 +196,36 @@ for(const card of toolCards)card.addEventListener('click',()=>{
  if(card.disabled)return;
  changeTool(Number(card.dataset.dockTool));
 });
+// Tools page uses this event to open Dock XY for T0–T11. The retired
+// editor listened to it, but the live eight-step page did not: choosing
+// T3 on Tools could therefore leave this page on T0. Resolve the target
+// against the server before selecting it, even when Dock XY was hidden.
+let externalSelection=0;
+window.addEventListener('cxm-calibrate-tool',async event=>{
+ const n=event.detail?.tool;
+ if(!Number.isInteger(n)||n<0||n>=12)return;
+ const ticket=++externalSelection;
+ if(busy||jogRunning||jogQueue.length){
+  say('Complete current movement before changing hotend.',true);
+  return;
+ }
+ try{
+  const selectedStatus=await request(api+'/status?tool='+n);
+  if(ticket!==externalSelection)return;
+  if(selectedStatus.tool!==n||selectedStatus.tool_count<=n)
+   throw Error('Requested hotend T'+n+' is not enabled');
+  if(busy||jogRunning||jogQueue.length)return;
+  select.value=String(n);
+  enabled=false;savedAtDock=false;checkbox.checked=false;
+  live=selectedStatus;revision=selectedStatus.revision;
+  display();
+  say('T'+n+' selected from Tools · calibrate T'+n+' here.');
+  document.querySelector('[data-tab="calibration"]')?.click();
+ }catch(e){
+  if(ticket===externalSelection)
+   say('Cannot select T'+n+': '+e.message,true);
+ }
+});
 setInterval(()=>{if(!busy&&!page.hidden&&!document.hidden)refresh(true);},1800);
 refresh();
 })();
