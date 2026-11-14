@@ -51,9 +51,14 @@ test('Dock XY T0–T11 card bank selects saved or unsaved tools with no motion',
     xyz:{x:299.5,y:65.5,z:22},homed:true,idle:true,
     accepted:saved,saved_xy:{x:saved?299.5:null,y:saved?65.5:null}})};
  }
- vm.runInNewContext(src,{document,fetch,
-    window:{CXM_SIMPLE_DOCK_XY:true,dispatchEvent(){}},
-    setInterval(){},CustomEvent:class {},console}, {filename:'cxm-dock-simple.js'});
+ const windows={};
+ const window={CXM_SIMPLE_DOCK_XY:true,
+   addEventListener(name,cb){windows[name]=cb;},
+   dispatchEvent(event){windows[event.type]?.(event);}
+ };
+ vm.runInNewContext(src,{document,fetch,window,
+    setInterval(){},CustomEvent:class {constructor(type,opts){this.type=type;this.detail=opts?.detail;}},console},
+    {filename:'cxm-dock-simple.js'});
  await tick();await tick();
  assert.equal(cards[0].disabled,false);
  assert.equal(cards[1].disabled,false,'unsaved, enabled T1 is calibratable');
@@ -78,4 +83,14 @@ test('Dock XY T0–T11 card bank selects saved or unsaved tools with no motion',
  elements.get('cxmsNext').click();
  await tick();await tick();
  assert.equal(elements.get('cxmsTool').value,'2','Next hotend uses same selection state');
+ // A Tools-page click must target the LIVE eight-step calibration selector.
+ // The previous implementation updated only the retired hidden editor.
+ const requestCount=posts.length;
+ window.dispatchEvent({type:'cxm-calibrate-tool',detail:{tool:3}});
+ await tick();await tick();await tick();
+ assert.equal(elements.get('cxmsTool').value,'3','Tools T3 routes to Dock XY T3');
+ assert.equal(cards[3]['aria-pressed'],'true');
+ assert.equal(elements.get('cxmsEnable').checked,false);
+ assert.deepEqual(posts,[],'changing target is read-only, never a T0 pickup');
+ assert.equal(posts.length,requestCount);
 });

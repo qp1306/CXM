@@ -68,6 +68,48 @@ def status(store):
             'error':None,'results':[],
             'revision':store.read()['revision']}
 
+def dock_sync_diagnostics(store):
+    """Read-only evidence: saved Dock XY versus native RAM, and loaded guard.
+
+    Never silently edit saved data or rearm a native tool after a mismatch.
+    """
+    saved=store.read()
+    q='gcode_macro%20_CXM_NATIVE&configfile=config'
+    status=_rpc('/printer/objects/query?'+q).get('status',{})
+    native=status.get('gcode_macro _CXM_NATIVE',{})
+    macros=status.get('configfile',{}).get('config',{})
+    transfer=macros.get('gcode_macro _CXM_CLEAR_TRANSFER',{}).get('gcode','')
+    transfer=transfer if isinstance(transfer,str) else ''
+    lines=transfer.splitlines()
+    error_line=next((i for i,line in enumerate(lines)
+        if 'synchronized coordinates differ from the proven release point' in line),None)
+    legacy=error_line is not None
+    excerpt='\\n'.join(lines[max(0,error_line-4):error_line+2]) if legacy else ''
+    count=saved['config']['globals']['tool_count']
+    tools=[]
+    for tool in range(count):
+        dock=saved['config']['tools'][tool]
+        x,y=dock['dock_x'],dock['dock_y']
+        nx,ny=native.get('t%d_x'%tool),native.get('t%d_y'%tool)
+        accepted=native.get('t%d_accepted'%tool)
+        has_xy=all(type(v) in (int,float) and math.isfinite(v)
+                   for v in (x,y,nx,ny))
+        matched=(has_xy and abs(nx-x)<=0.02 and abs(ny-y)<=0.02
+            and accepted==int(dock['dock_reference_accepted'] is True))
+        tools.append({'tool':tool,'saved':{'x':x,'y':y,
+                       'accepted':dock['dock_reference_accepted']},
+                      'native':{'x':nx,'y':ny,'accepted':accepted},
+                      'match':matched})
+    return {'native_ready':native.get('ready')==1,
+            'native_fault':native.get('fault'),
+            'native_tool':native.get('current_tool'),
+            'loaded_transfer':'older_proven_release_guard' if legacy else
+                'no_old_release_guard' if transfer else 'source_unavailable',
+            'legacy_guard_excerpt':excerpt,
+            'tools':tools,'revision':saved['revision'],
+            'read_only':True}
+
+
 def sync(store,expected_revision,*,declared_tool=None):
     """Explicit idle-only runtime geometry synchronization; invalidates tool state."""
     saved=store.read()
