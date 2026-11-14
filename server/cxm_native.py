@@ -243,6 +243,99 @@ def recover_empty():
     finally:
         MOVE_LOCK.release()
 
+RESET_COMMISSIONING_ACK = 'I_CONFIRMED_EMPTY_CARRIAGE_AND_WANT_TO_ERASE_ALL_CXM_CALIBRATIONS'
+
+def reset_commissioning(store, expected_revision, acknowledgement):
+    """Fail-closed full re-commissioning reset. Never moves printer hardware.
+
+    Old source coordinates are invalidated in live Klipper BEFORE a backed-up
+    disk replacement. A failure leaves native geometry faulted and inoperable
+    rather than allowing automatic toolchange to stale dock positions.
+    """
+    if acknowledgement != RESET_COMMISSIONING_ACK:
+        raise NativeError('Reset requires explicit approval: physically EMPTY carriage and all tool calibrations will be erased')
+    saved = store.read()
+    if saved['migration_required'] or saved['revision'] != expected_revision:
+        raise NativeError('Saved CXM data changed; refresh before full reset')
+    native, test, sensor = _native_status()
+    if native.get('protocol') != 2:
+        raise NativeError('Installed native toolchanger not compatible with safe reset')
+    if sensor != 'RELEASED':
+        raise NativeError('REMOVE the hotend and return it to its dock before resetting (sensor must be RELEASED)')
+    if test.get('running') != 0:
+        raise NativeError('Stop the native tool cycle and verify it is idle before resetting')
+    if not MOVE_LOCK.acquire(blocking=False):
+        raise NativeError('Another CXM operation is active; reset blocked')
+    try:
+        if _rpc('/printer/info').get('state') != 'ready':
+            raise NativeError('Klipper must be ready and idle before reset')
+        if store.read()['revision'] != expected_revision:
+            raise NativeError('Configuration changed before reset; refresh')
+        # First remove every stale motion target from live Klipper RAM. Do not
+        # call START/SELECT, home, jog, release motors or issue G0/G1 commands.
+        script=[
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=ready VALUE=0',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=1',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE=-2',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=camera_reference VALUE=[0,0,0,0]',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=tool_count VALUE=1',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=shift_x VALUE=4.4',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=dodge_y VALUE=14.0',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=clearance_y VALUE=100.0',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=travel_feed VALUE=6000',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=approach_feed VALUE=6000',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=latch_feed VALUE=6000',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=profile VALUE="\'standard\'"',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=segmented VALUE=0',
+            'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=margin_y VALUE=15',
+        ]
+        for n in range(12):
+            for field, value in (('accepted', 0), ('x', -1.0), ('y', -1.0)):
+                script.append('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=t'
+                              + str(n) + '_' + field + ' VALUE=' + str(value))
+        for field, value in (('running', 0), ('stop', 0), ('index', 0),
+                             ('cycles', 0), ('completed', 0), ('tool_a', -1),
+                             ('tool_b', -1), ('tool_c', -1)):
+            script.append('SET_GCODE_VARIABLE MACRO=_CXM_TEST_STATE VARIABLE='
+                          + field + ' VALUE=' + str(value))
+        script.append('SET_GCODE_VARIABLE MACRO=_CXM_TEST_STATE VARIABLE=state VALUE="\'idle\'"')
+        script.insert(0,'UPDATE_DELAYED_GCODE ID=CXM_NATIVE_TEST_STEP DURATION=0')
+        _rpc('/printer/gcode/script', {'script': '\n'.join(script)})
+        # Complete readback also verifies every old accepted dock was
+        # invalidated before replacing the on-disk calibration.
+        result=_rpc('/printer/objects/query?gcode_macro%20_CXM_NATIVE&'
+                    'gcode_macro%20_CXM_TEST_STATE&gcode_button%20cxm_tool_detect')
+        states=result.get('status',{})
+        now=states.get('gcode_macro _CXM_NATIVE',{})
+        ts=states.get('gcode_macro _CXM_TEST_STATE',{})
+        if (now.get('ready') != 0 or now.get('fault') != 1 or now.get('current_tool') != -2
+                or now.get('tool_count') != 1 or now.get('camera_reference') != [0,0,0,0]
+                or now.get('profile') != 'standard' or ts.get('running') != 0
+                or ts.get('stop') != 0 or ts.get('state') != 'idle'
+                or states.get('gcode_button cxm_tool_detect',{}).get('state') != 'RELEASED'
+                or any(now.get(f't{n}_accepted') != 0 or
+                       now.get(f't{n}_x') != -1.0 or now.get(f't{n}_y') != -1.0
+                       for n in range(12))):
+            raise NativeError('Live CXM invalidation was not fully verified; saved calibration remains unchanged. Inspect Klipper state.')
+        # Reset provisional Tool Z measurement history only when the runner
+        # is idle, under the same global motion lock.
+        from cxm_z_auto import CONTROLLER as z_controller
+        z_controller.reset_idle_history()
+        outcome=store.reset_commissioning(expected_revision)
+        verified=store.read()
+        if (verified['revision'] != outcome['revision'] or verified['migration_required']
+                or verified['config']['globals']['tool_count'] != 1
+                or any(t['dock_x'] is not None or t['dock_y'] is not None or
+                       t['dock_reference_accepted'] or t['offset_xy_accepted'] or
+                       t['offset_z_accepted'] or t['commissioned']
+                       for t in verified['config']['tools'])):
+            raise NativeError('New blank configuration did not verify: do not attempt movement')
+        return dict(outcome, native_inhibited=True, physically_empty=True,
+                    z_session_cleared=True,
+                    note='CXM calibration reset to T0 only. Every tool must be remeasured and individually proven before motion.')
+    finally:
+        MOVE_LOCK.release()
+
 CLEAR_ALL_ACK = 'I_REMOVED_THE_HOTEND_FROM_THE_CARRIAGE_RETURNED_IT_TO_ITS_DOCK_AND_VERIFIED_EMPTY'
 
 def clear_all(store, expected_revision, acknowledgement):

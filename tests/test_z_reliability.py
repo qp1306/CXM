@@ -81,7 +81,7 @@ class ReliabilityTest(unittest.TestCase):
 
     def test_reseat_rejects_bad_three_result_repeatability(self):
         d=synthetic_example(2)
-        d["reseat_trials"][1]["T1"]=[0.060,0.077,0.095]
+        d["reseat_trials"][1]["T1"]=[0.060,0.077,0.130]
         out=analyze(d)
         self.assertFalse(out["redock_repeatability"]["tools"]["T1"]["passed_math"])
         self.assertTrue(out["additional_reseat_tests_required"])

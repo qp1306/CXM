@@ -21,6 +21,7 @@ from cxm_native import (camera_action, status as multi_status, start as multi_st
                         calibration_release as native_calibration_release,
                         confirm_empty as native_confirm_empty,
                         recover_empty as native_recover_empty, clear_all as native_clear_all,
+                        reset_commissioning as native_reset_commissioning,
                         initialize as native_initialize,
                         invalidate_for_config_edit as native_invalidate,
                         NativeError)
@@ -203,7 +204,7 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
                 return
             if self.path == '/v1/z-auto/stop':
@@ -279,6 +280,14 @@ class Handler(BaseHTTPRequestHandler):
                 if not printer_safe():
                     raise NativeError('Printer not safely IDLE: Clear All blocked')
                 self.output(200,native_clear_all(self.server.store,
+                    body['expected_revision'], body['acknowledgement']))
+                return
+            if self.path == '/v1/commissioning/reset':
+                if set(body) != {'expected_revision','acknowledgement'}:
+                    raise ValueError('Full commissioning reset needs current revision and physical EMPTY approval')
+                if not printer_safe():
+                    raise NativeError('Printer must be stationary, ready and idle for full commissioning reset')
+                self.output(200,native_reset_commissioning(self.server.store,
                     body['expected_revision'], body['acknowledgement']))
                 return
             if self.path == '/v1/native/select':

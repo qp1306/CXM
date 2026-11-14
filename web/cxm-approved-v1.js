@@ -198,6 +198,8 @@ function settings(){const p=make('settings',[['store','save','AutoSave'],['backu
    const target=i===0?$('cxmToolChoice'):i===1?q('[data-key="cxm_shift_x"]',editor):i===2?q('[data-key="approach_speed"]',editor):$('cxmHistory');
    (target||editor).scrollIntoView({behavior:'smooth',block:'center'});
  });row.append(b)});q('.cxma-inner',s1).append(row);
+ // Full re-commissioning is a separate operation from Clear All errors.
+ fromId('cxmCommissionResetPanel',q('.cxma-inner',s1));
  const s2=p.stage(2,'Edit tool configuration','Edit real CXM settings with the existing AutoSave controls.');fromId('configEditor',q('.cxma-inner',s2));
  const s3=p.stage(3,'AutoSave to disk','Only disk persistence is confirmed, not live Klipper macro activation.');
  q('.cxma-inner',s3).append(note('AutoSave is handled by the existing CXM settings editor. Changes to motion macros may need a separate reload.'));

@@ -272,7 +272,7 @@
 .cxm-capture-ack:has(#cxmNativeToolAck){display:none!important}
 label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmMultiPerformance),label.cxm-multi-speed:has(#cxmMultiSprint),label.cxm-multi-speed:has(#cxmMultiRace),label.cxm-multi-speed:has(#cxmMultiBoost){display:none!important}
 #cxmNativeSync,#cxmNativeConfirm,#cxmNativeRecover,#cxmMultiRefresh,#cxmMultiApproval,.cxm-capture-ack:has(#cxmNativeEmptyAck){display:none!important}
-</style><style>.cxm-custom-speeds{padding:15px;background:#1b3040;border:1px solid #416481;border-radius:10px;display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:12px;margin:10px 0}.cxm-custom-speeds[hidden]{display:none!important}.cxm-custom-speeds label{font-size:13px;display:flex;flex-direction:column;gap:7px}.cxm-custom-speeds input{font-size:17px;padding:10px;background:#101c29;border:1px solid #6486a3;border-radius:7px;color:#fff;width:100%}.cxm-custom-speeds small{grid-column:1/-1;color:#b9cad7}@media(max-width:650px){.cxm-custom-speeds{grid-template-columns:1fr}}</style><link rel="stylesheet" href="cxm-ui-v2.css?v=2.3-arrow-steps" /><link rel="stylesheet" href="cxm-approved-v1.css?v=1.2-clear-all" />
+</style><style>.cxm-custom-speeds{padding:15px;background:#1b3040;border:1px solid #416481;border-radius:10px;display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:12px;margin:10px 0}.cxm-custom-speeds[hidden]{display:none!important}.cxm-custom-speeds label{font-size:13px;display:flex;flex-direction:column;gap:7px}.cxm-custom-speeds input{font-size:17px;padding:10px;background:#101c29;border:1px solid #6486a3;border-radius:7px;color:#fff;width:100%}.cxm-custom-speeds small{grid-column:1/-1;color:#b9cad7}@media(max-width:650px){.cxm-custom-speeds{grid-template-columns:1fr}}</style><link rel="stylesheet" href="cxm-ui-v2.css?v=2.3-arrow-steps" /><link rel="stylesheet" href="cxm-approved-v1.css?v=1.3-fresh-start" />
 </head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
@@ -828,6 +828,15 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <section data-panel="settings" hidden>
 <div class="section-title"><div><h2>Settings</h2><p>Tools, safe moves, maintenance and backups</p></div></div>
 <div id="configEditor"><div class="notice">Connecting to the CXM configuration backend…</div></div>
+<section id="cxmCommissionResetPanel" class="cxm-fresh-start" aria-labelledby="cxmFreshTitle">
+ <h3 id="cxmFreshTitle">Start CXM commissioning again — from T0</h3>
+ <p class="cxm-fresh-warning"><strong>FULL RESET:</strong> All 12 saved dock XY positions, tool XY/Z offsets, verification and commissioning flags will be cleared. The previous CXM data will be backed up first. Your printer.cfg, homing, motors and MCU settings will not be changed.</p>
+ <p class="helper"><strong>Before resetting:</strong> stop all printing and tests, remove the hotend from the carriage and return it to its dock. Verify the carriage is physically EMPTY and the filament sensor says RELEASED. Do not force a trapped hotend.</p>
+ <label class="cxm-fresh-ack"><input type="checkbox" id="cxmFreshAck"><span>I confirm that the carriage is EMPTY, all tools are safely docked, and I want to discard every CXM calibration and start from T0.</span></label>
+ <div class="buttons"><button type="button" class="btn" id="cxmFreshReset" disabled>Back up &amp; reset ALL CXM calibrations</button></div>
+ <p id="cxmFreshStatus" class="helper" role="status">Verify physical EMPTY before enabling full reset.</p>
+ <p id="cxmFreshResult" class="helper" role="status" aria-live="polite"></p>
+</section>
 <details class="cxm-advanced cxm-optional-section"><summary>Advanced · Diagnostics and system information</summary>
  <p class="helper">CXM saves calibration values in CXM_variables.cfg with backup history. Saved changes are not automatically activated in Klipper motion macros.</p>
  <div class="kv"><span>Printer connection</span><strong id="baseUrl">Same-origin Moonraker</strong></div>
@@ -1047,7 +1056,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-tool-state.js?v=0.9.4" defer></script>
 <script src="cxm-tool-picker.js?v=0.9.3" defer></script>
 <script src="cxm-tool-cards.js?v=0.9.4" defer></script>
-<script src="cxm-settings.js?v=0.9.6-tool-setup" defer></script>
+<script src="cxm-settings.js?v=1.0-fresh-start" defer></script>
 <script src="cxm-fine-dock.js?v=1" defer></script>
 <script src="cxm-dock.js?v=tool-setup-1" defer></script>
 <script src="cxm-dock-position.js?v=2" defer></script>
@@ -1056,6 +1065,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 
 <script src="cxm-multi.js?v=solo6.1" defer></script>
 <script src="cxm-native-control.js?v=clear-all1" defer></script>
+<script src="cxm-fresh-reset.js?v=1" defer></script>
 <script src="cxm-axiscope.js?v=4.2" defer></script><script src="cxm-offset-editor.js?v=4.2" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-z-auto.js?v=2.3-arrow-steps" defer></script>
@@ -1063,5 +1073,5 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-testing.js?v=0.9.3" defer></script>
 
 <script src="cxm-ui-v2.js?v=20261112" defer></script>
-<script src="cxm-approved-v1.js?v=1.2-clear-all" defer></script>
+<script src="cxm-approved-v1.js?v=1.3-fresh-start" defer></script>
 </body></html>
