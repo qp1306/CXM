@@ -130,7 +130,14 @@ def check():
     lift=blocks['_CXM_PREPARE_CLEARANCE']
     assert 'XYZ not homed; automatic clearance lift refused' in lift
     assert 'carriage sensor disagrees' in lift
-    assert 'establish Z clearance of at least 25 mm' in lift
+    assert 'establish Z clearance of at least 25 mm' not in lift
+    assert 'printer.toolhead.position.z|float < 25.0' not in lift
+    assert 'CXM_CAMERA_RETURN TOOL={t} TOKEN={token}' in blocks['CXM_CAMERA']
+    assert 'CXM_CAMERA ACTION=RETURN' not in blocks['CXM_CAMERA']
+    assert 'CXM_CAMERA_RETURN' in blocks
+    assert 'native toolchanger not ready' in blocks['CXM_CAMERA_RETURN']
+    assert 'CXM_FAST_VERIFY EXPECT=PRESSED' in blocks['CXM_CAMERA_RETURN']
+    assert 'T1 synchronized coordinates differ' not in blocks['_CXM_CHECK_TOOL']
     assert 'G1 ' not in lift and 'CXM_FAST_VERIFY EXPECT={expected}' in lift
     declare=blocks['CXM_DECLARE_CARRIAGE']
     assert declare.count('CXM_FAST_VERIFY EXPECT=RELEASED') == 4
