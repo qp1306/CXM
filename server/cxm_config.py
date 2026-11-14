@@ -492,6 +492,36 @@ class Store:
             result['physically_verified']=False
             return result
 
+    def reset_commissioning(self, expected_revision):
+        """Back up then replace ALL 12 tool calibrations with a blank schema-3 slate.
+
+        Called only after the API has invalidated live Klipper tool geometry.
+        Never alters printer.cfg, homing, hardware or the backup archive.
+        """
+        if type(expected_revision) is not str or not re.fullmatch(r'[0-9a-f]{64}', expected_revision):
+            raise ValueError('Valid CXM configuration revision required')
+        with self.lock.open('a+') as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            _, old = self._current()
+            if self._hash(old) != expected_revision:
+                raise RuntimeError('CXM configuration changed; reset refused before writing')
+            if schema_on_disk(old) != SCHEMA:
+                raise RuntimeError('Migrate CXM to schema 3 before resetting commissioning')
+            fresh = template()
+            # Begin at T0 only; the guided UI enables T1..T11 as each dock
+            # is physically remeasured. All 12 stored profiles are cleared.
+            fresh['globals']['tool_count'] = 1
+            new = render(fresh)
+            result = self._commit(old, new)
+            if not (self.backups/result['backup']).is_file() or (
+                    self._hash((self.backups/result['backup']).read_text('utf-8'))
+                    != expected_revision):
+                raise RuntimeError('CXM old-state backup could not be verified')
+            result.update({'reset_commissioning': True, 'cleared_tools': 12,
+                           'selected_tool_count': 1, 'all_docks_unaccepted': True,
+                           'all_offsets_unverified': True})
+            return result
+
     def rollback(self, name, expected_revision):
         if not isinstance(name, str) or not re.fullmatch(r'\d{8}T\d{12}Z-[0-9a-f]{12}\.cfg', name):
             raise ValueError('Invalid backup ID')
