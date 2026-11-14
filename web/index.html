@@ -325,9 +325,9 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </details>
 </fieldset>
 <div id="cxmNativeX334Fix" hidden class="panel" style="margin:12px 0;padding:14px 18px">
- <div class="panel-heading"><h3>Klipper X334 compatibility</h3><span class="panel-label">Native toolchanger macro</span></div>
- <p class="helper" id="cxmNativeX334Message" role="status" aria-live="polite">Checking native X travel limit…</p>
- <button type="button" class="btn primary" id="cxmNativeX334Apply" disabled>Apply X334 fix &amp; restart Klipper</button>
+ <div class="panel-heading"><h3>Klipper dock compatibility</h3><span class="panel-label">Native toolchanger macro</span></div>
+ <p class="helper" id="cxmNativeX334Message" role="status" aria-live="polite">Checking loaded dock geometry and T1 release check…</p>
+ <button type="button" class="btn primary" id="cxmNativeX334Apply" disabled>Fix obsolete dock check &amp; restart Klipper</button>
 </div>
 <section class="cxm-clear-all" id="cxmClearAllBox" aria-labelledby="cxmClearAllHeading">
   <h3 id="cxmClearAllHeading">Clear All · Start fresh</h3>
@@ -1089,7 +1089,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-multi.js?v=solo6.1" defer></script>
 <script src="cxm-native-control.js?v=clear-all1" defer></script>
 <script src="cxm-dock-sync-diagnostics.js?v=1-read-only" defer></script>
-<script src="cxm-native-x334.js?v=1-live-guard" defer></script>
+<script src="cxm-native-x334.js?v=2-t1-release-guard" defer></script>
 <script src="cxm-fresh-reset.js?v=1" defer></script>
 <script src="cxm-axiscope.js?v=4.2" defer></script><script src="cxm-offset-editor.js?v=4.2" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
