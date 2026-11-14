@@ -29,6 +29,7 @@ from cxm_native import (camera_action, status as multi_status, start as multi_st
                         recover_empty as native_recover_empty, clear_all as native_clear_all,
                         reset_commissioning as native_reset_commissioning,
                         initialize as native_initialize,
+                        dock_sync_diagnostics as native_dock_sync_diagnostics,
                         invalidate_for_config_edit as native_invalidate,
                         NativeError)
 from urllib.parse import parse_qs, urlsplit
@@ -169,6 +170,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,t0_status(self.server.store))
             elif self.path == '/v1/tools/multi/status' or self.path == '/v1/native/status':
                 self.output(200,multi_status(self.server.store))
+            elif self.path == '/v1/native/dock-sync-status':
+                self.output(200,native_dock_sync_diagnostics(self.server.store))
             elif self.path.startswith('/v1/tools/status?'):
                 params=parse_qs(urlsplit(self.path).query)
                 if set(params)!={'tool'} or len(params['tool'])!=1 or not params['tool'][0].isdigit():
