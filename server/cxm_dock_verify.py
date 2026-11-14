@@ -133,7 +133,7 @@ def save(*,tool,expected_revision,acknowledgement,store):
         if not _verified(store,stable):
             raise ManualDockError('Carriage moved or dock state changed before Save')
         from cxm_native import invalidate_for_config_edit
-        invalidate_for_config_edit(store=store)
+        invalidate_for_config_edit(permit_supervised_dock_calibration=True,store=store,tool=tool)
         after=_state(tool,store,after=True)
         # Invalidation changes the native identity to -2. All other state must
         # remain unchanged before persistent save.
