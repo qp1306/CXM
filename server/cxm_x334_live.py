@@ -43,6 +43,32 @@ LEGACY_T1_PATTERN = re.compile(
     r'[ \t]*\r?\n[ \t]*' + re.escape(LEGACY_T1_ACTION) +
     r'[ \t]*(?:\r?\n|$)'
 )
+# Convert only the obsolete Dock Batch check-only staging to automatic Y+.
+OLD_STAGE_CLEARANCE = (
+    '    {% elif pos.y|float < min_clear - 0.2 %}\n'
+    '      {action_raise_error("CXM: below dock mechanical clearance Y; no automatic movement possible from this position")}\n'
+    '    {% elif pos.x|float < 5.0 or pos.x|float > 334.0 %}'
+)
+NEW_STAGE_CLEARANCE = '    {% elif pos.x|float < 5.0 or pos.x|float > 334.0 %}'
+OLD_STAGE_START = (
+    '    {% if pos.y|float < target - 0.001 %}\n'
+    '      {action_raise_error("CXM: start on or above the clear staging line")}\n'
+    '    {% endif %}\n'
+    '    CXM_FAST_VERIFY EXPECT=RELEASED MIN_Y={target}'
+)
+NEW_STAGE_START = (
+    '    {% if pos.y|float < target - 0.001 %}\n'
+    '      SAVE_GCODE_STATE NAME=CXM_BATCH_STAGE\n'
+    '      G90\n'
+    '      G1 Y{target|round(5)} F6000\n'
+    '      M400\n'
+    '      RESTORE_GCODE_STATE NAME=CXM_BATCH_STAGE MOVE=0\n'
+    '    {% endif %}\n'
+    '    CXM_FAST_VERIFY EXPECT=RELEASED MIN_Y={target}'
+)
+STAGE_UPDATES=((OLD_STAGE_CLEARANCE,NEW_STAGE_CLEARANCE),
+               (OLD_STAGE_START,NEW_STAGE_START))
+
 MACRO=re.compile(r'(?m)^\[gcode_macro ([^\]]+)\]\s*$')
 SHA=re.compile(r'^[a-f0-9]{64}$')
 
@@ -70,6 +96,16 @@ def _transform(source):
                 continue
             else:
                 raise NativeX334Error(name+' has unknown or duplicated X guard: '+old)
+        if name=='_CXM_STAGE_TEST':
+            for old,new in STAGE_UPDATES:
+                n=changed.count(old)
+                if n==1:
+                    changed=changed.replace(old,new,1)
+                elif n==0 and changed.count(new)==1:
+                    continue
+                else:
+                    raise NativeX334Error(
+                        'Unknown or duplicated Dock Batch staging guard; no modification')
         if name=='_CXM_CLEAR_TRANSFER':
             matches=list(LEGACY_T1_PATTERN.finditer(changed))
             if len(matches)==1:

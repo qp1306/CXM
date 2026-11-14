@@ -28,6 +28,18 @@ def with_stale_t1(source, indent='    ', newline='\n'):
          indent + '  ' + x334.LEGACY_T1_ACTION + newline)
     return source.replace(target,old+target,1)
 
+def old_stage_source(source):
+    # Files predating X334 also contain this staging block with X325.
+    new_clear=x334.NEW_STAGE_CLEARANCE
+    old_clear=x334.OLD_STAGE_CLEARANCE
+    if new_clear not in source:
+        new_clear=new_clear.replace('334.0','325.0')
+        old_clear=old_clear.replace('334.0','325.0')
+    assert source.count(new_clear)==1
+    assert source.count(x334.NEW_STAGE_START)==1
+    return (source.replace(new_clear,old_clear,1)
+                  .replace(x334.NEW_STAGE_START,x334.OLD_STAGE_START,1))
+
 class NativeX334Tests(unittest.TestCase):
     def test_exact_old_guard_fixed_and_every_other_byte_preserved(self):
         before=old_source()
@@ -78,6 +90,43 @@ class NativeX334Tests(unittest.TestCase):
             with self.subTest(source=source[-50:]):
                 with self.assertRaisesRegex(x334.NativeX334Error,'Unexpected T1 release guard'):
                     x334._transform(source)
+
+    def test_old_batch_stage_is_repaired_without_replacing_pickup_macro(self):
+        current=SOURCE.read_text()
+        obsolete=old_stage_source(current)
+        self.assertIn('start on or above the clear staging line',obsolete)
+        updated=x334._transform(obsolete)
+        self.assertEqual(updated,current)
+        self.assertIn('G1 Y{target|round(5)} F6000',updated)
+        self.assertNotIn('start on or above the clear staging line',updated)
+        self.assertIn('CXM_FAST_VERIFY EXPECT=RELEASED MIN_Y={target}',updated)
+        self.assertEqual(x334._transform(updated),current)
+
+    def test_old_batch_stage_and_old_x325_and_old_t1_all_patch_together(self):
+        current=SOURCE.read_text()
+        obsolete=old_stage_source(with_stale_t1(old_source()))
+        self.assertEqual(x334._transform(obsolete),current)
+
+    def test_unknown_batch_staging_guard_cannot_be_overwritten(self):
+        obsolete=old_stage_source(SOURCE.read_text())
+        unexpected=obsolete.replace(
+            'start on or above the clear staging line',
+            'new staging error typed by operator')
+        with self.assertRaisesRegex(x334.NativeX334Error,'Unknown or duplicated Dock Batch staging'):
+            x334._transform(unexpected)
+
+    def test_disk_batch_stage_patch_keeps_backup_and_all_other_bytes(self):
+        with TemporaryDirectory() as folder:
+            target=Path(folder)/'cxm_native_toolchange.cfg'
+            old=old_stage_source(SOURCE.read_text())
+            target.write_text(old)
+            before=x334.inspect(target)
+            self.assertEqual(before['state'],'needs_apply')
+            done=x334.apply(target,before['sha256'])
+            self.assertTrue(done['patched'])
+            self.assertTrue(done['restart_required'])
+            self.assertEqual(target.read_text(),SOURCE.read_text())
+            self.assertEqual(target.with_name(done['backup']).read_text(),old)
 
     def test_existing_new_file_is_idempotent(self):
         with TemporaryDirectory() as folder:
