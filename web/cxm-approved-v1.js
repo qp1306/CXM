@@ -47,7 +47,7 @@ const SVG={
 const ico=(name,size=18)=>`<svg class="ic" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${SVG[name]||SVG.verify}</svg>`;
 const configs={
  tools:{title:'Hotend Control',sub:'Select and change a verified hotend',icon:'tools',steps:[['layers','Select Hotend'],['car','Confirm Carriage'],['upload','Load / Unload'],['verify','Verify Result']]},
- calibration:{title:'Dock XY Calibration',sub:'Supervised motor-on dock alignment',icon:'dock',steps:[['layers','Select Tool'],['printer','Check Printer'],['move','Align Dock'],['save','Save Dock XY'],['verify','Prove Toolchange']]},
+ calibration:{title:'Dock XY Calibration',sub:'Supervised motor-on dock alignment',icon:'dock',steps:[['layers','Select Tool'],['printer','Check Printer'],['move','Align Dock'],['save','Save Dock XY'],['verify','Prove Toolchange'],['refresh','Recover / Reset']]},
  offsets:{title:'Tool XY Calibration',sub:'Camera-aligned nozzle offsets relative to T0',icon:'target',steps:[['target','Set T0 Reference'],['layers','Select Hotend'],['camera','Align Nozzle'],['save','Save Hotend'],['results','Review']]},
  'z-calibration':{title:'Tool Z Calibration',sub:'Cold commissioning · Z offsets not applied',icon:'tools',steps:[['target','T0 Reference'],['layers','Select Tools'],['printer','Prepare'],['play','Calibrate'],['results','Results']]},
  tests:{title:'Diagnostics',sub:'Read-only machine checks and troubleshooting',icon:'verify',steps:[['link','Connect'],['printer','Check Machine'],['save','Verify AutoSave'],['download','Export']]},
