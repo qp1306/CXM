@@ -212,7 +212,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
-        except (OSError, ValueError, SyntaxError, ManualDockError, JogUpgradeError, DockVerifyInstallError) as e:
+        except (OSError, ValueError, SyntaxError, ManualDockError, DockSimpleError, JogUpgradeError, DockVerifyInstallError) as e:
             self.output(503,{'error':str(e)})
     def do_POST(self):
         # No CORS, strict same-origin and custom header to prevent cross-site form submits.
