@@ -184,7 +184,7 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
     if not MOVE_LOCK.acquire(blocking=False):
         raise ManualDockError('Another CXM motion or configuration operation is running')
     try:
-        before=_check(tool,store.read(), getattr(store, '_completed_jog', None))
+        before=_check(tool,store.read(), getattr(store, '_completed_jog', None), expected_sensor='PRESSED' if camera else None)
         store._completed_jog = None
         if expected_revision != before['revision']:
             raise ManualDockError('Settings changed; reload and approve jog')
@@ -206,7 +206,7 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
         if camera:
             command += ' CAMERA=1'
         _rpc('/printer/gcode/script',{'script':command})
-        after=_check_after_own_command(tool,store,jog=True)
+        after=_check_after_own_command(tool,store,jog=True,expected_sensor='PRESSED' if camera else None)
         if after['native_tool_identity']!=before['native_tool_identity']:
             raise ManualDockError('Carriage state changed during jog; inspect printer')
         end = dict(after['xy'], z=after['z'])
