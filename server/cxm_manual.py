@@ -12,7 +12,7 @@ from cxm_runtime import MOVE_LOCK, _rpc
 class ManualDockError(RuntimeError):
     pass
 
-def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor='PRESSED', allow_low_z=False):
+def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor=None, allow_low_z=False):
     if type(tool) is not int or not 0 <= tool < saved['config']['globals']['tool_count']:
         raise ManualDockError('Select an active T0–T11 dock')
     if saved['migration_required'] or saved['config']['tools'][tool]['maintenance_lockout']:
@@ -62,9 +62,9 @@ def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor='PRE
     # Mounted jog and locked-dock EMPTY verification are separate modes.
     # The switch reports carriage presence only, never dock lock engagement.
     signal=state.get('gcode_button cxm_tool_detect',{}).get('state')
-    if expected_sensor not in ('PRESSED','RELEASED'):
+    if expected_sensor is not None and expected_sensor not in ('PRESSED','RELEASED'):
         raise ManualDockError('Invalid expected carriage sensor state')
-    if signal!=expected_sensor:
+    if expected_sensor is not None and signal!=expected_sensor:
         if expected_sensor=='PRESSED':
             raise ManualDockError('Manual dock alignment requires a MOUNTED hotend (sensor PRESSED)')
         raise ManualDockError('Expected carriage RELEASED, got '+str(signal)+
@@ -101,7 +101,7 @@ def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor='PRE
             'sensor':signal,'identity_source':'operator_selected',
             'jog_revision':native.get('jog_revision',0),'native_tool_identity':identity,'revision':saved['revision'],'ready':True}
 
-def _check_after_own_command(tool, store, *, jog=False, expected_sensor='PRESSED'):
+def _check_after_own_command(tool, store, *, jog=False, expected_sensor=None):
     """Wait for Klipper's transient idle_timeout=Printing after our own M400.
 
     This is ONLY used after a successfully submitted manual jog/capture command.
@@ -160,8 +160,6 @@ def prepare_jog_z22(*, tool, expected_revision, acknowledgement, store):
         final=_check_after_own_command(tool,store,jog=True)
         if final['revision']!=initial['revision'] or final['native_tool_identity']!=initial['native_tool_identity']:
             raise ManualDockError('Tool identity or configuration changed during Z22 preparation')
-        if final['sensor']!='PRESSED':
-            raise ManualDockError('Mounted hotend sensor changed during preparation')
         if abs(final['xy']['x']-initial['xy']['x'])>0.02 or abs(final['xy']['y']-initial['xy']['y'])>0.02:
             raise ManualDockError('Unexpected XY movement during Z22 preparation')
         expected_z=max(22.0,initial['z'])
@@ -209,7 +207,7 @@ def jog(*,tool,axis,distance,expected_revision,acknowledgement,store):
             command += ' CAMERA=1'
         _rpc('/printer/gcode/script',{'script':command})
         after=_check_after_own_command(tool,store,jog=True)
-        if after['sensor']!='PRESSED' or after['native_tool_identity']!=before['native_tool_identity']:
+        if after['native_tool_identity']!=before['native_tool_identity']:
             raise ManualDockError('Carriage state changed during jog; inspect printer')
         end = dict(after['xy'], z=after['z'])
         if abs(end[axis]-next_value)>min(0.08, abs(distance)/2):
@@ -228,8 +226,6 @@ def _capture_locked(tool,expected_revision,store):
         raise ManualDockError('Settings changed; refresh before capture')
     _rpc('/printer/gcode/script',{'script':'M400'})
     after=_check_after_own_command(tool,store)
-    if after['sensor']!='PRESSED':
-        raise ManualDockError('Mounted sensor changed during capture')
     if after['revision']!=before['revision']:
         raise ManualDockError('Settings changed during capture')
     for axis in 'xy':
@@ -269,11 +265,11 @@ def save(*,tool,expected_revision,acknowledgement,store):
         after=_capture_locked(tool,expected_revision,store)
         xy=dict(after['xy'])
         invalidate_for_config_edit(
-            permit_mounted_provisional_dock=True,store=store,tool=tool)
+            permit_supervised_dock_calibration=True,store=store,tool=tool)
         # Recheck after runtime invalidation: no external Mainsail command
         # must move the tool between the measured capture and persistent save.
         final=_check_after_own_command(tool,store)
-        if final['revision']!=expected_revision or final['sensor']!='PRESSED':
+        if final['revision']!=expected_revision:
             raise ManualDockError('Dock state changed before Save; coordinates NOT written')
         if any(abs(final['xy'][axis]-xy[axis])>0.02 for axis in 'xy'):
             raise ManualDockError('Dock moved after capture; coordinates NOT written')
