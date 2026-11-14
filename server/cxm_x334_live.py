@@ -30,11 +30,19 @@ RULES={
 # This two-line condition is known from the operator's LIVE Klipper evidence.
 # It incorrectly forces T1 to an older X264.70/Y65.60 datum instead of the
 # saved, synchronized T1 XY. Remove it only on an exact match.
-LEGACY_T1 = (
-    '    {% elif t == 1 and ((x-264.70)|abs > 0.00001 or (y-65.60)|abs > 0.00001) %}\n'
-    '      {action_raise_error("CXM: T1 synchronized coordinates differ from the proven release point")}\n'
+LEGACY_T1_CONDITION = (
+    '{% elif t == 1 and ((x-264.70)|abs > 0.00001 or (y-65.60)|abs > 0.00001) %}'
 )
 LEGACY_ERROR = 'CXM: T1 synchronized coordinates differ from the proven release point'
+LEGACY_T1_ACTION = '{action_raise_error("' + LEGACY_ERROR + '")}'
+# Klipper's live config strips indentation; installed source may preserve it.
+# Only accept the exact old condition and associated exception on two lines,
+# allowing indentation and LF/CRLF, not arbitrary source-code substitutions.
+LEGACY_T1_PATTERN = re.compile(
+    r'(?m)^[ \\t]*' + re.escape(LEGACY_T1_CONDITION) +
+    r'[ \\t]*\\r?\\n[ \\t]*' + re.escape(LEGACY_T1_ACTION) +
+    r'[ \\t]*(?:\\r?\\n|$)'
+)
 MACRO=re.compile(r'(?m)^\[gcode_macro ([^\]]+)\]\s*$')
 SHA=re.compile(r'^[a-f0-9]{64}$')
 
@@ -63,12 +71,12 @@ def _transform(source):
             else:
                 raise NativeX334Error(name+' has unknown or duplicated X guard: '+old)
         if name=='_CXM_CLEAR_TRANSFER':
-            count=changed.count(LEGACY_T1)
-            if count==1:
-                changed=changed.replace(LEGACY_T1,'',1)
-            elif count!=0 or LEGACY_ERROR in changed:
+            matches=list(LEGACY_T1_PATTERN.finditer(changed))
+            if len(matches)==1:
+                changed=LEGACY_T1_PATTERN.sub('',changed,count=1)
+            elif matches or LEGACY_ERROR in changed:
                 raise NativeX334Error(
-                    'Unexpected T1 release guard; no automatic modification')
+                    'Unexpected T1 release guard; refusing to change installed macro')
         spans.append((start,end,changed))
     for start,end,section in sorted(spans,reverse=True):
         source=source[:start]+section+source[end:]
