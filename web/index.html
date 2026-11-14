@@ -459,8 +459,8 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
   </div></div>
   <div class="cxm-step" id="cxmDockTravelCheck">
    <div class="panel-heading"><h3>Verify release point · 100 mm Y</h3><span class="panel-label">Guarded native jog</span></div>
-   <p class="helper">Move back 100 mm and return to verify the release point. Each move is checked.</p>
-   <div class="buttons"><button class="btn primary" id="cxmDockRetreat100" type="button" disabled>Move back +100 mm Y</button><button class="btn" id="cxmDockReturn100" type="button" disabled>Return −100 mm Y</button></div>
+   <p class="helper">Start from the open, clear position. One click moves +100 mm Y and returns −100 mm Y, checking every increment.</p>
+   <div class="buttons"><button class="btn primary" id="cxmDockRetreat100" type="button" disabled>Test +100 / −100 mm Y</button><button class="btn" id="cxmDockReturn100" type="button" disabled>Return −100 mm Y (recovery)</button></div>
    <p class="helper" id="cxmDockTravelStatus" role="status" aria-live="polite">Align at release point and approve supervised jog.</p>
   </div>
   <div class="buttons"><button class="btn" id="cxmJogClear" disabled>Clear queued jogs</button>
@@ -1066,7 +1066,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-fine-dock.js?v=1" defer></script>
 <script src="cxm-dock.js?v=tool-setup-1" defer></script>
 <script src="cxm-dock-position.js?v=2" defer></script>
-<script src="cxm-manual.js?v=4.5-save-first" defer></script>
+<script src="cxm-manual.js?v=4.6-roundtrip" defer></script>
 
 
 <script src="cxm-multi.js?v=solo6.1" defer></script>
