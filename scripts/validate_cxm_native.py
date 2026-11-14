@@ -117,7 +117,17 @@ def check():
     assert 'UPDATE_DELAYED_GCODE ID=CXM_NATIVE_TEST_STEP DURATION=0' in recover
     assert 'UPDATE_DELAYED_GCODE ID=CXM_ACCEL_RESTORE DURATION=0' in recover
     test_start=blocks['CXM_TEST_START']
-    assert '_CXM_STAGE_TEST Y={([y_a,y_b,y_c]|max)}' in test_start
+    assert '_CXM_STAGE_TEST Y={ns.highest_safe}' in test_start
+    assert 'selected dock safe-Y lines differ' not in test_start
+    assert 'VARIABLE=tool_mask VALUE={mask}' in test_start
+    assert 'ns.count*n*2>120' in test_start
+    assert 'MASK' in test_start
+    assert 'variable_batch_revision: 2' in blocks['_CXM_TEST_STATE']
+    assert 'variable_tool_mask: 0' in blocks['_CXM_TEST_STATE']
+    assert 'st.tool_mask|int' in blocks['CXM_NATIVE_TEST_STEP']
+    assert '_CXM_STAGE_TEST Y={dock_y+native.clearance_y|float} DOCK_Y={dock_y}' in blocks['CXM_NATIVE_TEST_STEP']
+    assert 'CX M' not in blocks['CXM_NATIVE_TEST_STEP']
+    assert 'st.tool_count|int' in blocks['_CXM_TEST_ADVANCE']
     assert '_CXM_STAGE_TEST' in blocks
     stage=blocks['_CXM_STAGE_TEST']
     assert 'below dock mechanical clearance Y' not in stage
