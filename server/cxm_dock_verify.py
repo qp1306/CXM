@@ -1,8 +1,7 @@
-"""Locked-dock, empty-carriage CXM XY verification.
+"""Supervised dock XY verification; sensor is telemetry, not motion interlock.
 
-The hotend is mechanically locked in the selected dock; carriage sensor
-RELEASED indicates only that the carriage is empty. NEVER infer dock lock
-from that switch. Klipper alone executes XY moves via a dedicated guarded macro.
+Operator confirms dock engagement and a clear physical path. Automatic
+pickup/dropoff retains its strict independent presence-sensor protections.
 """
 import math
 import time
@@ -10,14 +9,14 @@ from cxm_manual import _check, _check_after_own_command, ManualDockError
 from cxm_runtime import MOVE_LOCK, _rpc
 
 ACK = 'I_INSPECTED_LOCKED_DOCK_AND_CLEAR_PATH'
-VERSION = 1
+VERSION = 2
 VERIFY_LIFETIME = 600.0
 
 def _state(tool, store, *, after=False):
     if after:
-        return _check_after_own_command(tool,store,jog=True,expected_sensor='RELEASED')
+        return _check_after_own_command(tool,store,jog=True,expected_sensor=None)
     return _check(tool,store.read(),getattr(store,'_completed_dock_move',None),
-                  expected_sensor='RELEASED')
+                  expected_sensor=None)
 
 def _ready_macro():
     q='/printer/objects/query?gcode_macro%20CXM_DOCK_VERIFY_MOVE=version'
@@ -55,8 +54,6 @@ def _one_move(tool,axis,distance,store,before):
     expected=before['xy'][axis.lower()]+distance
     if after['revision']!=before['revision'] or after['native_tool_identity']!=before['native_tool_identity']:
         raise ManualDockError('Configuration or tool identity changed during movement')
-    if after['sensor']!='RELEASED':
-        raise ManualDockError('Carriage sensor changed; motion stopped')
     if abs(after['xy'][axis.lower()]-expected)>0.08:
         raise ManualDockError('Motion endpoint not verified')
     other='y' if axis=='X' else 'x'
@@ -67,7 +64,7 @@ def _one_move(tool,axis,distance,store,before):
 
 def roundtrip(*,tool,expected_revision,acknowledgement,store):
     if acknowledgement!=ACK:
-        raise ManualDockError('Visually confirm hotend LOCKED, carriage EMPTY and full XY travel clear')
+        raise ManualDockError('Confirm physical dock alignment and full XY travel clear')
     if not MOVE_LOCK.acquire(blocking=False):
         raise ManualDockError('Another CXM movement is running')
     try:
@@ -81,10 +78,9 @@ def roundtrip(*,tool,expected_revision,acknowledgement,store):
         x,y=before['xy']['x'],before['xy']['y']
         if y+100.0>before['limits']['y'][1]:
             raise ManualDockError('Not enough positive Y travel for 100 mm out-and-back')
-        # One 100 mm outward move; independently inspect EMPTY/position before
-        # any return motion. Failure intentionally leaves carriage where it is.
+        # Continuous outward move. Check position, homing and motor status before return.
         outward=_one_move(tool,'Y',100.0,store,before)
-        # Re-check ALL motor, homing, state and sensor interlocks in _one_move.
+        # Re-check position, homing, motors, tool identity and printer state.
         back=_one_move(tool,'Y',-100.0,store,outward)
         if abs(back['xy']['x']-x)>0.02 or abs(back['xy']['y']-y)>0.02:
             raise ManualDockError('Return position differs from original dock datum')
@@ -99,7 +95,7 @@ def roundtrip(*,tool,expected_revision,acknowledgement,store):
 
 def adjust(*,tool,axis,distance,expected_revision,acknowledgement,store):
     if acknowledgement!=ACK:
-        raise ManualDockError('Confirm hotend locked and carriage empty before fine adjustment')
+        raise ManualDockError('Confirm dock alignment and clear fine-adjust path')
     if axis not in ('x','y') or type(distance) not in (float,int) or not math.isfinite(distance):
         raise ManualDockError('Invalid dock alignment adjustment')
     if abs(distance) not in (0.01,0.1,1.0):
@@ -141,7 +137,7 @@ def save(*,tool,expected_revision,acknowledgement,store):
         after=_state(tool,store,after=True)
         # Invalidation changes the native identity to -2. All other state must
         # remain unchanged before persistent save.
-        if after['revision']!=expected_revision or after['sensor']!='RELEASED':
+        if after['revision']!=expected_revision:
             raise ManualDockError('Printer state changed; dock NOT saved')
         if any(abs(after['xy'][axis]-stable['xy'][axis])>0.02 for axis in 'xy'):
             raise ManualDockError('XY changed during invalidation; dock NOT saved')
