@@ -96,7 +96,7 @@ def check():
     commit=blocks['_CXM_COMMIT_STATE']
     assert 'X={(st["t" ~ t ~ "_x"]|float+st.shift_x|float)|round(5)}' in commit
     check=blocks['_CXM_CHECK_TOOL']
-    assert 'x+st.shift_x|float>325' in check
+    assert 'x+st.shift_x|float>334' in check
     calibration=blocks['CXM_CALIBRATION_RELEASE']
     assert 'action_raise_error' in calibration and 'G1 ' not in calibration
     clear=blocks['_CXM_CLEAR_TRANSFER']
