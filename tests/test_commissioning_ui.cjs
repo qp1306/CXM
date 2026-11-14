@@ -90,6 +90,7 @@ test('one T1 Save survives a slow status poll and verifies the selected dock',as
  node('cxmManualApproval').handlers.change();
  await node('cxmDockRetreat100').handlers.click();
  await node('cxmDockReturn100').handlers.click();
+ await new Promise(r=>setImmediate(r)); // Let verified-return status polling settle.
  hold=true;interval();
  assert.equal(node('cxmManualCapture').disabled,false);
  const save=node('cxmManualCapture').handlers.click();
