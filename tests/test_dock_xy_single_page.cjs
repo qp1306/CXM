@@ -28,3 +28,16 @@ test('100mm travel has ten separately verified native 10mm moves',()=>{
   assert.doesNotMatch(jog,/\bG1\b|\/printer\/gcode\/script/);
   assert.match(native,/\[gcode_macro CXM_MANUAL_DOCK_JOG\]/);
 });
+
+test('compact Dock XY has no redundant Check printer stage and retains motion preflight',()=>{
+  assert.doesNotMatch(layout,/p\.stage\(2,'Check printer'/);
+  assert.match(layout,/p\.stage\(2,'Align dock'/);
+  assert.match(layout,/p\.stage\(3,'Save dock XY'/);
+  assert.match(layout,/p\.stage\(4,'Test pickup \/ dropoff'/);
+  assert.match(layout,/p\.stage\(5,'Recovery \/ Reset'/);
+  assert.match(native,/\{% set feed=\(180 if camera else 60\) if axis == "Z" else \(1200 if camera else 3000\) %\}/);
+  assert.match(native,/CXM calibration: home XYZ before jogging/);
+  assert.match(native,/CXM calibration: disabled motor/);
+  assert.match(native,/CXM calibration: mounted hotend required/);
+  assert.match(html,/XY · 50 mm\/s/);
+});
