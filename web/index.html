@@ -318,6 +318,11 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <p class="helper" id="cxmCalibrationReleaseStatus" role="status">Requires an accepted native mounted tool and approved mechanical dock engagement.</p>
 </div>
 <p class="helper" id="cxmNativeToolStatus" role="status" aria-live="polite">Reading live Klipper tool state…</p><p id="cxmChangeResult" role="status"></p>
+<details id="cxmDockSyncDetails" style="margin:14px 0;padding:12px 16px;border:1px solid #406889;border-radius:12px">
+ <summary id="cxmDockSyncSummary" style="cursor:pointer;font-weight:700">Saved Dock XY ↔ Klipper native XY</summary>
+ <pre id="cxmDockSyncEvidence" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px" aria-live="polite">Reading saved and synchronized coordinates…</pre>
+ <button type="button" class="btn" id="cxmDockSyncCopy">Copy diagnostic details</button>
+</details>
 </fieldset>
 <div id="cxmNativeX334Fix" hidden class="panel" style="margin:12px 0;padding:14px 18px">
  <div class="panel-heading"><h3>Klipper X334 compatibility</h3><span class="panel-label">Native toolchanger macro</span></div>
@@ -1083,6 +1088,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 
 <script src="cxm-multi.js?v=solo6.1" defer></script>
 <script src="cxm-native-control.js?v=clear-all1" defer></script>
+<script src="cxm-dock-sync-diagnostics.js?v=1-read-only" defer></script>
 <script src="cxm-native-x334.js?v=1-live-guard" defer></script>
 <script src="cxm-fresh-reset.js?v=1" defer></script>
 <script src="cxm-axiscope.js?v=4.2" defer></script><script src="cxm-offset-editor.js?v=4.2" defer></script>
@@ -1094,6 +1100,6 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-ui-v2.js?v=20261112" defer></script>
 <script src="cxm-approved-v1.js?v=1.4-compact-dock" defer></script>
 
-<script src="cxm-dock-simple.js?v=3-hotend-cards" defer></script>
+<script src="cxm-dock-simple.js?v=4-target-selection" defer></script>
 <script src="cxm-dock-batch.js?v=1-standard-custom" defer></script>
 </body></html>
