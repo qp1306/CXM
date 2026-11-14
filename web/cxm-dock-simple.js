@@ -12,7 +12,7 @@ root.innerHTML=`
 <div class="cxms-grid">
 <section class="cxms-step"><div class="cxms-heading"><b>1</b><h2>Home printer</h2></div><button class="btn primary" id="cxmsHome">Home XYZ</button></section>
 <section class="cxms-step"><div class="cxms-heading"><b>2</b><h2>Select hotend</h2></div><select id="cxmsTool" aria-label="Hotend"><option value="0">T0</option></select></section>
-<section class="cxms-step"><div class="cxms-heading"><b>3</b><h2>Enable jogging</h2></div><label class="cxms-enable"><input type="checkbox" id="cxmsEnable"><span>Enable jogging · Z22 automatic</span></label></section>
+<section class="cxms-step cxms-step-enable cxms-wide"><div class="cxms-heading"><b>3</b><h2>Enable jogging</h2></div><label class="cxms-enable"><input type="checkbox" id="cxmsEnable"><span class="cxms-enable-copy"><strong>Enable jogging</strong><small>Automatically raises Z to 22 mm. Jog X/Y below to align the selected hotend.</small></span></label></section>
 <section class="cxms-step cxms-wide"><div class="cxms-heading"><b>4</b><h2>Jog carriage into position</h2></div><div id="cxmsJogs">
 <div class="cxms-jogrow"><strong>X</strong><button data-axis="x" data-dist="-10">−10</button><button data-axis="x" data-dist="-1">−1</button><button data-axis="x" data-dist="-0.1">−0.1</button><button data-axis="x" data-dist="-0.01">−0.01</button><button data-axis="x" data-dist="0.01">+0.01</button><button data-axis="x" data-dist="0.1">+0.1</button><button data-axis="x" data-dist="1">+1</button><button data-axis="x" data-dist="10">+10</button></div>
 <div class="cxms-jogrow"><strong>Y</strong><button data-axis="y" data-dist="-10">−10</button><button data-axis="y" data-dist="-1">−1</button><button data-axis="y" data-dist="-0.1">−0.1</button><button data-axis="y" data-dist="-0.01">−0.01</button><button data-axis="y" data-dist="0.01">+0.01</button><button data-axis="y" data-dist="0.1">+0.1</button><button data-axis="y" data-dist="1">+1</button><button data-axis="y" data-dist="10">+10</button></div>
@@ -29,6 +29,8 @@ const select=get('cxmsTool'),checkbox=get('cxmsEnable');
 const buttons=Array.from(root.querySelectorAll('[data-axis]'));
 const api='/cxm/api/v1/dock-simple';
 let live=null,busy=false,enabled=false,revision='',seq=0,savedAtDock=false;
+const jogQueue=[];
+let jogRunning=false;
 const selected=()=>Number(select.value);
 function say(msg,error=false){const el=get('cxmsMessage');el.textContent=msg;el.classList.toggle('cxms-error',error);}
 async function request(url,body){
@@ -40,14 +42,18 @@ async function request(url,body){
  return d;
 }
 function controls(){
- get('cxmsHome').disabled=busy||!live;
- select.disabled=busy;
- checkbox.disabled=busy||!live?.homed;
- const moving=enabled&&!busy&&live?.homed===true;
- for(const b of buttons)b.disabled=!moving;
+ const blocked=busy||jogRunning||jogQueue.length>0;
+ get('cxmsHome').disabled=blocked||!live;
+ select.disabled=blocked;
+ checkbox.disabled=blocked||!live?.homed;
+ const moving=enabled&&!blocked&&live?.homed===true;
+ // Queued jog requests execute in order. Do not grey out the jog buttons
+ // while a previous click is travelling, just like Mainsail's jog UI.
+ const canJog=enabled&&live?.homed===true&&(!busy||jogRunning);
+ for(const b of buttons)b.disabled=!canJog;
  get('cxmsTest').disabled=!moving;
  get('cxmsSave').disabled=!moving||savedAtDock;
- get('cxmsNext').disabled=busy||!live||selected()>=live.tool_count-1;
+ get('cxmsNext').disabled=blocked||!live||selected()>=live.tool_count-1;
 }
 function display(){
  if(!live){controls();return;}
@@ -102,10 +108,39 @@ checkbox.addEventListener('change',()=>{
  enabled=false;
  act('enable',{},d=>'Z '+d.xyz.z.toFixed(2)+' mm · jogging enabled.');
 });
+async function runQueuedJogs(){
+ if(jogRunning||busy||!enabled||!live||!live.homed)return;
+ jogRunning=true;busy=true;controls();
+ const startTool=selected();
+ try{
+  while(jogQueue.length){
+   const next=jogQueue.shift();
+   if(selected()!==startTool)throw Error('Selected hotend changed');
+   // Await completion in request order. Multiple clicks are accepted instantly
+   // and never issue conflicting parallel Klipper commands.
+   const d=await request(api+'/jog',{
+    tool:startTool,expected_revision:revision,
+    axis:next.axis,distance:next.distance
+   });
+   if(selected()!==startTool)throw Error('Selected hotend changed');
+   live=d;revision=d.revision;savedAtDock=false;
+   display();
+   say('X '+d.xyz.x.toFixed(3)+' · Y '+d.xyz.y.toFixed(3)+
+       (jogQueue.length?' · '+jogQueue.length+' jog(s) queued':''));
+  }
+ }catch(e){
+  jogQueue.length=0;
+  say('JOG · '+e.message,true);
+ }finally{
+  jogRunning=false;busy=false;
+  await refresh();
+  controls();
+ }
+}
 for(const b of buttons)b.addEventListener('click',()=>{
- if(!enabled)return;
- act('jog',{axis:b.dataset.axis,distance:Number(b.dataset.dist)},
- d=>'X '+d.xyz.x.toFixed(3)+' · Y '+d.xyz.y.toFixed(3));
+ if(!enabled||!live||!live.homed||busy&&!jogRunning)return;
+ jogQueue.push({axis:b.dataset.axis,distance:Number(b.dataset.dist)});
+ if(!jogRunning)runQueuedJogs();
 });
 get('cxmsTest').addEventListener('click',()=>act('test',{},
  ()=> 'Dock/undock movement completed; returned to original X/Y. Inspect the result.'));
