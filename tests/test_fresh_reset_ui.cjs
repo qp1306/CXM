@@ -34,7 +34,7 @@ test('Backend atomic backup and invalidated Klipper state required',()=>{
  assert.match(svc,/native_reset_commissioning\(self\.server\.store/);
  assert.match(db,/def reset_commissioning\(self, expected_revision\):/);
  assert.match(db,/result = self\._commit\(old, new\)/);
- assert.match(db,/self\._hash\(\(self\.backups\[result\['backup'\]\]\)/);
+ assert.match(db,/CXM old-state backup could not be verified/);
  assert.match(native,/def reset_commissioning\(store, expected_revision, acknowledgement\):/);
  assert.match(native,/if sensor != 'RELEASED':/);
  assert.match(native,/native\.get\('protocol'\) != 2/);
