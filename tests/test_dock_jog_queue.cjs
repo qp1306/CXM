@@ -75,7 +75,7 @@ test('green Enable jogging and rapid jog clicks do not grey buttons or overlap H
   throw Error('Unexpected request '+url);
  }
  const context={
-  document,fetch,window:{CXM_SIMPLE_DOCK_XY:true,dispatchEvent(){}},
+  document,fetch,window:{CXM_SIMPLE_DOCK_XY:true,dispatchEvent(){},addEventListener(){}},
   setInterval(){},CustomEvent:class {},console
  };
  vm.runInNewContext(source,context,{filename:'cxm-dock-simple.js'});
