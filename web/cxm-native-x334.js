@@ -1,4 +1,4 @@
-/* Tools: correct only outdated native 325mm guards, then restart Klipper. */
+/* Tools: one-time repair of stale native X bounds / obsolete T1 release datum. */
 (()=>{
 'use strict';
 const root=document.getElementById('cxmNativeX334Fix');
@@ -10,11 +10,13 @@ let info=null,busy=false;
 function say(text){msg.textContent=text;}
 function controls(){
   const correction=info&&info.file_state==='needs_apply';
-  const restart=info&&info.file_state==='installed'&&info.loaded_guard==='x325';
+  const restart=info&&info.file_state==='installed'&&
+    (info.loaded_guard==='x325'||info.loaded_release_guard==='obsolete_t1');
   root.hidden=!busy&&!correction&&!restart;
   button.disabled=busy||(!correction&&!restart);
-  button.textContent=restart?'Restart Klipper to load X334':
-     'Apply X334 fix & restart Klipper';
+  button.hidden=false;
+  button.textContent=restart?'Restart Klipper to activate dock correction':
+     'Fix obsolete dock check & restart Klipper';
 }
 async function request(url,body){
  const options={cache:'no-store',credentials:'same-origin'};
@@ -31,9 +33,10 @@ async function status(){
   info=await request(source+'status');
   controls();
   if(info.file_state==='needs_apply')say(
-    'Saved native Klipper macros still contain the old X325 limit. One click will patch only those limits, back up the file and restart Klipper.');
-  else if(info.loaded_guard==='x325')say(
-    'Native file uses X334, but Klipper is still running the old X325 guard. Restart to activate it.');
+    'Installed native macro contains an obsolete dock limit or T1 X264.70/Y65.60 release check. '+
+    'This one-time correction backs up the file, removes only the outdated check/limit, and restarts Klipper. Saved dock XY and motions stay unchanged.');
+  else if(info.loaded_release_guard==='obsolete_t1'||info.loaded_guard==='x325')say(
+    'Corrected file is saved, but Klipper still has the older macro loaded. Restart Klipper to activate it.');
  }catch(e){
   info=null;root.hidden=false;button.disabled=true;
   say('X334 check unavailable: '+e.message);
@@ -42,7 +45,8 @@ async function status(){
 async function apply(){
  if(busy||!info)return;
  const patchNeeded=info.file_state==='needs_apply';
- if(!patchNeeded&&info.loaded_guard!=='x325')return;
+ if(!patchNeeded&&info.loaded_guard!=='x325'&&
+    info.loaded_release_guard!=='obsolete_t1')return;
  busy=true;root.hidden=false;controls();
  let patched=false;
  try{
@@ -52,18 +56,18 @@ async function apply(){
      throw Error('Installed config did not confirm X334 patch');
    patched=true;
   }
-  say('X334 config ready. Restarting Klipper…');
+  say('Dock macro correction ready. Restarting Klipper…');
   // Restart is essential: Klipper keeps its old macro source in RAM until restart.
   const response=await fetch('/printer/restart',{method:'POST',
       credentials:'same-origin',cache:'no-store'});
   if(!response.ok)throw Error('Klipper restart request HTTP '+response.status);
   info=null;
-  say('Klipper restart requested. Home XYZ, then try loading T0. Saved dock coordinates are unchanged.');
+  say('Klipper restart requested. Home XYZ, then confirm the old T1 check is gone before any toolchange. Saved coordinates are unchanged.');
   button.disabled=true;
   button.hidden=true;
  }catch(e){
-  say((patched?'X334 saved to disk; Klipper restart not confirmed: ':
-       'Native X334 correction refused: ')+e.message+
+  say((patched?'Dock correction saved; Klipper restart not confirmed: ':
+       'Native dock correction refused: ')+e.message+
        (patched?'. Restart Klipper once from Mainsail, then home XYZ.':''));
   info=null;
   button.disabled=true;
