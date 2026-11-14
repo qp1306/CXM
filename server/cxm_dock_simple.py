@@ -10,7 +10,6 @@ operator can inspect physical engagement during unsensored calibration.
 Automatic CXM_SELECT_TOOL is unchanged and still uses its own checks.
 """
 import math
-import time
 from cxm_runtime import MOVE_LOCK, _rpc
 
 class DockSimpleError(RuntimeError):
@@ -61,16 +60,11 @@ def _send(lines):
     _rpc('/printer/gcode/script',{'script':script})
 
 def _after(store,tool,expected_revision,expected_xyz,*,tol=0.08):
-    # M400 completes queued moves; allow a brief idle_timeout transition.
-    deadline=time.monotonic()+3.0
-    while True:
-        try:
-            state=_checked(store.read(),tool)
-            break
-        except DockSimpleError as exc:
-            if str(exc)!='Printer is busy' or time.monotonic()>deadline:
-                raise
-            time.sleep(0.12)
+    # M400 already drained the commanded moves. Do not mistake Klipper's
+    # transient idle_timeout=Printing label for an unfinished jog.
+    state=_snapshot()
+    if not state['homed']:
+        raise DockSimpleError('Homing state changed during movement')
     if store.read()['revision']!=expected_revision:
         raise DockSimpleError('Configuration changed during movement')
     if any(abs(state['xyz'][axis]-value)>tol for axis,value in expected_xyz.items()):
