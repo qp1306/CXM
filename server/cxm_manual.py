@@ -12,7 +12,7 @@ from cxm_runtime import MOVE_LOCK, _rpc
 class ManualDockError(RuntimeError):
     pass
 
-def _check(tool, saved, completed=None, *, after_jog=False):
+def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor='PRESSED'):
     if type(tool) is not int or not 0 <= tool < saved['config']['globals']['tool_count']:
         raise ManualDockError('Select an active T0–T11 dock')
     if saved['migration_required'] or saved['config']['tools'][tool]['maintenance_lockout']:
@@ -59,12 +59,16 @@ def _check(tool, saved, completed=None, *, after_jog=False):
     for name in ('stepper_x','stepper_y','stepper_z','stepper_z1','stepper_z2','stepper_z3'):
         if motors.get(name) is not True:
             raise ManualDockError(name+' is not energised; rehome and recheck')
-    # Mechanical dock alignment REQUIRES the selected hotend to be mounted.
-    # This mode is separate from native pickup/dropoff, which retains its own
-    # strict EMPTY/PRESSED transition and identity interlocks.
+    # Mounted jog and locked-dock EMPTY verification are separate modes.
+    # The switch reports carriage presence only, never dock lock engagement.
     signal=state.get('gcode_button cxm_tool_detect',{}).get('state')
-    if signal!='PRESSED':
-        raise ManualDockError('Manual dock alignment requires a MOUNTED hotend (sensor PRESSED)')
+    if expected_sensor not in ('PRESSED','RELEASED'):
+        raise ManualDockError('Invalid expected carriage sensor state')
+    if signal!=expected_sensor:
+        if expected_sensor=='PRESSED':
+            raise ManualDockError('Manual dock alignment requires a MOUNTED hotend (sensor PRESSED)')
+        raise ManualDockError('Expected carriage RELEASED, got '+str(signal)+
+                              '. Inspect locked hotend and carriage before moving')
     test=state.get('gcode_macro _CXM_TEST_STATE',{})
     native=state.get('gcode_macro _CXM_NATIVE',{})
     if test.get('running')==1:
@@ -94,10 +98,10 @@ def _check(tool, saved, completed=None, *, after_jog=False):
     return {'tool':tool,'xy':{'x':xy['x']['position'],'y':xy['y']['position']},
             'limits':limits,
             '_motion_signature':signature,'z':float(pos[2]),'homed':True,'motors_enabled':True,
-            'sensor':'PRESSED','identity_source':'operator_selected',
+            'sensor':signal,'identity_source':'operator_selected',
             'jog_revision':native.get('jog_revision',0),'native_tool_identity':identity,'revision':saved['revision'],'ready':True}
 
-def _check_after_own_command(tool, store, *, jog=False):
+def _check_after_own_command(tool, store, *, jog=False, expected_sensor='PRESSED'):
     """Wait for Klipper's transient idle_timeout=Printing after our own M400.
 
     This is ONLY used after a successfully submitted manual jog/capture command.
@@ -107,7 +111,7 @@ def _check_after_own_command(tool, store, *, jog=False):
     deadline=time.monotonic()+3.0
     while True:
         try:
-            return _check(tool, store.read(), after_jog=jog)
+            return _check(tool, store.read(), after_jog=jog, expected_sensor=expected_sensor)
         except ManualDockError as exc:
             if str(exc)!='Printer is busy; manual dock motion disabled':
                 raise

@@ -12,7 +12,8 @@ import cxm_native
 
 Point = namedtuple('Point', 'x y z')
 source = (ROOT/'vendor/cxm/cxm_native_toolchange.cfg').read_text()
-body = source.split('[gcode_macro CXM_CAMERA]', 1)[1].split('gcode:\n', 1)[1]
+# Isolate CAMERA's gcode section; another independent macro can follow it.
+body = source.split('[gcode_macro CXM_CAMERA]', 1)[1].split('gcode:\n', 1)[1].split('\n[gcode_macro ', 1)[0]
 template = jinja2.Environment('{%', '%}', '{', '}').from_string(body)
 
 
