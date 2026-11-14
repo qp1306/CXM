@@ -62,9 +62,9 @@ def _check(tool, saved, completed=None, *, after_jog=False, expected_sensor='PRE
     # Mounted jog and locked-dock EMPTY verification are separate modes.
     # The switch reports carriage presence only, never dock lock engagement.
     signal=state.get('gcode_button cxm_tool_detect',{}).get('state')
-    if expected_sensor not in ('PRESSED','RELEASED'):
+    if expected_sensor is not None and expected_sensor not in ('PRESSED','RELEASED'):
         raise ManualDockError('Invalid expected carriage sensor state')
-    if signal!=expected_sensor:
+    if expected_sensor is not None and signal!=expected_sensor:
         if expected_sensor=='PRESSED':
             raise ManualDockError('Manual dock alignment requires a MOUNTED hotend (sensor PRESSED)')
         raise ManualDockError('Expected carriage RELEASED, got '+str(signal)+
