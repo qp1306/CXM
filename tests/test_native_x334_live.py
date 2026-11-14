@@ -21,6 +21,8 @@ def old_source():
 def with_stale_t1(source, indent='    ', newline='\n'):
     # Reproduce exactly the stale X264.70/Y65.60 branch observed in Klipper.
     target='    {% elif pos.y < safe-0.001 or safe > ymax or x+4.4 > xmax or pos.x < 5 or pos.x > 334 %}'
+    if source.count(target)!=1:
+        target=target.replace('pos.x > 334','pos.x > 325')
     assert source.count(target)==1
     old=(indent + x334.LEGACY_T1_CONDITION + newline +
          indent + '  ' + x334.LEGACY_T1_ACTION + newline)
