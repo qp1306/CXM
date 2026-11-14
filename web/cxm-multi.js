@@ -51,7 +51,7 @@ function profileLabel(profile){
 function modeLabel(mode){return mode==='native'?'NATIVE KLIPPER':String(mode||'UNKNOWN').toUpperCase();}
 function chooseControls(){
  const running=current?.running===true;
- const valid=selection().length>=1&&selection().length<=3&&
+ const valid=selection().length>=1&&selection().length<=Math.min(12,current?.max_tool_selection||3)&&
    selection().every(n=>current.candidates.some(t=>t.tool===n&&t.eligible));
  const maxRepeat=repeatMaximum();
  $('cxmMultiRepeats').max=String(maxRepeat);
@@ -64,7 +64,8 @@ function chooseControls(){
    ' · '+(cycles??'INVALID')+' cycle(s) · '+selection().length+' tools');
  const customValid=selectedProfile()!=='custom'||customSpeeds()!==null;
  const ready=!requestBusy&&!running&&valid&&cycles!==null&&customValid&&
-   current?.native_ready===true&&current?.current_tool===-1&&current?.fault===0&&!!current?.revision;
+   current?.native_ready===true&&current?.current_tool===-1&&current?.fault===0&&
+   current?.native_batch_revision===2&&!!current?.revision;
  $('cxmMultiAck').disabled=!ready;
  if(!ready)$('cxmMultiAck').checked=false;
  $('cxmMultiStart').disabled=!ready;
@@ -174,7 +175,9 @@ function showStatus(){
    text('cxmMultiStatus','STOPPED · '+run.last_event);
  }else{
    const selected=selection().map(n=>'T'+n).join(' → ');
-   text('cxmMultiStatus',selected
+   text('cxmMultiStatus',current.native_batch_revision!==2
+      ?'Native Dock Batch macro update required before any new test. Use the one-time upgrade control above.'
+      :selected
       ?'Ready to PRECHECK '+selected+' · carriage must be EMPTY and all physical paths clear'
       :'Choose at least one accepted dock to run a supervised mechanical test.');
  }
@@ -240,7 +243,10 @@ async function refresh(){
 async function start(){
  if(requestBusy||!current||current.running)return;
  const list=selection();
- if(list.length<1||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
+ if(list.length<1||list.length>12||list.some(n=>!current.candidates.some(t=>t.tool===n&&t.eligible)))return;
+ if(current.native_batch_revision!==2){
+   text('cxmMultiStatus','Install the native 12-tool Dock Batch macro before starting.');return;
+ }
  const cycles=repeatCount();
  if(cycles===null)return;
  const travelProfile=selectedProfile();

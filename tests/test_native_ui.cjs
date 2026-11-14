@@ -14,7 +14,7 @@ test('native CXM Control Centre offers only the new toolchange controller',()=>{
    assert.match(html,new RegExp('id="'+id+'"'));
  }
  assert.match(html,/src="cxm-native-control\.js\?v=/);
- assert.match(html,/src="cxm-multi\.js\?v=solo6\.1"/);
+ assert.match(html,/src="cxm-multi\.js\?v=12tool-native-v2"/);
  assert.doesNotMatch(html,/src="cxm-t0-auto\.js/);
  assert.doesNotMatch(html,/src="cxm-tools\.js/);
 });
@@ -77,5 +77,5 @@ test('multi-test UI preserves profile selection and stop-at-pair request',()=>{
  assert.match(multi,/nativePost\('confirm-empty'/);
  assert.match(multi,/nativePost\('recover-empty'/);
  assert.match(multi,/current\?\.native_ready===true/);
- assert.match(multi,/selection\(\)\.length<=3/);
+ assert.match(multi,/selection\(\)\.length<=Math\.min\(12,current\?\.max_tool_selection\|\|3\)/);
 });

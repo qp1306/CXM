@@ -14,6 +14,7 @@ from cxm_config import Store
 from cxm_runtime import MOVE_LOCK, _rpc
 from cxm_jog_upgrade import inspect as inspect_jog_upgrade, apply as apply_jog_upgrade, JogUpgradeError
 from cxm_x334_live import inspect_compat as inspect_x334_live, apply_compat as apply_x334_live, live_status as x334_live_status, loaded_t1_release_guard, NativeX334Error
+from cxm_batch_upgrade import inspect as inspect_batch_upgrade, apply as apply_batch_upgrade, BatchUpgradeError
 from cxm_dock_verify_install import inspect as inspect_dock_verify_install, apply as apply_dock_verify_install, DockVerifyInstallError
 from cxm_dock_verify import status as dock_verify_status, roundtrip as dock_verify_roundtrip, adjust as dock_verify_adjust, save as dock_verify_save
 from cxm_cxchanger import plan
@@ -205,6 +206,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,{'file_state':info['state'],'sha256':info['sha256'],
                                   'live_version':macro.get('version'),
                                   'restart_required':info['state']=='installed' and macro.get('version')!=1})
+            elif self.path == '/v1/native/batch-upgrade/status':
+                installed=inspect_batch_upgrade(self.server.store.path.parent/'cxm_native_toolchange.cfg')
+                test=_rpc('/printer/objects/query?gcode_macro%20_CXM_TEST_STATE=batch_revision').get('status',{})
+                revision=test.get('gcode_macro _CXM_TEST_STATE',{}).get('batch_revision',0)
+                self.output(200,{'file_state':installed['state'],'sha256':installed['sha256'],
+                                 'loaded_revision':revision,'target_revision':2})
             elif self.path == '/v1/native/x334/status':
                 installed=inspect_x334_live(self.server.store.path.parent/'cxm_native_toolchange.cfg')
                 self.output(200,{'file_state':installed['state'],
@@ -222,7 +229,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
-        except (OSError, ValueError, SyntaxError, ManualDockError, DockSimpleError, JogUpgradeError, DockVerifyInstallError, NativeX334Error) as e:
+        except (OSError, ValueError, SyntaxError, ManualDockError, DockSimpleError, JogUpgradeError, DockVerifyInstallError, NativeX334Error, BatchUpgradeError) as e:
             self.output(503,{'error':str(e)})
     def do_POST(self):
         # No CORS, strict same-origin and custom header to prevent cross-site form submits.
@@ -243,8 +250,24 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/dock-simple/home','/v1/dock-simple/enable','/v1/dock-simple/jog','/v1/dock-simple/test','/v1/dock-simple/save','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/dock-verify/roundtrip','/v1/dock-verify/adjust','/v1/dock-verify/save','/v1/update/dock-verify/apply','/v1/native/x334/apply','/v1/native/restart','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/dock-simple/home','/v1/dock-simple/enable','/v1/dock-simple/jog','/v1/dock-simple/test','/v1/dock-simple/save','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/dock-verify/roundtrip','/v1/dock-verify/adjust','/v1/dock-verify/save','/v1/update/dock-verify/apply','/v1/native/x334/apply','/v1/native/batch-upgrade/apply','/v1/native/restart','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/native/batch-upgrade/apply':
+                if set(body)!={'sha256'} or type(body['sha256']) is not str:
+                    raise BatchUpgradeError('Unexpected Dock Batch upgrade request')
+                if not printer_safe() or zauto_controller.status()['running']:
+                    raise BatchUpgradeError('Printer must be idle before upgrading native batch macros')
+                if not MOVE_LOCK.acquire(blocking=False):
+                    raise BatchUpgradeError('A CXM movement or calibration is running')
+                try:
+                    test=_rpc('/printer/objects/query?gcode_macro%20_CXM_TEST_STATE=running')
+                    if test.get('status',{}).get('gcode_macro _CXM_TEST_STATE',{}).get('running')==1:
+                        raise BatchUpgradeError('Dock Batch is running')
+                    native=self.server.store.path.parent/'cxm_native_toolchange.cfg'
+                    self.output(200,apply_batch_upgrade(native,body['sha256']))
+                finally:
+                    MOVE_LOCK.release()
                 return
             if self.path == '/v1/native/restart':
                 if body:
@@ -567,7 +590,7 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Unexpected rollback parameters')
                 result=self.server.store.rollback(**body)
             self.output(200,result)
-        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError,DockSimpleError,ZAutoError,JogUpgradeError,DockVerifyInstallError,NativeX334Error) as e:
+        except (ValueError,TypeError,KeyError,SyntaxError,NativeError,ManualDockError,DockSimpleError,ZAutoError,JogUpgradeError,DockVerifyInstallError,NativeX334Error,BatchUpgradeError) as e:
             self.output(400,{'error':str(e)})
         except RuntimeError as e:
             self.output(409,{'error':str(e)})
@@ -587,7 +610,7 @@ def main():
     # GitHub updates modify repository files but should not need an SSH step.
     # systemd Restart=always relaunches the new Python code after a source change.
     watched=[Path(__file__),Path(__file__).with_name('cxm_config.py'),
-             Path(__file__).with_name('cxm_manual.py'),Path(__file__).with_name('cxm_dock_simple.py'),Path(__file__).with_name('cxm_jog_upgrade.py'),Path(__file__).with_name('cxm_x334_live.py'),Path(__file__).with_name('cxm_dock_verify.py'),Path(__file__).with_name('cxm_dock_verify_install.py'),Path(__file__).with_name('cxm_runtime.py'),
+             Path(__file__).with_name('cxm_manual.py'),Path(__file__).with_name('cxm_dock_simple.py'),Path(__file__).with_name('cxm_jog_upgrade.py'),Path(__file__).with_name('cxm_x334_live.py'),Path(__file__).with_name('cxm_batch_upgrade.py'),Path(__file__).with_name('cxm_dock_verify.py'),Path(__file__).with_name('cxm_dock_verify_install.py'),Path(__file__).with_name('cxm_runtime.py'),
              Path(__file__).with_name('cxm_t0.py'),
              Path(__file__).with_name('cxm_cxchanger.py'),
              Path(__file__).with_name('cxm_tools.py'),

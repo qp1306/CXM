@@ -274,7 +274,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 #cxmNativeSync,#cxmNativeConfirm,#cxmNativeRecover,#cxmMultiRefresh,#cxmMultiApproval,.cxm-capture-ack:has(#cxmNativeEmptyAck){display:none!important}
 </style><style>.cxm-custom-speeds{padding:15px;background:#1b3040;border:1px solid #416481;border-radius:10px;display:grid;grid-template-columns:repeat(3,minmax(130px,1fr));gap:12px;margin:10px 0}.cxm-custom-speeds[hidden]{display:none!important}.cxm-custom-speeds label{font-size:13px;display:flex;flex-direction:column;gap:7px}.cxm-custom-speeds input{font-size:17px;padding:10px;background:#101c29;border:1px solid #6486a3;border-radius:7px;color:#fff;width:100%}.cxm-custom-speeds small{grid-column:1/-1;color:#b9cad7}@media(max-width:650px){.cxm-custom-speeds{grid-template-columns:1fr}}</style><link rel="stylesheet" href="cxm-ui-v2.css?v=2.3-arrow-steps" /><link rel="stylesheet" href="cxm-approved-v1.css?v=1.4-compact-dock" />
 <link rel="stylesheet" href="cxm-dock-simple.css?v=3-hotend-cards">
-<link rel="stylesheet" href="cxm-dock-batch.css?v=2-carriage-confirm">
+<link rel="stylesheet" href="cxm-dock-batch.css?v=3-batch-twelve">
 </head>
 <body><div id="environmentBanner" role="status" aria-live="polite" style="display:none;background:#46371c;color:#e9d4a7;text-align:center;padding:10px;font:12px sans-serif"></div>
 <div class="app-shell">
@@ -417,6 +417,11 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </div></section>
 <section data-panel="dock-batch" hidden>
 <div class="section-title"><div><h2>Dock Batch</h2><p>Repeated native pickup/dropoff testing at Standard or your saved Custom speed.</p></div></div>
+<div id="cxmBatchUpgrade" class="cxm-batch-upgrade" hidden>
+ <h3>Activate 12-tool Dock Batch</h3>
+ <p id="cxmBatchUpgradeMessage" role="status" aria-live="polite">Checking the installed native test macro…</p>
+ <button type="button" class="btn primary" id="cxmBatchUpgradeApply" disabled>Upgrade Dock Batch &amp; restart Klipper</button>
+</div>
 <div id="cxmDockBatchSlot"></div>
 </section>
 <section data-panel="calibration" hidden>
@@ -1086,7 +1091,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-manual.js?v=4.5-save-first" defer></script>
 
 
-<script src="cxm-multi.js?v=solo6.1" defer></script>
+<script src="cxm-multi.js?v=12tool-native-v2" defer></script>
 <script src="cxm-native-control.js?v=clear-all1" defer></script>
 <script src="cxm-dock-sync-diagnostics.js?v=1-read-only" defer></script>
 <script src="cxm-native-x334.js?v=4-t1-fallback-restart" defer></script>
@@ -1101,5 +1106,6 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-approved-v1.js?v=1.4-compact-dock" defer></script>
 
 <script src="cxm-dock-simple.js?v=4-target-selection" defer></script>
-<script src="cxm-dock-batch.js?v=2-carriage-confirm" defer></script>
+<script src="cxm-dock-batch.js?v=3-batch-twelve" defer></script>
+<script src="cxm-batch-upgrade.js?v=1-native-twelve" defer></script>
 </body></html>

@@ -27,6 +27,17 @@ test('Dock Batch has dedicated nav and native toolchange panel',()=>{
  assert.match(klipper,/\[gcode_macro CXM_TEST_START\]/);
  assert.match(klipper,/\[gcode_macro CXM_SET_PROFILE\]/);
 });
+test('Dock Batch UI requires live revision 2 and permits six to twelve tools',()=>{
+ const native=read('web/cxm-multi.js');
+ const backend=read('server/cxm_native.py');
+ const html=read('web/index.html');
+ assert.match(native,/selection\(\)\.length<=Math\.min\(12,current\?\.max_tool_selection\|\|3\)/);
+ assert.match(native,/native_batch_revision===2/);
+ assert.match(backend,/CXM_TEST_START MASK=/);
+ assert.match(backend,/2\*len\(tools\)\*cycles>120/);
+ assert.match(html,/id="cxmBatchUpgrade"/);
+ assert.match(html,/cxm-batch-upgrade\.js\?v=/);
+});
 test('saved Custom speed restores and can be updated without sending Gcode',()=>{
  const src=read('web/cxm-dock-batch.js');
  const slot=el('cxmDockBatchSlot'),panel=el('cxmMultiPanel'),head=el('heading');
