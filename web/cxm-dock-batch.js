@@ -30,13 +30,14 @@ if(existingIdentity&&existingConfirm){
  const note=carriage.querySelector('#cxmBatchCarriageStatus');
  const updateMirror=()=>{
   const keep=mirror.value;
+  const hadSelection=mirror.options.length>0 && keep!=='';
   const original=[...existingIdentity.options];
   if(original.length && (mirror.options.length!==original.length ||
      original.some((option,i)=>mirror.options[i]?.value!==option.value ||
                           mirror.options[i]?.textContent!==option.textContent))){
    mirror.replaceChildren(...original.map(o=>o.cloneNode(true)));
   }
-  if(original.some(o=>o.value===keep))mirror.value=keep;
+  if(hadSelection&&original.some(o=>o.value===keep))mirror.value=keep;
   else mirror.value=existingIdentity.value;
   mirror.disabled=existingIdentity.disabled||existingConfirm.disabled;
   button.disabled=existingConfirm.disabled||existingIdentity.disabled;
