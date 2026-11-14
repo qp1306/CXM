@@ -13,10 +13,11 @@ import urllib.request
 from cxm_config import Store
 from cxm_runtime import MOVE_LOCK, _rpc
 from cxm_jog_upgrade import inspect as inspect_jog_upgrade, apply as apply_jog_upgrade, JogUpgradeError
+from cxm_prepare_upgrade import inspect as inspect_prepare_upgrade, apply as apply_prepare_upgrade, PrepareUpgradeError
 from cxm_cxchanger import plan
 from cxm_t0 import (status as t0_status, record_sensor as t0_record_sensor,
                     confirm_staging as t0_confirm_staging, T0Error)
-from cxm_manual import status as manual_status, jog as manual_jog, capture as manual_capture, save as manual_save, ManualDockError
+from cxm_manual import status as manual_status, jog as manual_jog, prepare as manual_prepare, capture as manual_capture, save as manual_save, ManualDockError
 from cxm_native import (camera_action, status as multi_status, start as multi_start,
                         stop as multi_stop, sync as native_sync,
                         select as native_select, simple_change as native_simple_change,
@@ -181,6 +182,13 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,zauto_controller.status())
             elif self.path.startswith('/v1/z-auto/preflight?'):
                 self.output(200,zauto_assess(self.server.store,parse_z_tool_query(self.path)))
+            elif self.path == '/v1/update/prepare/status':
+                info=inspect_prepare_upgrade(self.server.store.path.parent / 'cxm_native_toolchange.cfg')
+                q='/printer/objects/query?gcode_macro%20CXM_MANUAL_DOCK_PREPARE=version'
+                native=_rpc(q).get('status',{}).get('gcode_macro CXM_MANUAL_DOCK_PREPARE',{})
+                self.output(200,{'file_state':info['state'],'sha256':info['sha256'],
+                                 'live_version':native.get('version'),
+                                 'restart_required':info['state']=='installed' and native.get('version')!=1})
             elif self.path == '/v1/update/jog/status':
                 info=inspect_jog_upgrade(self.server.store.path.parent / 'cxm_native_toolchange.cfg')
                 query='/printer/objects/query?gcode_macro%20_CXM_NATIVE=jog_revision'
@@ -192,7 +200,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.output(200,{'ok':True,'version':'0.9.0','loopback_only':True})
             else:
                 self.output(404,{'error':'Not found'})
-        except (OSError, ValueError, SyntaxError, ManualDockError, JogUpgradeError) as e:
+        except (OSError, ValueError, SyntaxError, ManualDockError, JogUpgradeError, PrepareUpgradeError) as e:
             self.output(503,{'error':str(e)})
     def do_POST(self):
         # No CORS, strict same-origin and custom header to prevent cross-site form submits.
@@ -213,8 +221,29 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/manual/jog','/v1/manual/prepare','/v1/update/prepare/apply','/v1/manual/capture','/v1/manual/save','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/update/prepare/apply':
+                if set(body)!={'sha256','acknowledgement'} or body['acknowledgement']!='I_INSPECTED_EMPTY_CARRIAGE_AND_STOPPED_ALL_TESTS':
+                    raise PrepareUpgradeError('Confirm physically EMPTY carriage before installation')
+                if type(body['sha256']) is not str or not re.fullmatch('[a-f0-9]{64}',body['sha256']):
+                    raise PrepareUpgradeError('Invalid reviewed native macro fingerprint')
+                if not printer_safe() or zauto_controller.status()['running']:
+                    raise PrepareUpgradeError('Printer must be ready and idle')
+                if not MOVE_LOCK.acquire(blocking=False):
+                    raise PrepareUpgradeError('Another CXM operation is running')
+                try:
+                    q='/printer/objects/query?gcode_button%20cxm_tool_detect=state&gcode_macro%20_CXM_TEST_STATE=running'
+                    state=_rpc(q).get('status',{})
+                    if state.get('gcode_button cxm_tool_detect',{}).get('state')!='RELEASED':
+                        raise PrepareUpgradeError('Carriage sensor not RELEASED; remove tool and inspect')
+                    if state.get('gcode_macro _CXM_TEST_STATE',{}).get('running')!=0:
+                        raise PrepareUpgradeError('Native test running; update refused')
+                    target=self.server.store.path.parent / 'cxm_native_toolchange.cfg'
+                    self.output(200,apply_prepare_upgrade(target,body['sha256']))
+                finally:
+                    MOVE_LOCK.release()
                 return
             if self.path == '/v1/update/jog/apply':
                 if set(body)!={'sha256','acknowledgement'} or body['acknowledgement']!='I_INSPECTED_EMPTY_CARRIAGE_AND_STOPPED_ALL_TESTS':
@@ -399,6 +428,11 @@ class Handler(BaseHTTPRequestHandler):
                 if set(body) != {'expected_revision','kind','acknowledgement','shift_x','dodge_y'}:
                     raise ValueError('Unexpected T0 motion request')
                 raise NativeError('Legacy Python XY tool motion retired; use accepted native CxChanger macros')
+                return
+            if self.path == '/v1/manual/prepare':
+                if set(body)!={'tool','expected_revision','acknowledgement'}:
+                    raise ManualDockError('Invalid Z21 preparation request')
+                self.output(200,manual_prepare(store=self.server.store,**body))
                 return
             if self.path == '/v1/manual/jog':
                 if set(body)!={'tool','axis','distance','expected_revision','acknowledgement'}:
