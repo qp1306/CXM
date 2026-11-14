@@ -16,7 +16,7 @@ class NativeX334Error(RuntimeError):
 
 # Every replacement must be confined to its named macro.
 RULES={
-    '_CXM_PREPARE_CLEARANCE':(
+    '_CXM_STAGE_TEST':(
         ('pos.x|float > 325.0','pos.x|float > 334.0'),
     ),
     '_CXM_CHECK_TOOL':(
