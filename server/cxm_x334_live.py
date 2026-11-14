@@ -121,6 +121,6 @@ def live_status(rpc):
             return 'x334'
         if 'x+st.shift_x|float>325' in check:
             return 'x325'
-    except (OSError,ValueError,TypeError,KeyError):
+    except (OSError,ValueError,TypeError,KeyError,RuntimeError,AttributeError):
         pass
     return 'unknown'
