@@ -12,11 +12,11 @@ let busy=false,live=null,revision=null,tool=-1;
 let refreshVersion=0, polling=false;
 const pending=[];
 let jogging=false;
-let travelBusy=false,retreatAnchor=null;
+let travelBusy=false,retreatAnchor=null,verifiedRoundtrip=null;
 const travelRetreat=el('cxmDockRetreat100'),travelReturn=el('cxmDockReturn100'),travelStatus=el('cxmDockTravelStatus');
 const travelSay=msg=>{if(travelStatus)travelStatus.textContent=msg;};
 const close=(a,b)=>Math.abs(a-b)<=0.08;
-function resetTravel(message){retreatAnchor=null;if(travelStatus)travelSay(message);}
+function resetTravel(message){retreatAnchor=null;verifiedRoundtrip=null;if(travelStatus)travelSay(message);}
 function canJog(){
   return !byId('cxmNativeToolPanel')?.inert && live?.ready && (suffix || live.jog_revision===2) && tool===selected() && live.revision===revision &&
     el('cxmManualApproval').checked && !panel?.hidden && !document.hidden;
@@ -41,7 +41,9 @@ function controls(){
   for(const button of root.querySelectorAll('[data-manual-axis]'))button.disabled=!canJog()||(busy&&!jogging);
   el('cxmJogClear').disabled=pending.length===0;
   el('cxmJogQueue').textContent=jogging ? 'Jog in progress · '+pending.length+' queued' : '';
-  if(captureButton)captureButton.disabled=!allowed;
+  if(captureButton)captureButton.disabled=!allowed||(!suffix&&(!verifiedRoundtrip||
+    verifiedRoundtrip.tool!==tool||verifiedRoundtrip.revision!==revision||
+    !close(live.xy.x,verifiedRoundtrip.x)||!close(live.xy.y,verifiedRoundtrip.y)));
   el('cxmManualRefresh').disabled=busy;
   if(travelRetreat)travelRetreat.disabled=busy||!canJog()||!!retreatAnchor||pending.length>0;
   if(travelReturn)travelReturn.disabled=busy||!canJog()||!retreatAnchor||!live||
@@ -68,6 +70,10 @@ async function refresh(silent=false){
     if(retreatAnchor && (selectedTool!==retreatAnchor.tool || latest.revision!==retreatAnchor.revision ||
        latest.native_tool_identity!==retreatAnchor.identity || !close(latest.xy.x,retreatAnchor.x) ||
        !close(latest.xy.y,retreatAnchor.y+100)))resetTravel('Release-point reference invalidated. Realign and repeat the 100 mm test.');
+    if(verifiedRoundtrip && (selectedTool!==verifiedRoundtrip.tool || latest.revision!==verifiedRoundtrip.revision ||
+      latest.native_tool_identity!==verifiedRoundtrip.identity ||
+      !close(latest.xy.x,verifiedRoundtrip.x)||!close(latest.xy.y,verifiedRoundtrip.y)))
+      resetTravel('Dock moved after travel test. Repeat 100 mm verification before saving.');
     revision=latest.revision;tool=selectedTool;live=latest;
     if (!window.CXMDockPosition?.streaming()) {
       el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
@@ -181,7 +187,9 @@ async function travel100(returning){
       throw Error('Final sensor or machine position did not match expected state');
     live=latest;
     if(returning){
-      resetTravel('Return verified at the original release-side XY. Visually inspect alignment before Save.');
+      const verified={tool:target,revision:rev,identity,x:retreatAnchor.x,y:retreatAnchor.y};
+      resetTravel('Return verified. Dock XY ready to save.');
+      verifiedRoundtrip=verified;
     }else{
       retreatAnchor={tool:target,revision:rev,identity,x:start.x,y:start.y};
       travelSay('Retreat +100 mm verified. Check clearance, then press Return −100 mm Y.');
@@ -202,7 +210,11 @@ async function capture(){
  ++refreshVersion;polling=false;busy=true;controls();
  say('Saving T'+tool+' dock X/Y…');
  try{
-   if(retreatAnchor)throw Error('Return 100 mm to the inspected release point before Save');
+   if(retreatAnchor||!verifiedRoundtrip||verifiedRoundtrip.tool!==target||
+      verifiedRoundtrip.revision!==live.revision||
+      verifiedRoundtrip.identity!==live.native_tool_identity||
+      !close(live.xy.x,verifiedRoundtrip.x)||!close(live.xy.y,verifiedRoundtrip.y))
+     throw Error('Complete the 100 mm out-and-back verification before Save');
    const saved=await request('/manual/save',{
      tool:target,expected_revision:live.revision,
      acknowledgement:'I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON'});
