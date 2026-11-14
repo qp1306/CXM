@@ -354,14 +354,15 @@ function updateBank(bank,stats){
      locked?'Maintenance lockout · open Settings':
      !configured?'Add slot · set up Dock XY':
      role==='dock'?'Select for supervised dock calibration':
-     nativeEligible?'Dock accepted · select for load':'Set up dock XY · no automatic load';
+     nativeEligible?'Dock accepted · select for load':o?.dataset?.savedDock==='true'?
+       'Dock XY saved · pickup unavailable': 'Set up dock XY · no automatic load';
    button.querySelector('small').textContent=hint;
    button.disabled=role==='xy'?!cameraAvailable:locked?!countKnown:!available;
    button.classList.toggle('selected',!!selected);
    button.classList.toggle('unready',!nativeEligible);
    button.classList.toggle('setup-needed',role!=='xy'&&!nativeEligible&&available&&!locked);
    button.setAttribute('aria-pressed',String(!!selected));
-   button.title=hint;
+   button.title=role==='tools'&&!nativeEligible&&o?.dataset?.reason?o.dataset.reason:hint;
  });
 }
 function setPill(el,txt,kind){if(!el)return;el.textContent=txt;el.className='pill '+kind}
