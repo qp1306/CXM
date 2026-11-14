@@ -32,3 +32,9 @@ background:#193853;border:1px solid #547b9c;padding:14px 16px;border-radius:11px
 #cxmDockBatchSlot #cxmBatchCarriageIdentity{min-width:280px;max-width:450px;flex:1 1 280px;padding:12px 14px;border-radius:9px;background:#1d3854;color:#f4faff;font-size:18px}
 #cxmDockBatchSlot #cxmBatchConfirmCarriage{font-size:17px;font-weight:750;padding:13px 22px}
 #cxmDockBatchSlot #cxmBatchCarriageStatus{min-height:18px}
+
+.cxm-batch-upgrade{max-width:1450px;margin:0 auto 15px;padding:18px 21px;border:1px solid #567b9d;border-radius:13px;background:#182e49;display:grid;gap:10px}
+.cxm-batch-upgrade[hidden]{display:none!important}
+.cxm-batch-upgrade h3{font-size:20px;font-weight:800;margin:0;color:#f1f7ff}
+.cxm-batch-upgrade p{margin:0;font-size:14px;color:#bbd5ec;line-height:1.5}
+.cxm-batch-upgrade .btn{justify-self:start;font-size:16px;padding:13px 22px}
