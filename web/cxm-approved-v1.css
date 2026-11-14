@@ -218,3 +218,25 @@ body.cxm-approved-v1 .cxm-clear-all #cxmClearAllButton{
 body.cxm-approved-v1 .cxm-clear-all #cxmClearAllButton:disabled{opacity:.43;}
 body.cxm-approved-v1 .cxm-clear-all #cxmClearAllState{font-weight:700;color:#ffe3bd;}
 body.cxm-approved-v1 .cxm-clear-all #cxmClearAllResult{font-weight:700;white-space:normal;}
+
+/* Full commissioning reset is deliberately distinct from Clear All faults. */
+body.cxm-approved-v1 .cxm-fresh-start{
+ margin:22px 0 4px;padding:20px;border:1px solid #a47b5d;border-radius:14px;
+ background:linear-gradient(135deg,#342c33,#1a2838);
+}
+body.cxm-approved-v1 .cxm-fresh-start h3{color:#ffe4c9;font-size:18px;margin:0 0 12px}
+body.cxm-approved-v1 .cxm-fresh-warning{font-size:14px;line-height:1.6;color:#ffdec8;margin:0 0 12px}
+body.cxm-approved-v1 .cxm-fresh-start .cxm-fresh-ack{
+ display:flex;align-items:flex-start;gap:12px;padding:14px;margin:16px 0;
+ background:#342e36;border:1px solid #997b68;border-radius:10px;
+ font-weight:700;line-height:1.5;font-size:13px;color:#ffece0;
+}
+body.cxm-approved-v1 .cxm-fresh-start .cxm-fresh-ack input{
+ width:24px;height:24px;margin:0;flex:none;accent-color:#f7ba7e;
+}
+body.cxm-approved-v1 .cxm-fresh-start #cxmFreshReset{
+ background:#8e3947;border:1px solid #bb7480;color:#fff;font-weight:800;
+ padding:12px 17px;white-space:normal;min-height:46px;
+}
+body.cxm-approved-v1 .cxm-fresh-start #cxmFreshReset:disabled{opacity:.46}
+body.cxm-approved-v1 .cxm-fresh-start #cxmFreshResult{font-weight:700;overflow-wrap:anywhere}
