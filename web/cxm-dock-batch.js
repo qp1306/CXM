@@ -9,6 +9,58 @@ if(!slot||!panel)return;
 slot.append(panel);
 panel.classList.add('cxm-dock-batch');
 const $=id=>document.getElementById(id);
+// Show the same native carriage declaration on Dock Batch WITHOUT duplicating
+// its listener, control ID or backend command. The original remains in Tools.
+const existingIdentity=$('cxmCarriageIdentity');
+const existingConfirm=$('cxmDeclareCarriage');
+if(existingIdentity&&existingConfirm){
+ const carriage=document.createElement('section');
+ carriage.id='cxmBatchCarriagePanel';
+ carriage.className='cxm-batch-carriage';
+ carriage.innerHTML='<h3>Currently fitted</h3>'+
+   '<p>Choose EMPTY or the hotend physically mounted on the carriage.</p>'+
+   '<div class="cxm-batch-carriage-row">'+
+     '<select id="cxmBatchCarriageIdentity" aria-label="Currently fitted hotend"></select>'+
+     '<button class="btn primary" type="button" id="cxmBatchConfirmCarriage">Confirm carriage state</button>'+
+   '</div>'+
+   '<p id="cxmBatchCarriageStatus" role="status" aria-live="polite"></p>';
+ slot.prepend(carriage);
+ const mirror=carriage.querySelector('#cxmBatchCarriageIdentity');
+ const button=carriage.querySelector('#cxmBatchConfirmCarriage');
+ const note=carriage.querySelector('#cxmBatchCarriageStatus');
+ const updateMirror=()=>{
+  const keep=mirror.value;
+  const original=[...existingIdentity.options];
+  if(original.length && (mirror.options.length!==original.length ||
+     original.some((option,i)=>mirror.options[i]?.value!==option.value ||
+                          mirror.options[i]?.textContent!==option.textContent))){
+   mirror.replaceChildren(...original.map(o=>o.cloneNode(true)));
+  }
+  if(original.some(o=>o.value===keep))mirror.value=keep;
+  else mirror.value=existingIdentity.value;
+  mirror.disabled=existingIdentity.disabled||existingConfirm.disabled;
+  button.disabled=existingConfirm.disabled||existingIdentity.disabled;
+ };
+ button.addEventListener('click',()=>{
+  if(button.disabled||mirror.value===''){
+   note.textContent='Choose the actual fitted hotend or EMPTY first.';
+   return;
+  }
+  const selected=mirror.value;
+  existingIdentity.value=selected;
+  existingIdentity.dispatchEvent(new Event('change',{bubbles:true}));
+  if(existingIdentity.value!==selected){
+   note.textContent='Could not select that carriage identity. Refresh the tool list.';
+   return;
+  }
+  existingConfirm.click(); // Existing native handler; never a new motion path.
+  note.textContent='Carriage confirmation sent through the existing native controller. See the Dock Batch status below.';
+ });
+ document.querySelector('[data-tab="dock-batch"]')?.addEventListener('click',updateMirror);
+ existingIdentity.addEventListener('change',updateMirror);
+ setInterval(updateMirror,1800);
+ updateMirror();
+}
 const heading=panel.querySelector('.panel-heading h3');
 if(heading)heading.textContent='Dock pickup / dropoff batch test';
 const speed=$('cxmSpeedSimple');
