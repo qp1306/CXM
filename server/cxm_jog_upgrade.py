@@ -23,6 +23,8 @@ def _hash(data):
 
 def inspect(path):
     target = Path(path)
+    if target.is_symlink():
+        raise JogUpgradeError('Native macro must be a regular file, not a symbolic link')
     raw = target.read_bytes()
     try:
         source = raw.decode('utf-8')
