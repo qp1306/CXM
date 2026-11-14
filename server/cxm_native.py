@@ -317,6 +317,10 @@ def reset_commissioning(store, expected_revision, acknowledgement):
                        now.get(f't{n}_x') != -1.0 or now.get(f't{n}_y') != -1.0
                        for n in range(12))):
             raise NativeError('Live CXM invalidation was not fully verified; saved calibration remains unchanged. Inspect Klipper state.')
+        # Reset provisional Tool Z measurement history only when the runner
+        # is idle, under the same global motion lock.
+        from cxm_z_auto import CONTROLLER as z_controller
+        z_controller.reset_idle_history()
         outcome=store.reset_commissioning(expected_revision)
         verified=store.read()
         if (verified['revision'] != outcome['revision'] or verified['migration_required']
@@ -327,6 +331,7 @@ def reset_commissioning(store, expected_revision, acknowledgement):
                        for t in verified['config']['tools'])):
             raise NativeError('New blank configuration did not verify: do not attempt movement')
         return dict(outcome, native_inhibited=True, physically_empty=True,
+                    z_session_cleared=True,
                     note='CXM calibration reset to T0 only. Every tool must be remeasured and individually proven before motion.')
     finally:
         MOVE_LOCK.release()
