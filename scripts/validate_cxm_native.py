@@ -120,9 +120,12 @@ def check():
     assert '_CXM_STAGE_TEST Y={([y_a,y_b,y_c]|max)}' in test_start
     assert '_CXM_STAGE_TEST' in blocks
     stage=blocks['_CXM_STAGE_TEST']
-    assert 'below dock mechanical clearance Y' in stage
-    assert 'start on or above the clear staging line' in stage
-    assert 'G1 ' not in stage
+    assert 'below dock mechanical clearance Y' not in stage
+    assert 'start on or above the clear staging line' not in stage
+    assert 'G1 Y{target|round(5)} F6000' in stage
+    assert 'SAVE_GCODE_STATE NAME=CXM_BATCH_STAGE' in stage
+    assert 'RESTORE_GCODE_STATE NAME=CXM_BATCH_STAGE MOVE=0' in stage
+    assert 'CXM_FAST_VERIFY EXPECT=RELEASED MIN_Y={target}' in stage
     assert '_CXM_PREPARE_CLEARANCE EXPECT=RELEASED' in test_start
     assert '_CXM_PREPARE_CLEARANCE EXPECT={' in controller
     assert '_CXM_PREPARE_CLEARANCE' in blocks
