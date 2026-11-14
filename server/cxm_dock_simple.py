@@ -109,6 +109,8 @@ def _action(store,tool,expected_revision,kind,axis=None,distance=None):
                 _send(['G1 Z22 F1500'])
                 _after(store,tool,expected_revision,{'x':xyz['x'],'y':xyz['y'],'z':22})
             return status(store,tool)
+        if kind in ('jog','test') and xyz['z']<21.95:
+            raise DockSimpleError('Enable jogging first to prepare Z22')
         if kind=='jog':
             if axis not in ('x','y') or type(distance) not in (int,float) or not math.isfinite(distance):
                 raise DockSimpleError('Choose X or Y and a valid step')
@@ -169,7 +171,7 @@ def save(store,tool,expected_revision):
             raise DockSimpleError('Configuration changed; refresh')
         state=_checked(saved,tool)
         _rpc('/printer/gcode/script',{'script':'M400'})
-        pos=_checked(store.read(),tool)['xyz']
+        pos=_after(store,tool,expected_revision,state['xyz'],tol=0.02)['xyz']
         if any(abs(state['xyz'][a]-pos[a])>0.02 for a in 'xy'):
             raise DockSimpleError('Carriage moved during capture')
         # Never leave stale Klipper native tool geometry armed after saving.
