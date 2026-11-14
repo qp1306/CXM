@@ -169,6 +169,24 @@ def inspect_compat(path):
         try:
             return inspect_t1_only(path)
         except (NativeX334Error,UnicodeError):
+            # A custom native file may never match the whole-file vendor
+            # upgrade. Once its exact T1-only repair is complete, report the
+            # successful T1 state instead of inventing another install task.
+            target=Path(path)
+            raw=target.read_bytes()
+            source=raw.decode('utf-8')
+            sections=list(MACRO.finditer(source))
+            section=''
+            for i,match in enumerate(sections):
+                if match.group(1)=='_CXM_CLEAR_TRANSFER':
+                    end=sections[i+1].start() if i+1<len(sections) else len(source)
+                    section=source[match.start():end]
+                    break
+            if section and LEGACY_ERROR not in section and not re.search(
+                r'(?m)^[ \t]*\{%\s*elif\s+t\s*==\s*1\b',section):
+                return {'state':'installed','mode':'t1_only_cleared',
+                        'sha256':hashlib.sha256(raw).hexdigest(),
+                        'original':raw,'updated':raw}
             raise full_error
 
 
