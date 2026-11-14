@@ -1,12 +1,12 @@
-/* One-purpose Updates-page installer for EMPTY carriage dock verification macro. */
+/* Exact-match Updates installer for supervised dock verification macro v2. */
 (()=>{
 'use strict';
 const page=document.querySelector('[data-panel="updates"]');if(!page)return;
 const host=page.querySelector('.cxma-stage[data-stage="3"] .cxma-inner')||page;
 const box=document.createElement('section');box.className='panel';box.id='cxmDockVerifyUpgradeBox';
 box.innerHTML=
- '<div class="panel-heading"><h3>Locked dock · ABSENT verification</h3><span class="panel-label">Append-only Klipper macro</span></div>'+
- '<p class="helper">Adds an independent EMPTY-carriage test macro. Existing docking and mounted jogging remain untouched.</p>'+
+ '<div class="panel-heading"><h3>Supervised dock verification · v2</h3><span class="panel-label">Targeted native macro</span></div>'+
+ '<p class="helper">Upgrades only the independent dock-test macro; the filament sensor is shown for diagnostics and does not block manual test travel.</p>'+
  '<p class="helper" id="cxmDockVerifyUpgradeStatus" role="status">Checking installed macro…</p>'+
  '<label class="cxm-capture-ack"><input type="checkbox" id="cxmDockVerifyUpgradeAck">'+
  '<span class="cxm-approval-copy"><strong>Carriage EMPTY · printer idle · tests stopped</strong>'+
@@ -36,10 +36,10 @@ async function refresh(){
  try{
   current=await json('/cxm/api/v1/update/dock-verify/status');
   restartNeeded=current.restart_required===true;
-  say(current.file_state==='needs_apply'?'Approved append-only macro ready for installation.':
+  say(current.file_state==='needs_apply'?'Verified native macro v2 upgrade ready.':
     restartNeeded?'Installed with backup. Restart Klipper to activate.':
-    current.file_state==='installed'&&current.live_version===1?
-    'Locked-dock ABSENT verification active in Klipper.':'Macro status needs review.');
+    current.file_state==='installed'&&current.live_version===2?
+    'Supervised dock verification v2 active in Klipper.':'Macro status needs review.');
  }catch(e){current=null;restartNeeded=false;say('Macro check blocked: '+e.message);}
  finally{busy=false;controls();}
 }
