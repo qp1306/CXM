@@ -16,7 +16,7 @@ class NativeError(RuntimeError):
 def _native_status():
     q=urllib.parse.urlencode({
         'gcode_macro _CXM_NATIVE':'protocol,ready,current_tool,fault,tool_count,profile,camera_reference',
-        'gcode_macro _CXM_TEST_STATE':'running,stop,index,cycles,completed,tool_a,tool_b,tool_c,state',
+        'gcode_macro _CXM_TEST_STATE':'running,stop,index,cycles,completed,tool_a,tool_b,tool_c,tool_mask,tool_count,batch_revision,state',
         'gcode_button cxm_tool_detect':'state'})
     result=_rpc('/printer/objects/query?'+q).get('status',{})
     native=result.get('gcode_macro _CXM_NATIVE',{})
@@ -29,7 +29,13 @@ def _native_status():
 def status(store):
     native,test,signal=_native_status()
     running=test.get('running')==1
-    selected=[x for x in (test.get('tool_a'),test.get('tool_b'),test.get('tool_c')) if type(x) is int and x >= 0]
+    mask=test.get('tool_mask')
+    configured_count=store.read()['config']['globals']['tool_count']
+    if test.get('batch_revision')==2 and type(mask) is int and 0<mask<2**12:
+        selected=[n for n in range(min(configured_count,12)) if (mask//(2**n))%2==1]
+    else:
+        selected=[x for x in (test.get('tool_a'),test.get('tool_b'),test.get('tool_c'))
+                  if type(x) is int and x >= 0]
     count=len(selected)
     saved=store.read()
     candidates=[]
@@ -49,6 +55,8 @@ def status(store):
                            'xy':{'x':tool['dock_x'],'y':tool['dock_y']}})
     return {'camera_reference':native.get('camera_reference'), 'candidates':candidates,'max_repeat_cycles':20,'max_total_movements':120,
             'run_id':'native-klipper' if selected else None,
+            'native_batch_revision':test.get('batch_revision',0),
+            'max_tool_selection':12 if test.get('batch_revision')==2 else 3,
             'state':'running' if running else test.get('state','idle'),
             'running':running,'execution_mode':'native',
             'travel_profile':native.get('profile','standard'),
@@ -570,8 +578,9 @@ def start(store,tools,expected_revision,acknowledgement,travel_profile='standard
           cycles=1,execution_mode='native',custom_speeds=None):
     if acknowledgement!='I_CHECKED_EMPTY_CARRIAGE_ALL_SELECTED_DOCKS_AND_FULL_XY_PATH':
         raise NativeError('Physical carriage and dock inspection required')
-    if type(tools) is not list or not 1<=len(tools)<=3 or any(type(n) is not int for n in tools) or tools != sorted(set(tools)):
-        raise NativeError('Native commissioning requires 1–3 ascending accepted tools')
+    if (type(tools) is not list or not 1<=len(tools)<=12 or
+        any(type(n) is not int for n in tools) or tools != sorted(set(tools))):
+        raise NativeError('Native commissioning requires 1–12 ascending accepted tools')
     profiles=('standard','faster','performance','sprint','race','boost','custom')
     if travel_profile not in profiles:
         raise NativeError('Unknown CXM speed profile')
@@ -586,8 +595,8 @@ def start(store,tools,expected_revision,acknowledgement,travel_profile='standard
             raise NativeError('Custom limits: travel 10–1200, approach 1–600, latch 1–300 mm/s; travel ≥ approach ≥ latch')
     elif custom_speeds is not None:
         raise NativeError('Custom speeds are only accepted with Custom profile')
-    if type(cycles) is not int or not 1<=cycles<=20:
-        raise NativeError('Cycles must be 1–20')
+    if type(cycles) is not int or not 1<=cycles<=20 or 2*len(tools)*cycles>120:
+        raise NativeError('Cycles must be 1–20 with no more than 120 pickup/dropoff movements')
     saved=store.read()
     if saved['revision']!=expected_revision:
         raise NativeError('Configuration changed; refresh and synchronize')
@@ -600,15 +609,13 @@ def start(store,tools,expected_revision,acknowledgement,travel_profile='standard
         raise NativeError('Native state is not verified EMPTY, ready and fault-free')
     if test.get('running'):
         raise NativeError('Native test already running')
+    if test.get('batch_revision')!=2:
+        raise NativeError('Update the installed Klipper Dock Batch macro to revision 2 before testing 1–12 hotends')
     script='CXM_SET_PROFILE PROFILE='+travel_profile
     if travel_profile=='custom':
         script+=' TRAVEL='+str(travel)+' APPROACH='+str(approach)+' LATCH='+str(latch)
-    script+='\nCXM_TEST_START A='+str(tools[0])
-    if len(tools)>=2:
-        script+=' B='+str(tools[1])
-    if len(tools)==3:
-        script+=' C='+str(tools[2])
-    script+=' CYCLES='+str(cycles)
+    mask=sum(2**t for t in tools)
+    script+='\nCXM_TEST_START MASK='+str(mask)+' CYCLES='+str(cycles)
     _rpc('/printer/gcode/script',{'script':script})
     return {'started':True,'tools':tools,'cycles':cycles,'execution_mode':'native','travel_profile':travel_profile,
             'custom_speeds':custom_speeds,
