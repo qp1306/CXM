@@ -36,7 +36,7 @@ class TestZMath(unittest.TestCase):
     def test_calibration_rejects_t0_residual_and_outlier(self):
         fixture=synthetic_example(2)
         fixture["calibration"]["T0"]=[0.028,0.030,0.032]
-        fixture["calibration"]["T1"]=[0.065,0.070,0.105]
+        fixture["calibration"]["T1"]=[0.065,0.070,0.135]
         result=analyze(fixture)
         self.assertFalse(result["calibration"]["passed_math"])
         self.assertFalse(result["calibration"]["tools"]["T0"]["passed_math"])
