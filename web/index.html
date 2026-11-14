@@ -330,7 +330,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </div>
 <div class="panel cxm-multi-cycle" id="cxmMultiPanel" aria-busy="false">
  <div class="panel-heading"><h3>Native Klipper toolchange test</h3><span class="panel-label">CXM_SELECT_TOOL · supervised XY mechanical testing</span></div>
- <p class="helper">Pick up and drop off each selected dock-calibrated hotend once per complete cycle, in order. <strong>First prove each hotend individually.</strong> Begin with an EMPTY carriage. No heating or extrusion. Establish at least 25 mm Z clearance before starting. <strong>NOT READY</strong> still means printing commissioning is incomplete.</p>
+ <p class="helper">Select a calibrated tool and number of cycles. Begin with EMPTY carriage; motion checks remain active.</p>
  
 <label class="cxm-simple-profile" for="cxmSpeedSimple"><strong>Movement speed</strong>
 <select id="cxmSpeedSimple"><option value="standard">Standard · 100 / 100 / 100 mm/s</option><option value="faster">Faster · 30 / 4 / 3 mm/s</option><option value="performance">Performance · 80 / 8 / 3 mm/s</option><option value="sprint">Sprint · 200 / 40 / 10 mm/s — fast docking</option><option value="race">Race · 400 / 80 / 20 mm/s — experimental</option><option value="boost">Boost · 600 / 120 / 40 mm/s — experimental maximum</option><option value="custom">Custom — enter three speeds</option></select></label>
@@ -428,15 +428,15 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 </div>
 <div class="panel cxm-xy-lab" id="cxmManualDock">
  <div class="panel-heading"><h3>Set dock location</h3><span class="panel-label">MOTORS ON · LIVE XY</span></div>
- <p class="helper">Home XYZ normally, mount the selected hotend on the carriage and keep all motors energised. Jog into the selected dock alignment at low speed. This never calls Lineux, changes homing, releases motors or executes pickup/dropoff.</p>
- <div class="dock-warning">SUPERVISED MOTION. Check gantry clearance, all dock hardware and selected hotend before each jog. Stop on any contact or misalignment. Motor-on position is commanded position, not independent proof of mechanical engagement.</div>
+ <p class="helper">Mount the selected tool, home XYZ and align the release point.</p>
+ <details class="cxm-advanced cxm-dock-safety"><summary>Movement safety</summary><div class="dock-warning">Check physical clearance and selected tool before moving. Stop on contact. Position feedback is not independent proof of latch engagement.</div></details>
  <p id="cxmManualReadiness" class="helper" role="status">Checking live Klipper motor-on readiness…</p>
  <p class="helper" id="cxmPositionFeed">Last reported position</p>
  <div class="dock-live-preflight"><div><small>X</small><strong id="cxmManualX">—</strong></div><div><small>Y</small><strong id="cxmManualY">—</strong></div><div><small>Z</small><strong id="cxmManualZ">—</strong></div><div><small>Carriage</small><strong id="cxmManualSensor">—</strong></div></div>
  <div class="buttons"><button class="btn" id="cxmManualRefresh">Refresh live position</button></div>
  <div class="cxm-step">
-  <div class="panel-heading"><h3>1 · Jog carriage</h3><span class="panel-label">mm · 5 mm/s</span></div>
-  <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualApproval"><span class="cxm-approval-copy"><strong>Approve supervised jog</strong><small>XYZ homed · motors ON · selected hotend MOUNTED (PRESSED) · Z ≥ 20 · dock clear</small></span></label>
+  <div class="panel-heading"><h3>1 · Jog carriage</h3><span class="panel-label" id="cxmDockJogSpeed">Dock jog · speed unverified</span></div>
+  <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualApproval"><span class="cxm-approval-copy"><strong>Enable jogging</strong><small>Mounted tool · clear path</small></span></label>
   <div class="dock-jog-scroll"><div class="dock-jog-grid">
    <button class="btn" data-manual-axis="x" data-distance="-10" aria-label="Jog X −10 mm" disabled>−10</button>
    <button class="btn" data-manual-axis="x" data-distance="-1" aria-label="Jog X −1 mm" disabled>−1</button>
@@ -459,7 +459,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
   </div></div>
   <div class="cxm-step" id="cxmDockTravelCheck">
    <div class="panel-heading"><h3>Verify release point · 100 mm Y</h3><span class="panel-label">Guarded native jog</span></div>
-   <p class="helper">Inspect release-side alignment with selected tool mounted. Approve supervised jog. Move back +100 mm Y and return to the exact start before saving. Each 10 mm move is checked; existing macro path and feed rate are unchanged.</p>
+   <p class="helper">Back 100 mm → Return 100 mm → Save. Every move is checked.</p>
    <div class="buttons"><button class="btn primary" id="cxmDockRetreat100" type="button" disabled>Move back +100 mm Y</button><button class="btn" id="cxmDockReturn100" type="button" disabled>Return −100 mm Y</button></div>
    <p class="helper" id="cxmDockTravelStatus" role="status" aria-live="polite">Align at release point and approve supervised jog.</p>
   </div>
@@ -468,12 +468,12 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  </div>
  <div class="cxm-step">
   <div class="panel-heading"><h3>2 · Save dock position</h3><span class="panel-label">Capture + Save</span></div>
-  <p class="helper">Align the selected mounted hotend at its release-side dock X/Y, before the +X engagement move. Press Save dock position once. CXM captures live X/Y and writes the verified coordinates with a backup. No extra confirmation step.</p>
+  <p class="helper">Save the confirmed dock release point.</p>
   <label class="cxm-capture-ack" hidden><input type="checkbox" id="cxmManualCaptureAck"><span class="cxm-approval-copy"><strong>Alignment inspected</strong><small>I visually confirmed the mounted hotend is the selected T number, aligned its locking screw with the dock and never released motors</small></span></label>
   <div class="buttons"><button class="btn primary" id="cxmManualCapture" disabled>Save dock position</button></div>
   <p class="helper" id="cxmManualFeedback" role="status">Awaiting operator alignment.</p>
  </div>
- <p class="helper">Dock position is saved in one step. Use Tools → LOAD / UNLOAD to operate the CxChanger.</p>
+ 
 </div>
 <div class="dock-columns" hidden style="display:none!important" aria-hidden="true">
 <div class="panel">
