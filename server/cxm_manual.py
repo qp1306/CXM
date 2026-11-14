@@ -122,8 +122,10 @@ def _check_after_own_command(tool, store, *, jog=False, expected_sensor='PRESSED
             time.sleep(0.15)
 
 def status(tool,store):
-    result = _check(tool, store.read(), getattr(store, '_completed_jog', None))
+    result = _check(tool, store.read(), getattr(store, '_completed_jog', None), allow_low_z=True)
     result.pop('_motion_signature')
+    result['prepare_ready']=True
+    result['ready']=result['z']>=20.0
     return result
 
 
