@@ -24,3 +24,11 @@ background:#193853;border:1px solid #547b9c;padding:14px 16px;border-radius:11px
  #cxmDockBatchSlot #cxmCustomSpeedFields label{margin-right:0;width:100%}
  #cxmDockBatchSlot #cxmCustomSpeedFields input{width:100%}
 }
+
+#cxmDockBatchSlot .cxm-batch-carriage{padding:20px 22px;border-radius:15px;background:linear-gradient(145deg,#152e49,#13263d);border:1px solid #426e90;color:#e7f3ff;display:grid;gap:11px}
+#cxmDockBatchSlot .cxm-batch-carriage h3{margin:0;font-size:21px;font-weight:800}
+#cxmDockBatchSlot .cxm-batch-carriage p{margin:0;color:#b9d1e7;font-size:14px}
+#cxmDockBatchSlot .cxm-batch-carriage-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+#cxmDockBatchSlot #cxmBatchCarriageIdentity{min-width:280px;max-width:450px;flex:1 1 280px;padding:12px 14px;border-radius:9px;background:#1d3854;color:#f4faff;font-size:18px}
+#cxmDockBatchSlot #cxmBatchConfirmCarriage{font-size:17px;font-weight:750;padding:13px 22px}
+#cxmDockBatchSlot #cxmBatchCarriageStatus{min-height:18px}

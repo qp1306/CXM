@@ -32,7 +32,9 @@ async function status(){
  try{
   info=await request(source+'status');
   controls();
-  if(info.file_state==='needs_apply')say(
+  if(info.file_state==='needs_apply'&&info.patch_mode==='t1_only')say(
+    'Old T1 X264.70/Y65.60 check detected in the installed macro. The one-time correction will remove only those two obsolete lines and keep all other settings.');
+  else if(info.file_state==='needs_apply')say(
     'Installed native macro still has an obsolete staging check, X limit, or T1 release datum. '+
     'This one-time correction backs up the file, enables automatic Y+ staging for Dock Batch, and restarts Klipper. Saved dock XY and pickup/dropoff movements stay unchanged.');
   else if(info.loaded_release_guard==='obsolete_t1'||info.loaded_guard==='x325')say(
@@ -58,9 +60,8 @@ async function apply(){
   }
   say('Dock macro correction ready. Restarting Klipper…');
   // Restart is essential: Klipper keeps its old macro source in RAM until restart.
-  const response=await fetch('/printer/restart',{method:'POST',
-      credentials:'same-origin',cache:'no-store'});
-  if(!response.ok)throw Error('Klipper restart request HTTP '+response.status);
+  const restart=await request('/cxm/api/v1/native/restart',{});
+  if(restart.restart_requested!==true)throw Error('Klipper restart was not confirmed');
   info=null;
   say('Klipper restart requested. Home XYZ, then confirm the old T1 check is gone before any toolchange. Saved coordinates are unchanged.');
   button.disabled=true;
@@ -78,6 +79,7 @@ async function apply(){
 }
 button.addEventListener('click',apply);
 document.querySelector('[data-tab="tools"]')?.addEventListener('click',status);
+document.querySelector('[data-tab="dock-batch"]')?.addEventListener('click',status);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)status();});
 status();
 })();

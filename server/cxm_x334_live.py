@@ -122,6 +122,74 @@ def _transform(source):
         source=source[:start]+section+source[end:]
     return source
 
+def _transform_stale_t1_only(source):
+    """Independently remove the one verified obsolete T1 rule.
+
+    Real installed CXM native files may differ from the vendored version in
+    unrelated macros; never require rewriting those to fix this exact rule.
+    """
+    matches=list(MACRO.finditer(source))
+    spans={}
+    for i,match in enumerate(matches):
+        end=matches[i+1].start() if i+1<len(matches) else len(source)
+        spans[match.group(1)]=(match.start(),end)
+    if '_CXM_CLEAR_TRANSFER' not in spans:
+        raise NativeX334Error('Installed Klipper _CXM_CLEAR_TRANSFER macro is missing')
+    start,end=spans['_CXM_CLEAR_TRANSFER']
+    section=source[start:end]
+    found=list(LEGACY_T1_PATTERN.finditer(section))
+    if len(found)!=1 or section.count(LEGACY_ERROR)!=1:
+        raise NativeX334Error('Installed T1 check is not the proven obsolete two-line rule')
+    replacement=LEGACY_T1_PATTERN.sub('',section,count=1)
+    if LEGACY_ERROR in replacement:
+        raise NativeX334Error('Duplicate T1 release rule remains; refusing partial change')
+    return source[:start]+replacement+source[end:]
+
+
+def inspect_t1_only(path):
+    target=Path(path)
+    if not target.is_file() or target.is_symlink():
+        raise NativeX334Error('Native Klipper config must be a regular file')
+    raw=target.read_bytes()
+    source=raw.decode('utf-8')
+    updated=_transform_stale_t1_only(source).encode('utf-8')
+    return {'state':'needs_apply','sha256':hashlib.sha256(raw).hexdigest(),
+            'original':raw,'updated':updated,'mode':'t1_only'}
+
+
+def inspect_compat(path):
+    """Use whole-file known patch if possible; fall back ONLY for the proven
+    T1 rule when unrelated installed macro variants block whole-file matching.
+    """
+    try:
+        info=inspect(path)
+        info['mode']='normal'
+        return info
+    except NativeX334Error as full_error:
+        try:
+            return inspect_t1_only(path)
+        except (NativeX334Error,UnicodeError):
+            # A custom native file may never match the whole-file vendor
+            # upgrade. Once its exact T1-only repair is complete, report the
+            # successful T1 state instead of inventing another install task.
+            target=Path(path)
+            raw=target.read_bytes()
+            source=raw.decode('utf-8')
+            sections=list(MACRO.finditer(source))
+            section=''
+            for i,match in enumerate(sections):
+                if match.group(1)=='_CXM_CLEAR_TRANSFER':
+                    end=sections[i+1].start() if i+1<len(sections) else len(source)
+                    section=source[match.start():end]
+                    break
+            if section and LEGACY_ERROR not in section and not re.search(
+                r'(?m)^[ \t]*\{%\s*elif\s+t\s*==\s*1\b',section):
+                return {'state':'installed','mode':'t1_only_cleared',
+                        'sha256':hashlib.sha256(raw).hexdigest(),
+                        'original':raw,'updated':raw}
+            raise full_error
+
+
 def inspect(path):
     target=Path(path)
     if not target.is_file() or target.is_symlink():
@@ -136,10 +204,10 @@ def inspect(path):
             'sha256':hashlib.sha256(raw).hexdigest(),
             'original':raw,'updated':revised}
 
-def apply(path,expected_sha256):
+def apply(path,expected_sha256,*,inspector=inspect):
     if type(expected_sha256) is not str or not SHA.fullmatch(expected_sha256):
         raise NativeX334Error('Invalid native configuration fingerprint')
-    before=inspect(path)
+    before=inspector(path)
     if before['sha256']!=expected_sha256:
         raise NativeX334Error('Native Klipper file changed; refresh and retry')
     if before['state']=='installed':
@@ -158,7 +226,10 @@ def apply(path,expected_sha256):
         if hashlib.sha256(target.read_bytes()).hexdigest()!=expected_sha256:
             raise NativeX334Error('Native macro changed during correction')
         os.replace(tmp,target);tmp=None
-        if inspect(target)['state']!='installed':
+        if inspector is inspect_t1_only:
+            if LEGACY_ERROR in target.read_text(encoding='utf-8'):
+                raise NativeX334Error('Obsolete T1 guard remained after patch')
+        elif inspector(target)['state']!='installed':
             raise NativeX334Error('Native X334 correction did not verify')
         return {'patched':True,'restart_required':True,'backup':backup.name}
     except BaseException:
@@ -173,6 +244,14 @@ def apply(path,expected_sha256):
     finally:
         if tmp is not None:
             tmp.unlink(missing_ok=True)
+
+def apply_compat(path,expected_sha256):
+    inspected=inspect_compat(path)
+    inspector=inspect_t1_only if inspected.get('mode')=='t1_only' else inspect
+    result=apply(path,expected_sha256,inspector=inspector)
+    result['mode']=inspected['mode']
+    return result
+
 
 def loaded_t1_release_guard(rpc):
     """Report whether active Klipper still contains the obsolete T1 datum."""
