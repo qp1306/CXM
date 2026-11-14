@@ -49,7 +49,7 @@ async function request(path,body){
  if(!r.ok)throw Error(d.error||'HTTP '+r.status);return d;
 }
 function controls(){
- let allowed=!!live?.ready&&live?.sensor==='RELEASED'&&!busy&&!page.hidden&&
+ let allowed=!!live?.ready&&live?.macro_loaded===true&&live?.sensor==='RELEASED'&&!busy&&!page.hidden&&
    !document.hidden&&selected()===tool&&ack.checked;
  test.disabled=!allowed;
  save.disabled=!allowed||!verified||!live?.travel_verified;
@@ -65,8 +65,9 @@ async function refresh(){
   if(version!==refreshVersion||selected()!==t)return;
   live=d;tool=t;
   if(!d.travel_verified)verified=false;
-  status.textContent='CXM: FILAMENT ABSENT · carriage EMPTY · X'+
-   d.xy.x.toFixed(3)+' Y'+d.xy.y.toFixed(3)+' Z'+d.z.toFixed(2)+' mm';
+  status.textContent=!d.macro_loaded?'Native locked-dock macro not loaded · install it through Updates':
+    'CXM: FILAMENT ABSENT · carriage EMPTY · X'+
+    d.xy.x.toFixed(3)+' Y'+d.xy.y.toFixed(3)+' Z'+d.z.toFixed(2)+' mm';
  }catch(e){
   if(version!==refreshVersion)return;
   live=null;verified=false;status.textContent='NOT READY · '+e.message;
