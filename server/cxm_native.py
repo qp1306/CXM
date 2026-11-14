@@ -300,13 +300,9 @@ def reset_commissioning(store, expected_revision, acknowledgement):
                           + field + ' VALUE=' + str(value))
         script.append('SET_GCODE_VARIABLE MACRO=_CXM_TEST_STATE VARIABLE=state VALUE="\'idle\'"')
         script.insert(0,'UPDATE_DELAYED_GCODE ID=CXM_NATIVE_TEST_STEP DURATION=0')
-        _rpc('/printer/gcode/script', {'script': '\\n'.join(script)})
-        q=urllib.parse.urlencode({
-            'gcode_macro _CXM_NATIVE': 'ready,fault,current_tool,tool_count,camera_reference,profile',
-            'gcode_macro _CXM_TEST_STATE': 'running,stop,state',
-            'gcode_button cxm_tool_detect': 'state'})
-        # Explicit complete-readback must also inspect all t0..t11 values;
-        # object selection above may omit them depending on Moonraker version.
+        _rpc('/printer/gcode/script', {'script': '\n'.join(script)})
+        # Complete readback also verifies every old accepted dock was
+        # invalidated before replacing the on-disk calibration.
         result=_rpc('/printer/objects/query?gcode_macro%20_CXM_NATIVE&'
                     'gcode_macro%20_CXM_TEST_STATE&gcode_button%20cxm_tool_detect')
         states=result.get('status',{})
