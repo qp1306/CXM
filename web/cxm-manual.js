@@ -18,7 +18,7 @@ const travelSay=msg=>{if(travelStatus)travelStatus.textContent=msg;};
 const close=(a,b)=>Math.abs(a-b)<=0.08;
 function resetTravel(message){retreatAnchor=null;if(travelStatus)travelSay(message);}
 function canJog(){
-  return !byId('cxmNativeToolPanel')?.inert && live?.ready && tool===selected() && live.revision===revision &&
+  return !byId('cxmNativeToolPanel')?.inert && live?.ready && (suffix || live.jog_revision===2) && tool===selected() && live.revision===revision &&
     el('cxmManualApproval').checked && !panel?.hidden && !document.hidden;
 }
 function clearQueue(){
@@ -75,7 +75,14 @@ async function refresh(silent=false){
       el('cxmManualZ').textContent=live.z.toFixed(2)+' mm';
     }
     el('cxmManualSensor').textContent=live.sensor;
-    el('cxmManualReadiness').textContent='READY · T'+tool+' selected by operator · XYZ homed · motors on · hotend MOUNTED';
+    if(!suffix){
+      const newJog=Number(live.jog_revision)===2;
+      const label=el('cxmDockJogSpeed');
+      if(label)label.textContent=newJog?'50 mm/s · native verified':'Native jog update required';
+      el('cxmManualReadiness').textContent=newJog?'Ready · T'+tool+' mounted':'Native macro update required · jog disabled';
+    }else{
+      el('cxmManualReadiness').textContent='READY · T'+tool+' mounted';
+    }
     if(!silent) say('READY: sensor confirms MOUNTED, not tool identity. Verify the mounted hotend is physically T'+tool+' before approving any jog.');
   }catch(e){
     if(version!==refreshVersion||selectedTool!==selected())return;
@@ -84,6 +91,7 @@ async function refresh(silent=false){
     el('cxmManualApproval').checked=false;
     if(captureAck)captureAck.checked=false;
     el('cxmManualReadiness').textContent='NOT READY · '+e.message;
+    if(!suffix && el('cxmDockJogSpeed'))el('cxmDockJogSpeed').textContent='Jog speed unavailable';
     say('Jog/capture blocked: '+e.message+'. Inspect and refresh after restoring safe state.',true);
   }finally{if(version===refreshVersion){polling=false;controls();}}
 }
