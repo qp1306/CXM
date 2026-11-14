@@ -91,7 +91,8 @@ class Tests(unittest.TestCase):
             if path.startswith('/printer/objects/query?') and 'toolhead' in response.get('status',{}):
                 response['status']['toolhead']['homed_axes']='xy'
             return response
-        with patch.object(m,'_rpc',side_effect=unhomed):
+        import cxm_manual
+        with patch.object(cxm_manual,'_rpc',side_effect=unhomed):
             with self.assertRaisesRegex(m.ManualDockError,'Home XYZ'):
                 m.roundtrip(**self.args())
         self.assertEqual(self.store.commands,[])
