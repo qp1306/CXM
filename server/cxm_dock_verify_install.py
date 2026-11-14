@@ -39,8 +39,8 @@ def inspect(path):
     ).replace('variable_version: 2','variable_version: 1')
     legacy=legacy.replace(
         '    {% elif printer["gcode_macro _CXM_TEST_STATE"].running|int != 0 %}',
-        '    {% elif printer["gcode_button cxm_tool_detect"].state != "RELEASED" %}\\n'
-        '      {action_raise_error("CXM dock verify: carriage must be EMPTY (FILAMENT ABSENT)")}\\n'
+        '    {% elif printer["gcode_button cxm_tool_detect"].state != "RELEASED" %}\n'
+        '      {action_raise_error("CXM dock verify: carriage must be EMPTY (FILAMENT ABSENT)")}\n'
         '    {% elif printer["gcode_macro _CXM_TEST_STATE"].running|int != 0 %}'
     )
     if installed.count(MARKER):
@@ -52,7 +52,7 @@ def inspect(path):
             result='installed'
             changed=original
         elif old_macro==legacy:
-            changed=(head.rstrip()+'\\n\\n'+approved+'\\n').encode('utf8')
+            changed=(head.rstrip()+'\n\n'+approved+'\n').encode('utf8')
             result='needs_apply'
         else:
             raise DockVerifyInstallError('Unknown modified dock macro; refusing replacement')
