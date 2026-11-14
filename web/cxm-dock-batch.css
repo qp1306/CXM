@@ -1,0 +1,26 @@
+/* Dedicated Dock Batch UI; reuse existing native Klipper batch controller. */
+section[data-panel="dock-batch"]{max-width:1450px;margin:0 auto}
+#cxmDockBatchSlot{display:grid;gap:15px}
+#cxmDockBatchSlot #cxmMultiPanel{margin:0;padding:20px;border-color:#355d80;background:linear-gradient(160deg,#122b47,#101e34)}
+#cxmDockBatchSlot #cxmMultiPanel .panel-heading h3{font-size:22px;font-weight:800;color:#e5f3ff}
+#cxmDockBatchSlot #cxmMultiPanel .panel-heading .panel-label{font-size:13px}
+#cxmDockBatchSlot .cxm-multi-speed{display:none!important}
+#cxmDockBatchSlot #cxmMultiRapid,#cxmDockBatchSlot #cxmMultiStream{display:none!important}
+#cxmDockBatchSlot .cxm-simple-profile{display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+background:#193853;border:1px solid #547b9c;padding:14px 16px;border-radius:11px;margin:15px 0 12px}
+#cxmDockBatchSlot .cxm-simple-profile strong{font-size:16px;color:#e4f5ff}
+#cxmDockBatchSlot #cxmSpeedSimple{min-width:260px;max-width:430px;font-size:16px;font-weight:700;padding:11px 14px}
+#cxmDockBatchSlot #cxmCustomSpeedFields{background:#172e48;border:1px solid #41688a;border-radius:12px;padding:13px 16px;margin:10px 0 14px}
+#cxmDockBatchSlot #cxmCustomSpeedFields[hidden]{display:none!important}
+#cxmDockBatchSlot #cxmCustomSpeedFields label{display:inline-flex;flex-direction:column;gap:6px;margin-right:12px;margin-bottom:10px}
+#cxmDockBatchSlot #cxmCustomSpeedFields input{width:145px;font-size:17px}
+#cxmDockBatchSlot #cxmBatchSaveCustom{display:block;margin:12px 0 9px}
+#cxmDockBatchSlot #cxmBatchSavedSpeed{margin:8px 0;color:#a9decb;font-size:13px}
+#cxmDockBatchSlot #cxmMultiChoices{margin:10px 0}
+#cxmDockBatchSlot #cxmMultiRepeats{font-size:18px;font-weight:700;width:100px}
+#cxmDockBatchSlot #cxmMultiStart{font-size:16px;font-weight:780}
+@media(max-width:740px){
+ #cxmDockBatchSlot #cxmSpeedSimple{min-width:0;width:100%}
+ #cxmDockBatchSlot #cxmCustomSpeedFields label{margin-right:0;width:100%}
+ #cxmDockBatchSlot #cxmCustomSpeedFields input{width:100%}
+}
