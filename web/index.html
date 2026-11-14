@@ -435,7 +435,7 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  <div class="dock-live-preflight"><div><small>X</small><strong id="cxmManualX">—</strong></div><div><small>Y</small><strong id="cxmManualY">—</strong></div><div><small>Z</small><strong id="cxmManualZ">—</strong></div><div><small>Carriage</small><strong id="cxmManualSensor">—</strong></div></div>
  <div class="buttons"><button class="btn" id="cxmManualRefresh">Refresh live position</button></div>
  <div class="cxm-step">
-  <div class="panel-heading"><h3>1 · Jog carriage</h3><span class="panel-label">XY · 50 mm/s</span></div>
+  <div class="panel-heading"><h3>1 · Jog carriage</h3><span class="panel-label" id="cxmDockJogSpeed">Native jog update required</span></div>
   <label class="cxm-capture-ack"><input type="checkbox" id="cxmManualApproval"><span class="cxm-approval-copy"><strong>Enable jogging</strong><small>Confirm the correct mounted hotend and a clear path. Klipper checks XYZ, motors and sensor.</small></span></label>
   <div class="dock-jog-scroll"><div class="dock-jog-grid">
    <button class="btn" data-manual-axis="x" data-distance="-10" aria-label="Jog X −10 mm" disabled>−10</button>
@@ -1066,7 +1066,7 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 <script src="cxm-fine-dock.js?v=1" defer></script>
 <script src="cxm-dock.js?v=tool-setup-1" defer></script>
 <script src="cxm-dock-position.js?v=2" defer></script>
-<script src="cxm-manual.js?v=4.3" defer></script>
+<script src="cxm-manual.js?v=4.4-speed-gated" defer></script>
 
 
 <script src="cxm-multi.js?v=solo6.1" defer></script>
