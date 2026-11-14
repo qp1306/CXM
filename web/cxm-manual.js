@@ -278,7 +278,7 @@ setInterval(()=>{
 setTimeout(()=>refresh(false),400);
 }
 const dock=byId('cxmManualDock');
-bindJogs(dock,document.querySelector('[data-panel="calibration"]'),byId('cxmDockTool'));
+if(!window.CXM_SIMPLE_DOCK_XY)bindJogs(dock,document.querySelector('[data-panel="calibration"]'),byId('cxmDockTool'));
 const axisJog=document.querySelector('#cxmAxisJog');
 if(axisJog){
   byId('cxmAxisJogRows').append(dock.querySelector('.dock-jog-scroll').cloneNode(true));
