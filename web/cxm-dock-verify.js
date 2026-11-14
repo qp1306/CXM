@@ -14,7 +14,7 @@ const box=document.createElement('section');
 box.className='panel';box.id='cxmLockedDockPanel';
 box.innerHTML=
  '<div class="panel-heading"><h3>Locked dock · verify then save</h3><span class="panel-label">Continuous out-and-back</span></div>'+
- '<p class="helper">Lock selected hotend in its dock. Confirm FILAMENT ABSENT and a clear +Y path.</p>'+
+ '<p class="helper">Start at the dock release point, NOT 100 mm withdrawn. Lock the hotend, confirm FILAMENT ABSENT and clear Y travel.</p>'+
  '<p class="helper" id="cxmLockedDockState" role="status">Checking carriage…</p>'+
  '<label class="cxm-capture-ack"><input type="checkbox" id="cxmLockedDockAck">'+
  '<span class="cxm-approval-copy"><strong>Hotend locked · carriage EMPTY · path clear</strong>'+
