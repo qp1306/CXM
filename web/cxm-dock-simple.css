@@ -16,7 +16,20 @@ section[data-panel="calibration"].cxm-dock-simple-active > :not(#cxmSimpleDock){
 #cxmSimpleDock button{cursor:pointer}
 #cxmSimpleDock button:disabled{cursor:not-allowed;opacity:.42}
 #cxmSimpleDock button.btn{width:max-content;max-width:100%;font-size:15px;font-weight:700;padding:12px 22px}
-#cxmSimpleDock #cxmsTool{background:#193854;color:white;border:1px solid #6282a0;border-radius:10px;padding:11px 15px;font-size:17px;max-width:220px;width:100%}
+/* Same six-wide hotend-card treatment as Tools, but selects only a Dock XY
+   calibration target. Saved and unsaved hotends are equally selectable. */
+#cxmSimpleDock .cxms-toolbank{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+#cxmSimpleDock .cxms-tool-choice{min-width:0;min-height:90px;padding:12px 13px;border:1px solid #527592;border-radius:11px;background:#1b354f;color:#edf7ff;text-align:left;display:flex;flex-direction:column;justify-content:space-between;align-items:stretch;gap:8px;opacity:1}
+#cxmSimpleDock .cxms-tool-choice .toolname{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:19px;font-weight:820}
+#cxmSimpleDock .cxms-tool-choice .toolname svg{width:18px;height:18px;color:#c4d5e4;flex:0 0 auto}
+#cxmSimpleDock .cxms-tool-choice small{font-size:12px;line-height:1.35;color:#b9cedf}
+#cxmSimpleDock .cxms-tool-choice.setup-needed{border:1px dashed #c99e5e}
+#cxmSimpleDock .cxms-tool-choice.setup-needed small{color:#f0c584}
+#cxmSimpleDock .cxms-tool-choice.selected{border:2px solid #64e1ab;background:linear-gradient(130deg,#19594d,#143b3b);padding:11px 12px;opacity:1}
+#cxmSimpleDock .cxms-tool-choice.selected small{color:#c5f4e0}
+#cxmSimpleDock .cxms-tool-choice:disabled{opacity:.55}
+#cxmSimpleDock .cxms-tool-choice:not(:disabled):hover{filter:brightness(1.12)}
+#cxmSimpleDock .cxms-tool-choice:focus-visible{outline:3px solid #88befe;outline-offset:2px}
 #cxmSimpleDock .cxms-step-enable{background:linear-gradient(120deg,#123e35,#143a3b);border:2px solid #63dba6;gap:9px;padding:15px 17px}
 #cxmSimpleDock .cxms-step-enable .cxms-heading b{background:#247f65;border-color:#7fe2b8}
 #cxmSimpleDock .cxms-enable{display:flex;align-items:center;gap:20px;border:2px solid #66dcae;background:#174138;border-radius:14px;padding:19px 23px;cursor:pointer;color:#c8ffe1}
@@ -36,4 +49,11 @@ section[data-panel="calibration"].cxm-dock-simple-active > :not(#cxmSimpleDock){
  #cxmSimpleDock .cxms-grid{grid-template-columns:1fr}
  #cxmSimpleDock .cxms-jogrow{grid-template-columns:30px repeat(4,minmax(0,1fr))}
  #cxmSimpleDock .cxms-jogrow button:nth-child(n+6){margin-top:3px}
+}
+
+@media(max-width:1100px){
+ #cxmSimpleDock .cxms-toolbank{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(max-width:640px){
+ #cxmSimpleDock .cxms-toolbank{grid-template-columns:repeat(2,minmax(0,1fr))}
 }

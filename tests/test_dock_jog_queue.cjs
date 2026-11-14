@@ -16,6 +16,8 @@ function element(id=''){
   click(){events.click?.({target:this});},
   change(){events.change?.({target:this});},
   append(){},
+  setAttribute(name,value){this[name]=value;},
+  querySelector(){return this.small||null;},
   replaceChildren(){this.options=[];}
  };
 }
@@ -39,7 +41,15 @@ test('green Enable jogging and rapid jog clicks do not grey buttons or overlap H
  jogA.dataset={axis:'x',dist:'0.1'};
  jogB.dataset={axis:'x',dist:'1'};
  const page=element('page');page.hidden=false;
- const root=element('root');root.querySelectorAll=()=>[jogA,jogB];
+ const cards=Array.from({length:12},(_,n)=>{
+  const card=element('card'+n);
+  card.dataset.dockTool=String(n);
+  card.small=element('hint'+n);
+  return card;
+ });
+ const root=element('root');
+ root.querySelectorAll=css=>css==='[data-axis]'?[jogA,jogB]:
+  css==='[data-dock-tool]'?cards:[];
  const document={
   hidden:false,
   querySelector(query){return query==='[data-panel="calibration"]'?page:null;},
@@ -49,7 +59,8 @@ test('green Enable jogging and rapid jog clicks do not grey buttons or overlap H
  const position={x:299.5,y:65.5,z:22};
  let pending=[],seen=[];
  function snapshot(){return {tool:0,xyz:{...position},homed:true,idle:true,revision:'rev',
-  accepted:false,saved_xy:{x:null,y:null},tool_count:1};}
+  accepted:false,saved_xy:{x:null,y:null},tool_count:1,
+  tool_cards:Array.from({length:12},(_,n)=>({tool:n,enabled:n===0,saved:false}))};}
  async function fetch(url,opts){
   if(url.endsWith('/status?tool=0'))return result(snapshot());
   if(url.endsWith('/enable'))return result(snapshot());
@@ -71,6 +82,8 @@ test('green Enable jogging and rapid jog clicks do not grey buttons or overlap H
  await tick();await tick();
  const checkbox=elements.get('cxmsEnable');
  assert.equal(checkbox.disabled,false,'homed XYZ enables the control');
+ assert.equal(cards[0].disabled,false,'T0 is selectable in Dock XY');
+ assert.equal(cards[1].disabled,true,'unconfigured T1 cannot be selected');
  checkbox.checked=true;checkbox.change();
  await tick();await tick();
  assert.equal(checkbox.checked,true,'Z22 preparation completes');

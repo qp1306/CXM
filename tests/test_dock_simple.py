@@ -64,6 +64,21 @@ class DockSimpleTests(unittest.TestCase):
         self.addCleanup(self.patcher.stop)
     def kw(self):
         return dict(store=self.store,tool=0,expected_revision=self.store.rev)
+    def test_card_bank_reports_saved_docks_independent_of_toolchange_readiness(self):
+        initial=m.status(self.store,0)
+        self.assertEqual(len(initial['tool_cards']),12)
+        self.assertEqual(sum(bool(t['enabled']) for t in initial['tool_cards']),5)
+        self.assertFalse(initial['tool_cards'][0]['saved'])
+        self.assertFalse(initial['tool_cards'][5]['enabled'])
+        self.store.config['tools'][0].update(
+            dock_x=325.006,dock_y=65.55,dock_reference_accepted=True)
+        self.store.config['tools'][2].update(
+            dock_x=301.2,dock_y=66.2,dock_reference_accepted=True)
+        cards=m.status(self.store,2)['tool_cards']
+        self.assertEqual([c['tool'] for c in cards if c['saved']],[0,2])
+        self.assertTrue(cards[1]['enabled'])
+        self.assertFalse(cards[1]['saved'])
+
     def test_home_then_enable_exact_z22_and_no_sensor(self):
         self.store.homed=False
         m.home(**self.kw())

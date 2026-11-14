@@ -78,7 +78,17 @@ def status(store,tool):
     if type(tool) is not int or not 0<=tool<saved['config']['globals']['tool_count']:
         raise DockSimpleError('Select an enabled hotend')
     t=saved['config']['tools'][tool]
-    return {'tool':tool,'tool_count':saved['config']['globals']['tool_count'],
+    # The card bank presents T0–T11 from the SAME saved snapshot as the
+    # selected dock. No pickup eligibility requirement is applied to manual
+    # calibration: an unaccepted dock is exactly what this page must set up.
+    count=saved['config']['globals']['tool_count']
+    cards=[{'tool':i,'enabled':i<count,
+            'saved':(entry.get('dock_reference_accepted') is True
+                     and isinstance(entry.get('dock_x'),(int,float))
+                     and isinstance(entry.get('dock_y'),(int,float))
+                     and math.isfinite(entry['dock_x']) and math.isfinite(entry['dock_y']))}
+           for i,entry in enumerate(saved['config']['tools'][:12])]
+    return {'tool':tool,'tool_count':count,'tool_cards':cards,
             'xyz':current['xyz'],'homed':current['homed'],'idle':current['idle'],
             'saved_xy':{'x':t['dock_x'],'y':t['dock_y']},
             'accepted':t['dock_reference_accepted'],'revision':saved['revision'],
