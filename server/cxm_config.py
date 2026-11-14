@@ -357,9 +357,9 @@ class Store:
         """Atomically save the demonstrated T0 X+4.4/Y+100 motion settings.
 
         Never overwrite a separately measured physical dock position. A
-        previous accepted dock datum must match the proven T0 release-side
-        coordinate to within 0.05 mm. This only changes global motion
-        parameters, not T0 dock X/Y or any other tool's dock position.
+        previous accepted dock datum must be independently measured and
+        within guarded CxChanger XY limits. Never assume old dock coordinates.
+        This only changes global motion parameters, not saved dock XY.
         """
         if type(expected_revision) is not str or not re.fullmatch(r'[0-9a-f]{64}',expected_revision):
             raise ValueError('Valid expected revision required')
@@ -372,10 +372,11 @@ class Store:
                 raise RuntimeError('Configuration migration required before installing baseline')
             t0=data['tools'][0]
             if (t0['dock_reference_accepted'] is not True
-                or t0['dock_x'] is None or t0['dock_y'] is None
-                or abs(t0['dock_x']-304.60)>0.05
-                or abs(t0['dock_y']-65.60)>0.05):
-                raise ValueError('T0 must already have accepted dock XY near X304.60 Y65.60; no overwrite')
+                or type(t0['dock_x']) not in (int,float)
+                or type(t0['dock_y']) not in (int,float)
+                or not (10 <= t0['dock_x'] <= 320)
+                or not (10 <= t0['dock_y'] <= 320)):
+                raise ValueError('T0 must have a newly measured accepted dock XY inside the guarded motion region')
             updated=copy.deepcopy(data)
             updated['globals']['cxm_shift_x']=4.4
             updated['globals']['cxm_safe_clearance_y']=100.0
