@@ -113,6 +113,30 @@ class DockSimpleTests(unittest.TestCase):
         self.assertEqual(self.store.saved[0][0],0)
         self.assertTrue(self.store.read()['config']['tools'][0]['dock_reference_accepted'])
         self.assertEqual(self.store.native,{'ready':0,'fault':1,'current_tool':-2})
+    def test_save_keeps_dock_xy_and_then_retreats_y_plus_100(self):
+        m.enable(**self.kw())
+        m.jog(axis='x',distance=.1,**self.kw())
+        result=m.save(**self.kw())
+        self.assertTrue(result['saved'])
+        self.assertTrue(result['retreated'])
+        self.assertEqual(result['xy'],{'x':299.6,'y':65.5})
+        self.assertEqual(result['staging_xy'],{'x':299.6,'y':165.5})
+        self.assertEqual(self.store.saved,[ (0,{'x':299.6,'y':65.5}) ])
+        self.assertEqual(self.store.xyz,[299.6,165.5,22])
+        self.assertIn('G1 Y165.50000 F6000',self.store.commands[-1])
+        self.assertIn('RESTORE_GCODE_STATE NAME=CXM_SIMPLE_DOCK MOVE=0',
+                      self.store.commands[-1])
+
+    def test_if_retreat_outside_y_limits_dock_still_saved_and_not_moved(self):
+        self.store.xyz=[299.5,310.0,22.0]
+        result=m.save(**self.kw())
+        self.assertTrue(result['saved'])
+        self.assertFalse(result['retreated'])
+        self.assertIn('configured Klipper travel',result['retreat_error'])
+        self.assertEqual(result['xy'],{'x':299.5,'y':310.0})
+        self.assertEqual(self.store.xyz,[299.5,310.0,22.0])
+        self.assertEqual(self.store.saved[0][1]['y'],310.0)
+
     def test_only_one_normal_source_update_no_macro_installer(self):
         root=Path(__file__).resolve().parents[1]
         html=(root/'web/index.html').read_text()
