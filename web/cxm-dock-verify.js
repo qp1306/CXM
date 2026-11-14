@@ -112,7 +112,7 @@ save.addEventListener('click',()=>run({},'/dock-verify/save',async(d,t)=>{
     actual.dock_reference_accepted!==true)throw Error('Saved coordinate readback mismatch');
  verified=false;ack.checked=false;
  display('SAVED T'+t+' · X'+d.xy.x.toFixed(5)+' Y'+d.xy.y.toFixed(5)+
-  ' mm · backup created. Synchronize native geometry before tool changes.');
+  ' mm · '+(d.backup?'backup created':'stored coordinates verified')+'. Synchronize native geometry before tool changes.');
  window.dispatchEvent(new CustomEvent('cxm-dock-save-completed',{
   detail:{tool:t,x:d.xy.x,y:d.xy.y}}));
 }));
