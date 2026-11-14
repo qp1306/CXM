@@ -31,8 +31,9 @@ def _snapshot():
         'xyz':{'x':float(xyz[0]),'y':float(xyz[1]),'z':float(xyz[2])},
         'limits':{axis:(float(lower[i]),float(upper[i])) for i,axis in enumerate('xyz')},
         'homed':all(axis in str(head.get('homed_axes','')).lower() for axis in 'xyz'),
-        'idle':status.get('idle_timeout',{}).get('state') in ('Idle','Ready')
-                and status.get('print_stats',{}).get('state') in (None,'standby','complete','cancelled','error'),
+        # Klipper briefly reports idle_timeout=Printing even after an M400
+        # manual move. Print job state is the useful conflict signal here.
+        'idle':status.get('print_stats',{}).get('state') in (None,'standby','complete','cancelled','error'),
         'test_running':status.get('gcode_macro _CXM_TEST_STATE',{}).get('running')==1,
     }
 
