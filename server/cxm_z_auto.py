@@ -228,6 +228,16 @@ class Controller:
             return dict(self.data, running=self.busy, stop_requested=self.stop_event.is_set(),
                         physical_enabled=physical_enabled(),max_commissioned_tool=max_commissioned_tool())
 
+    def reset_idle_history(self):
+        """Discard provisional in-memory Tool Z readings during a full CXM reset."""
+        with self.mutex:
+            if self.busy:
+                raise ZAutoError('Cannot erase Tool Z history during active calibration')
+            self.stop_event.clear()
+            self.data={'state':'idle','step':'','error':None,
+                       'measurements':{},'result':None}
+            return {'history_reset':True}
+
     def _set(self,**kw):
         with self.mutex:
             self.data.update(kw)
