@@ -14,7 +14,7 @@ test('Dock XY visibly offers full reset and explicit consent',()=>{
  assert.match(html,/All 12 saved dock XY positions, tool XY\/Z offsets/);
  assert.match(html,/return it to its dock/);
  assert.match(approved,/const reset=\$\('cxmCommissionResetPanel'\)/);
- assert.match(approved,/const s6=p\.stage\(5,'Recover / Reset'/);
+ assert.match(approved,/const s6=p\.stage\(5,'Recover \/ Reset'/);
  assert.match(html,/cxm-fresh-reset\.js\?v=1/);
  assert.match(html,/cxm-approved-v1\.js\?v=1\.4-compact/);
  assert.match(css,/\.cxm-fresh-start/);
