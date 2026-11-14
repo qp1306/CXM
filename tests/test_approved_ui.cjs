@@ -4,8 +4,8 @@ const fs=require('node:fs'),path=require('node:path');
 const web=n=>fs.readFileSync(path.join(__dirname,'..','web',n),'utf8');
 const js=web('cxm-approved-v1.js'),css=web('cxm-approved-v1.css'),index=web('index.html'),z=web('cxm-z-auto.js');
 test('approved theme is added after existing UI; all 7 original page tabs retained',()=>{
- assert.match(index,/cxm-approved-v1\.css\?v=1\.3-fresh-start/);
- assert.match(index,/cxm-approved-v1\.js\?v=1\.3-fresh-start/);
+ assert.match(index,/cxm-approved-v1\.css\?v=1\.4-compact/);
+ assert.match(index,/cxm-approved-v1\.js\?v=1\.4-compact/);
  for(const name of ['tools','calibration','offsets','z-calibration','tests','updates','settings'])
   assert.match(index,new RegExp(`data-panel="${name}"`));
 });
