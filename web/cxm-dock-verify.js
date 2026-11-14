@@ -1,4 +1,4 @@
-/* CXM locked-dock commissioning: sensor RELEASED, continuous out/back. */
+/* Supervised dock XY: filament state displayed only, never gates this test. */
 (()=>{
 'use strict';
 const page=document.querySelector('[data-panel="calibration"]');
@@ -14,11 +14,11 @@ const box=document.createElement('section');
 box.className='panel';box.id='cxmLockedDockPanel';
 box.innerHTML=
  '<div class="panel-heading"><h3>Locked dock · verify then save</h3><span class="panel-label">Continuous out-and-back</span></div>'+
- '<p class="helper">Start at the dock release point, NOT 100 mm withdrawn. Lock the hotend, confirm FILAMENT ABSENT and clear Y travel.</p>'+
+ '<p class="helper">Start at the dock release point. Physically confirm the mechanism, tool and complete Y path before testing.</p>'+
  '<p class="helper" id="cxmLockedDockState" role="status">Checking carriage…</p>'+
  '<label class="cxm-capture-ack"><input type="checkbox" id="cxmLockedDockAck">'+
- '<span class="cxm-approval-copy"><strong>Hotend locked · carriage EMPTY · path clear</strong>'+
- '<small>ABSENT confirms an empty carriage, not a mechanically locked dock</small></span></label>'+
+ '<span class="cxm-approval-copy"><strong>Dock aligned · full travel path clear</strong>'+
+ '<small>Sensor state is displayed for diagnostics, not used to enable this supervised test</small></span></label>'+
  '<div class="buttons"><button class="btn primary" id="cxmLockedDockTest" disabled>Test +100 mm → −100 mm</button>'+
  '<button class="btn" id="cxmLockedDockRefresh">Refresh</button></div>'+
  '<p class="helper" id="cxmLockedDockResult" role="status" aria-live="polite">Test not completed.</p>'+
@@ -49,7 +49,7 @@ async function request(path,body){
  if(!r.ok)throw Error(d.error||'HTTP '+r.status);return d;
 }
 function controls(){
- let allowed=!!live?.ready&&live?.macro_loaded===true&&live?.sensor==='RELEASED'&&!busy&&!page.hidden&&
+ let allowed=!!live?.ready&&live?.macro_loaded===true&&!busy&&!page.hidden&&
    !document.hidden&&selected()===tool&&ack.checked;
  test.disabled=!allowed;
  save.disabled=!allowed||!verified||!live?.travel_verified;
@@ -65,8 +65,8 @@ async function refresh(){
   if(version!==refreshVersion||selected()!==t)return;
   live=d;tool=t;
   if(!d.travel_verified)verified=false;
-  status.textContent=!d.macro_loaded?'Native locked-dock macro not loaded · install it through Updates':
-    'CXM: FILAMENT ABSENT · carriage EMPTY · X'+
+  status.textContent=!d.macro_loaded?'Updated supervised dock macro not loaded · install through Updates':
+    'Sensor (info only): '+String(d.sensor)+' · X'+
     d.xy.x.toFixed(3)+' Y'+d.xy.y.toFixed(3)+' Z'+d.z.toFixed(2)+' mm';
  }catch(e){
   if(version!==refreshVersion)return;
@@ -90,7 +90,7 @@ test.addEventListener('click',()=>{
  verified=false;
  display('Moving Y +100 then −100 continuously. Verifying sensor and position between legs…');
  run({},'/dock-verify/roundtrip',async d=>{
-  if(d.verified!==true||d.sensor!=='RELEASED')throw Error('Round trip not confirmed');
+  if(d.verified!==true)throw Error('Round trip not confirmed');
   verified=true;
   display('PASS · +100 and −100 mm · returned to X'+d.end.x.toFixed(3)+
    ' Y'+d.end.y.toFixed(3)+'. Save or adjust and repeat.');
@@ -100,7 +100,7 @@ for(const b of buttons)b.addEventListener('click',()=>{
  verified=false;
  display('Adjusting '+b.dataset.axis.toUpperCase()+' '+b.dataset.distance+' mm…');
  run({axis:b.dataset.axis,distance:Number(b.dataset.distance)},'/dock-verify/adjust',async d=>{
-  if(!d.adjusted||d.sensor!=='RELEASED')throw Error('Adjustment not verified');
+  if(!d.adjusted)throw Error('Adjustment not verified');
   display('Adjusted. Repeat the +100/−100 test before Save.');
  });
 });
