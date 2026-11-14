@@ -13,7 +13,7 @@ import urllib.request
 from cxm_config import Store
 from cxm_runtime import MOVE_LOCK, _rpc
 from cxm_jog_upgrade import inspect as inspect_jog_upgrade, apply as apply_jog_upgrade, JogUpgradeError
-from cxm_x334_live import inspect as inspect_x334_live, apply as apply_x334_live, live_status as x334_live_status, loaded_t1_release_guard, NativeX334Error
+from cxm_x334_live import inspect_compat as inspect_x334_live, apply_compat as apply_x334_live, live_status as x334_live_status, loaded_t1_release_guard, NativeX334Error
 from cxm_dock_verify_install import inspect as inspect_dock_verify_install, apply as apply_dock_verify_install, DockVerifyInstallError
 from cxm_dock_verify import status as dock_verify_status, roundtrip as dock_verify_roundtrip, adjust as dock_verify_adjust, save as dock_verify_save
 from cxm_cxchanger import plan
@@ -208,7 +208,8 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/v1/native/x334/status':
                 installed=inspect_x334_live(self.server.store.path.parent/'cxm_native_toolchange.cfg')
                 self.output(200,{'file_state':installed['state'],
-                    'sha256':installed['sha256'],'loaded_guard':x334_live_status(_rpc),
+                    'sha256':installed['sha256'],'patch_mode':installed.get('mode','normal'),
+                    'loaded_guard':x334_live_status(_rpc),
                     'loaded_release_guard':loaded_t1_release_guard(_rpc)})
             elif self.path == '/v1/update/jog/status':
                 info=inspect_jog_upgrade(self.server.store.path.parent / 'cxm_native_toolchange.cfg')
@@ -242,8 +243,24 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if type(body) is not dict:
                 raise ValueError('Invalid request')
-            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/dock-simple/home','/v1/dock-simple/enable','/v1/dock-simple/jog','/v1/dock-simple/test','/v1/dock-simple/save','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/dock-verify/roundtrip','/v1/dock-verify/adjust','/v1/dock-verify/save','/v1/update/dock-verify/apply','/v1/native/x334/apply','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
+            if self.path not in ('/v1/z-auto/start','/v1/z-auto/stop','/v1/z-auto/prepare','/v1/native/camera','/v1/native/initialize','/v1/native/sync','/v1/native/confirm-empty','/v1/native/recover-empty','/v1/native/clear-all','/v1/commissioning/reset','/v1/native/select','/v1/native/simple-change','/v1/native/calibration-release','/v1/tools/multi/start','/v1/tools/multi/stop','/v1/tools/auto','/v1/tools/clear-fault','/v1/setting','/v1/offset','/v1/rollback','/v1/dock/fine-x','/v1/dock','/v1/migrate','/v1/dock-simple/home','/v1/dock-simple/enable','/v1/dock-simple/jog','/v1/dock-simple/test','/v1/dock-simple/save','/v1/manual/jog','/v1/manual/capture','/v1/manual/save','/v1/dock-verify/roundtrip','/v1/dock-verify/adjust','/v1/dock-verify/save','/v1/update/dock-verify/apply','/v1/native/x334/apply','/v1/native/restart','/v1/update/jog/apply','/v1/t0/sensor','/v1/t0/motion','/v1/t0/confirm-stage','/v1/t0/auto','/v1/t0/clear-fault','/v1/t0/cycles','/v1/t0/cycles/stop'):
                 self.output(404,{'error':'Not found'})
+                return
+            if self.path == '/v1/native/restart':
+                if body:
+                    raise NativeX334Error('Unexpected Klipper restart parameters')
+                if not printer_safe() or zauto_controller.status()['running']:
+                    raise NativeX334Error('Printer must be idle before Klipper restart')
+                if not MOVE_LOCK.acquire(blocking=False):
+                    raise NativeX334Error('CXM movement is still running')
+                try:
+                    test=_rpc('/printer/objects/query?gcode_macro%20_CXM_TEST_STATE=running')
+                    if test.get('status',{}).get('gcode_macro _CXM_TEST_STATE',{}).get('running')==1:
+                        raise NativeX334Error('Dock Batch is running')
+                    _rpc('/printer/restart',{})
+                    self.output(200,{'restart_requested':True})
+                finally:
+                    MOVE_LOCK.release()
                 return
             if self.path == '/v1/native/x334/apply':
                 if set(body)!={'sha256'} or type(body['sha256']) is not str:
