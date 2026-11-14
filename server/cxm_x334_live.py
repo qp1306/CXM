@@ -74,6 +74,9 @@ def _transform(source):
             matches=list(LEGACY_T1_PATTERN.finditer(changed))
             if len(matches)==1:
                 changed=LEGACY_T1_PATTERN.sub('',changed,count=1)
+                if LEGACY_ERROR in changed:
+                    raise NativeX334Error(
+                        'Unexpected T1 release guard; refusing partial removal')
             elif (matches or LEGACY_ERROR in changed or
                   re.search(r'(?m)^[ \t]*\{%\s*elif\s+t\s*==\s*1\b', changed)):
                 raise NativeX334Error(
