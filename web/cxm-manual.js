@@ -41,9 +41,9 @@ function controls(){
   for(const button of root.querySelectorAll('[data-manual-axis]'))button.disabled=!canJog()||(busy&&!jogging);
   el('cxmJogClear').disabled=pending.length===0;
   el('cxmJogQueue').textContent=jogging ? 'Jog in progress · '+pending.length+' queued' : '';
-  if(captureButton)captureButton.disabled=!allowed||(!suffix&&(!verifiedRoundtrip||
-    verifiedRoundtrip.tool!==tool||verifiedRoundtrip.revision!==revision||
-    !close(live.xy.x,verifiedRoundtrip.x)||!close(live.xy.y,verifiedRoundtrip.y)));
+  // Dock reference must be saved at the release point BEFORE testing travel.
+  // Never allow capture while the carriage is known to be 100 mm away.
+  if(captureButton)captureButton.disabled=!allowed||(!suffix&&!!retreatAnchor);
   el('cxmManualRefresh').disabled=busy;
   if(travelRetreat)travelRetreat.disabled=busy||!canJog()||!!retreatAnchor||pending.length>0;
   if(travelReturn)travelReturn.disabled=busy||!canJog()||!retreatAnchor||!live||
@@ -73,7 +73,7 @@ async function refresh(silent=false){
     if(verifiedRoundtrip && (selectedTool!==verifiedRoundtrip.tool || latest.revision!==verifiedRoundtrip.revision ||
       latest.native_tool_identity!==verifiedRoundtrip.identity ||
       !close(latest.xy.x,verifiedRoundtrip.x)||!close(latest.xy.y,verifiedRoundtrip.y)))
-      resetTravel('Dock moved after travel test. Repeat 100 mm verification before saving.');
+      resetTravel('Dock moved after travel test. Repeat verification if needed.');
     revision=latest.revision;tool=selectedTool;live=latest;
     if (!window.CXMDockPosition?.streaming()) {
       el('cxmManualX').textContent=live.xy.x.toFixed(3)+' mm';
@@ -162,7 +162,7 @@ async function travel100(returning){
   }else{
     if(retreatAnchor || !live.limits?.y || start.y+100>live.limits.y[1] ||
        start.y<live.limits.y[0]){
-      travelSay('Guarded Y travel cannot accommodate the full +100 mm. No motion sent.');return;
+      travelSay('No movement: full +100 mm Y would exceed machine travel, or a test is already active.');return;
     }
   }
   const goal=returning?retreatAnchor.y:start.y+100;
@@ -197,7 +197,7 @@ async function travel100(returning){
     live=latest;
     if(returning){
       const verified={tool:target,revision:rev,identity,x:retreatAnchor.x,y:retreatAnchor.y};
-      resetTravel('Return verified. Dock XY ready to save.');
+      resetTravel('Return verified at the saved release point.');
       verifiedRoundtrip=verified;
     }else{
       retreatAnchor={tool:target,revision:rev,identity,x:start.x,y:start.y};
@@ -219,11 +219,8 @@ async function capture(){
  ++refreshVersion;polling=false;busy=true;controls();
  say('Saving T'+tool+' dock X/Y…');
  try{
-   if(retreatAnchor||!verifiedRoundtrip||verifiedRoundtrip.tool!==target||
-      verifiedRoundtrip.revision!==live.revision||
-      verifiedRoundtrip.identity!==live.native_tool_identity||
-      !close(live.xy.x,verifiedRoundtrip.x)||!close(live.xy.y,verifiedRoundtrip.y))
-     throw Error('Complete the 100 mm out-and-back verification before Save');
+   if(retreatAnchor)
+     throw Error('Carriage is 100 mm from the release point. Return before saving.');
    const saved=await request('/manual/save',{
      tool:target,expected_revision:live.revision,
      acknowledgement:'I_INSPECTED_DOCK_ALIGNMENT_WITH_MOTORS_ON'});
@@ -234,6 +231,7 @@ async function capture(){
    if(!actual||actual.dock_x!==saved.xy.x||actual.dock_y!==saved.xy.y
       ||actual.dock_reference_accepted!==true)
      throw Error('Stored dock differs from captured position');
+   resetTravel('Dock XY saved. You can now verify the 100 mm travel.');
    revision=check.revision;live=null;
    window.dispatchEvent(new CustomEvent('cxm-dock-save-completed',{
      detail:{tool:target,x:actual.dock_x,y:actual.dock_y}}));
