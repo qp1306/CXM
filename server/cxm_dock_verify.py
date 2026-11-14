@@ -39,6 +39,11 @@ def status(tool,store):
     d.pop('_motion_signature',None)
     d['dock_locked_operator_confirmation_required']=True
     d['travel_verified']=_verified(store,d)
+    try:
+        _ready_macro()
+        d['macro_loaded']=True
+    except (ManualDockError, OSError, ValueError):
+        d['macro_loaded']=False
     return d
 
 def _one_move(tool,axis,distance,store,before):
