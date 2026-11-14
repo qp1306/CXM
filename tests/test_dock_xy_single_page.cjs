@@ -42,3 +42,11 @@ test('compact Dock XY has no redundant Check printer stage and retains motion pr
   assert.match(html,/id="cxmDockJogSpeed"/);
   assert.match(jog,/live\.jog_revision===2/);
 });
+
+test('release-point coordinates are saved first, without a round trip or second confirm',()=>{
+  assert.doesNotMatch(jog,/window\.confirm\(/);
+  assert.match(jog,/captureButton\.disabled=!allowed\|\|\(!suffix&&!!retreatAnchor\)/);
+  assert.doesNotMatch(jog,/Complete the 100 mm out-and-back verification before Save/);
+  assert.match(layout,/if\(travel\)q\('\.cxma-inner',s4\)\.append\(travel\)/);
+  assert.match(jog,/Return before saving/);
+});
