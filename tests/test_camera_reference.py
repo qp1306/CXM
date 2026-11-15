@@ -50,6 +50,38 @@ class CameraTests(TestCase):
             with self.subTest(action=action), self.assertRaises(ValueError):
                 self.render(action,**opts)
 
+    def test_verify_uses_saved_xy_and_capture_overwrites_total_offset(self):
+        store = Mock()
+        tools = [dict(dock_reference_accepted=True, maintenance_lockout=False,
+                      offset_x=0.0, offset_y=0.0),
+                 dict(dock_reference_accepted=True, maintenance_lockout=False,
+                      offset_x=-1.04, offset_y=0.30, offset_xy_accepted=False)]
+        store.read.return_value = dict(revision='r', migration_required=False,
+                                       config=dict(globals=dict(tool_count=2), tools=tools))
+        start = dict(camera_reference=[7,200,230,32], ready=1, fault=0, current_tool=0)
+        after = dict(start, current_tool=1)
+        live = dict(xy=dict(x=198.96,y=230.30),z=32.0,
+                    native_tool_identity=1,revision='r')
+        with patch.object(cxm_native, '_native_status', side_effect=[(start,{},'PRESSED'),(after,{},'PRESSED')]), \
+             patch.object(cxm_native, '_rpc') as rpc, \
+             patch('cxm_manual._check_after_own_command', return_value=live):
+            result = cxm_native.camera_action(store,'verify',1,0,'r',7)
+        self.assertIn('ACTION=VERIFY TOOL=1 MOUNTED=0 TOKEN=7 DX=-1.040000 DY=0.300000',
+                      rpc.call_args.args[1]['script'])
+        self.assertEqual(result['verification_offset'], {'x':-1.04,'y':0.3})
+        store.save_offsets.assert_not_called()
+
+        # Save after a slight jog must overwrite the complete T0-relative offset.
+        start = dict(after)
+        live['xy'] = dict(x=198.94,y=230.31)
+        with patch.object(cxm_native, '_native_status', side_effect=[(start,{},'PRESSED'),(start,{},'PRESSED')]), \
+             patch.object(cxm_native, '_rpc'), \
+             patch('cxm_manual._check_after_own_command', return_value=live):
+            store.save_offsets.return_value = {'saved': True}
+            store.read.side_effect = [store.read.return_value, dict(store.read.return_value, config=dict(globals=dict(tool_count=2),tools=[tools[0],dict(tools[1], offset_x=-1.06,offset_y=0.31)]))]
+            cxm_native.camera_action(store,'capture',1,1,'r',7)
+        store.save_offsets.assert_called_once_with(1,'xy', {'x':-1.06,'y':0.31},'r')
+
     def test_offset_is_measured_carriage_minus_t0_and_only_xy_is_written(self):
         store=Mock()
         store.read.return_value=dict(revision='r',migration_required=False,config=dict(
