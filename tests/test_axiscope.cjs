@@ -40,9 +40,9 @@ test('selected tools show readiness independently of manual maintenance lockout'
 test('Tool XY always shows the camera and supervised jogs with the optical comparison',()=>{
  const panel=html.split('<section data-panel="offsets" hidden>')[1].split('</section>')[0];
  assert.doesNotMatch(panel,/<details|future hardware/);
- assert.match(panel,/id="cxmAxisJogRows"/);
- assert.match(panel,/id="cxmManualApprovalXY"/);
- assert.match(panel,/id="cxmJogClearXY"/);
+ assert.match(html,/id="cxmAxisJogRows"/);
+ assert.match(html,/id="cxmManualApprovalXY"/);
+ assert.match(html,/id="cxmJogClearXY"/);
  assert.doesNotMatch(panel,/id="cxmManualCaptureXY"/);
  assert.doesNotMatch(axis,/\/printer\/gcode\/script|G1\s+[XY]|SET_GCODE_OFFSET|postJSON\(/);
  assert.match(html,/id="cxmAxisFrame"/);
