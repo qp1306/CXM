@@ -631,7 +631,7 @@ def camera_action(store, action, tool, mounted_tool, expected_revision, token):
     """Operate on a single Klipper-held camera reference under the CXM motion lock."""
     import secrets
     from cxm_manual import _check_after_own_command
-    if action not in ('reference', 'change', 'capture', 'clear'):
+    if action not in ('reference', 'change', 'verify', 'capture', 'clear'):
         raise NativeError('Unknown camera action')
     if type(token) is not int or not 0 <= token < 2**48:
         raise NativeError('Invalid camera reference')
@@ -675,7 +675,23 @@ def camera_action(store, action, tool, mounted_tool, expected_revision, token):
             raise NativeError('Set the T0 camera reference first')
         if action == 'capture' and (tool < 1 or tool != mounted_tool):
             raise NativeError('Load the hotend to measure and centre it first')
+        # Verification uses the explicitly saved displacement from the T0 datum.
+        # Unsaved tools are visited at zero offset and clearly flagged in UI.
+        offset_x = offset_y = 0.0
+        xy_saved = tool == 0
+        if action == 'verify' and tool > 0:
+            profile = saved['config']['tools'][tool]
+            offset_x = float(profile['offset_x'])
+            offset_y = float(profile['offset_y'])
+            if not all(math.isfinite(v) for v in (offset_x, offset_y)):
+                raise NativeError('Stored XY offset is not finite')
+            # Use stored optical measurements during camera verification.
+            # Mechanical acceptance remains a separate operation.
+            xy_saved = (profile.get('offset_xy_accepted') is True
+                        or offset_x != 0.0 or offset_y != 0.0)
         cmd = f'CXM_CAMERA ACTION={action.upper()} TOOL={tool} MOUNTED={mounted_tool} TOKEN={token}'
+        if action == 'verify':
+            cmd += f' DX={offset_x:.6f} DY={offset_y:.6f}' 
         _rpc('/printer/gcode/script', {'script':'M400\n'+cmd})
         after, test, sensor = _native_status()
         if (after.get('camera_reference') != ref or after.get('current_tool') != tool
@@ -693,8 +709,8 @@ def camera_action(store, action, tool, mounted_tool, expected_revision, token):
                 if any(actual['offset_'+a] != delta[a] for a in 'xy'):
                     raise NativeError('Saved offsets differ from capture')
                 return dict(result, offsets=delta)
-            if max(abs(delta['x']),abs(delta['y']),abs(live['z']-ref[3])) > 0.02:
+            if max(abs(delta['x']-offset_x),abs(delta['y']-offset_y),abs(live['z']-ref[3])) > 0.02:
                 raise NativeError('Camera return position could not be confirmed')
-        return {'changed':True,'current_tool':tool}
+        return {'changed':True,'current_tool':tool, 'xy_saved':xy_saved, 'verification_offset':{'x':offset_x,'y':offset_y} if action == 'verify' else None}
     finally:
         MOVE_LOCK.release()

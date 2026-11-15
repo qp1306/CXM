@@ -15,7 +15,7 @@ def fail(message):
 class Tests(unittest.TestCase):
     def native(self,count):
         n={'tool_count':count,'ready':1,'fault':0,'current_tool':-1,
-           'clearance_y':100.0}
+           'clearance_y':100.0,'transfer_y':105.0}
         for t in range(count):
             n[f't{t}_x']=324.9-45.0*t
             n[f't{t}_y']=64.9 + (1.0 if t==3 else -1.9 if t==5 else -0.7 if t in (1,2) else 0)
@@ -35,7 +35,7 @@ class Tests(unittest.TestCase):
                         'gcode_macro _CXM_TEST_STATE':state})
         self.assertIn('VARIABLE=tool_mask VALUE=63',output)
         self.assertIn('VARIABLE=tool_count VALUE=6',output)
-        self.assertIn('_CXM_STAGE_TEST Y=165.9',output)
+        self.assertIn('_CXM_STAGE_TEST Y=105.0 DOCK_Y=105.0',output)
         for t in range(6):
             self.assertIn(f'_CXM_CHECK_TOOL TOOL={t}',output)
         self.assertNotIn('selected dock safe-Y lines differ',output)
@@ -49,7 +49,7 @@ class Tests(unittest.TestCase):
                 printer={'gcode_macro _CXM_NATIVE':native,
                          'gcode_macro _CXM_TEST_STATE':state})
             y=native[f't{index}_y']
-            self.assertIn(f'_CXM_STAGE_TEST Y={y+100.0} DOCK_Y={y}',result)
+            self.assertIn(f'_CXM_STAGE_TEST Y=105.0 DOCK_Y={y}',result)
             self.assertIn(f'CXM_SELECT_TOOL TOOL={index}',result)
             self.assertIn('CXM_SELECT_TOOL TOOL=-1',result)
             self.assertIn('_CXM_TEST_ADVANCE',result)

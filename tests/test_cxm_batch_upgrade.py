@@ -1,12 +1,14 @@
 """Pure and file-backed native batch macro upgrade safety tests."""
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server'))
 import cxm_batch_upgrade as mod
 
-VENDOR=mod.VENDOR.read_text()
+LEGACY_VENDOR=Path(__file__).resolve().parents[1]/'tests/fixtures/cxm_native_pre_y105_legacy.cfg'
+VENDOR=LEGACY_VENDOR.read_text()
 
 def legacy(source):
     sections=mod.sections(source)
@@ -53,6 +55,13 @@ def legacy(source):
     return source
 
 class UpgradeTests(unittest.TestCase):
+    def setUp(self):
+        # Exercise the one-time migrator against its historical source,
+        # never against the proven 15 Nov 2026 active motion macro.
+        self.vendor_patch=unittest.mock.patch.object(mod,'VENDOR',LEGACY_VENDOR)
+        self.vendor_patch.start()
+        self.addCleanup(self.vendor_patch.stop)
+
     def test_safe_transform_replaces_only_five_controller_macros(self):
         old=legacy(VENDOR)
         result=mod.transform(old,VENDOR)

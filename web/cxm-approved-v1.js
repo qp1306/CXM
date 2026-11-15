@@ -172,7 +172,7 @@ function offsets(){const p=make('offsets',[['camera','camera','Camera'],['target
   const row=node('div','cxma-cam-grid');q('.cxma-inner',s3).append(row);
   const cam=node('div','cxma-camera');row.append(cam);[frame,cameraSettings].forEach(x=>move(x,cam));
   const jogbox=node('div','cxma-jog');row.append(jogbox);[tool,jog].forEach(x=>move(x,jogbox));
-  if(sessions)wrapPart(s2,sessions);fromId('cxmAxisChangeSlot',q('.cxma-inner',s2));if(actions)wrapPart(s4,actions);
+  if(sessions)wrapPart(s2,sessions);move($('cxmVerifyPanel'),q('.cxma-inner',s2));fromId('cxmAxisChangeSlot',q('.cxma-inner',s2));if(actions)wrapPart(s4,actions);
   [next,res].forEach(x=>wrapPart(s5,x));
   const rest=detail('Advanced · Camera diagnostics and manual XY offsets');p.stack.append(rest);
   showOriginalInAdvanced(rest,[work,q('.axis-table-panel',grid),q('.cxm-simple-editor',grid)]);

@@ -59,17 +59,16 @@ def check():
     assert path['pickup']==[(304.60,65.60),(309.0,65.60),(309.0,165.6)]
     assert path['dropoff']==[(309.0,65.60),(304.60,65.60),(304.60,165.6)]
 
-    # Render the ACTUAL Klipper macro bodies with the measured saved T0
-    # datum. Verify the exact four G1 commands and their feed rates,
-    # not merely a separate Python planner approximation.
+    # Validate the published Y105 transfer geometry against the ACTUAL Jinja
+    # macros. This never connects to a printer or commands physical motion.
     fake_native={'t0_x':304.60625,'t0_y':65.6,'shift_x':4.4,
-                 'clearance_y':100.0,'travel_feed':6000,
+                 'transfer_y':105.0,'clearance_y':100.0,'travel_feed':6000,
                  'approach_feed':6000,'latch_feed':6000}
-    printer={'gcode_macro _CXM_NATIVE':fake_native, 'gcode_macro _CXM_TEST_STATE':{'running':0}}
+    printer={'gcode_macro _CXM_NATIVE':fake_native,
+             'gcode_macro _CXM_TEST_STATE':{'running':0},
+             'toolhead':{'position':{'y':105.0}}}
     def actual_g1(name):
-        # Klipper's gcode templates use {expression}, whereas vanilla
-        # Jinja2 uses {{expression}}. Expand single-brace Klipper output
-        # expressions while preserving {% statements %}.
+        # Klipper template expressions have {expr}, not Jinja {{expr}}.
         body=blocks[name].split('gcode:',1)[1]
         jinja_body=re.sub(r'(?<![{%])\{([^{}%#\n]+)\}(?!})',
                           lambda m:'{{'+m.group(1)+'}}',body)
@@ -78,46 +77,65 @@ def check():
         return [line.strip() for line in rendered.splitlines()
                 if line.strip().startswith('G1 ')]
     assert actual_g1('_CXM_PICKUP_MOTION')==[
-        'G1 X304.60625 Y165.6 F6000', 'G1 Y65.6 F6000',
-        'G1 X309.00625 F6000', 'G1 Y165.6 F6000']
+        'G1 X304.60625 F6000', 'G1 Y105.0 F6000',
+        'G1 Y65.6 F6000', 'G1 X309.00625 F6000',
+        'G1 Y105.0 F6000']
     assert actual_g1('_CXM_RELEASE_MOTION')==[
-        'G1 X309.00625 Y165.6 F6000', 'G1 Y65.6 F6000',
-        'G1 X304.60625 F6000', 'G1 Y165.6 F6000']
+        'G1 X309.00625 F6000', 'G1 Y105.0 F6000',
+        'G1 Y65.6 F6000', 'G1 X304.60625 F6000',
+        'G1 Y105.0 F6000']
+
+    # Preserve sequencing, sensor checks, travel bounds, and state discipline.
     controller=blocks['CXM_SELECT_TOOL']
-    assert 'pos.y|float < old_safe - 0.2' in controller
-    assert 'pos.y|float < target_safe - 1.0' in controller
+    assert '_CXM_PREPARE_CLEARANCE EXPECT={' in controller
+    assert '_CXM_CHECK_TOOL TOOL={old}' in controller
+    assert '_CXM_CHECK_TOOL TOOL={target}' in controller
+    assert '_CXM_RELEASE_MOTION TOOL={old}' in controller
+    assert '_CXM_PICKUP_MOTION TOOL={target}' in controller
+    assert controller.index('_CXM_RELEASE_MOTION TOOL={old}') < controller.index('_CXM_PICKUP_MOTION TOOL={target}')
     for name,expected in (('_CXM_PICKUP_MOTION','RELEASED'),('_CXM_RELEASE_MOTION','PRESSED')):
         block=blocks[name]
         assert block.index('_CXM_CLEAR_TRANSFER TOOL={t} EXPECT='+expected) < block.index('G1 ')
         assert 'RESTORE_GCODE_STATE' in block and 'MOVE=0' in block
+        assert 'st.transfer_y|float' in block
+        assert 'M400' in block
     verify=blocks['_CXM_VERIFY']
     assert 'final_x=(x+st.shift_x|float)|round(5) if expect == "PRESSED" else x' in verify
     assert verify.count('X={final_x} Y={y}')==2
+    assert verify.count('CXM_FAST_VERIFY EXPECT={expect}')==2
     commit=blocks['_CXM_COMMIT_STATE']
-    assert 'X={(st["t" ~ t ~ "_x"]|float+st.shift_x|float)|round(5)}' in commit
-    check=blocks['_CXM_CHECK_TOOL']
-    assert 'x+st.shift_x|float>334' in check
+    assert 'Y={st.transfer_y|float}' in commit
+    assert 'CXM_FAST_VERIFY EXPECT=PRESSED' in commit
+    assert 'CXM_FAST_VERIFY EXPECT=RELEASED' in commit
+    assert commit.index('CXM_FAST_VERIFY EXPECT=PRESSED') < commit.index('VARIABLE=current_tool')
+    check_tool=blocks['_CXM_CHECK_TOOL']
+    assert 'st.ready|int != 1 or st.fault|int != 0' in check_tool
+    assert 'st["t" ~ t ~ "_accepted"]|int != 1' in check_tool
+    for bound in ('h.axis_minimum.x','h.axis_maximum.x',
+                  'h.axis_minimum.y','h.axis_maximum.y'):
+        assert bound in check_tool
+    assert 'st.transfer_y|float' in check_tool
     calibration=blocks['CXM_CALIBRATION_RELEASE']
     assert 'action_raise_error' in calibration and 'G1 ' not in calibration
     clear=blocks['_CXM_CLEAR_TRANSFER']
-    assert 'pos.y < safe-0.001' in clear and 'G1 ' not in clear
-    assert 'CXM_FAST_VERIFY EXPECT={expect}' in clear
+    assert 'CXM_FAST_VERIFY EXPECT={expect}' in clear and 'G1 ' not in clear
     assert 'CXM_ACCEL_RESTORE' in blocks
     assert 'SET_VELOCITY_LIMIT ACCEL=4000' in blocks['CXM_ACCEL_RESTORE']
+
     recover=blocks['CXM_RECOVER']
     assert 'confirmed != "EMPTY"' in recover
-    assert 'native.current_tool|int != -1' not in recover
     assert 'state != "RELEASED"' in recover
-    assert 'CXM_TEST_RESET' in recover and '_CXM_PREPARE_CLEARANCE EXPECT=RELEASED' in recover
-    assert recover.count('CXM_FAST_VERIFY EXPECT=RELEASED') == 4
+    assert 'CXM_TEST_RESET' in recover
+    assert '_CXM_PREPARE_CLEARANCE EXPECT=RELEASED' in recover
+    assert recover.count('CXM_FAST_VERIFY EXPECT=RELEASED')==4
     assert recover.index('CXM_TEST_RESET') < recover.index('_CXM_PREPARE_CLEARANCE EXPECT=RELEASED')
     assert recover.index('CXM_FAST_VERIFY EXPECT=RELEASED') < recover.index('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE=-1')
     assert recover.index('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE=-1') < recover.index('SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=fault VALUE=0')
-    assert 'SET_VELOCITY_LIMIT ACCEL=4000' in recover
     assert 'UPDATE_DELAYED_GCODE ID=CXM_NATIVE_TEST_STEP DURATION=0' in recover
     assert 'UPDATE_DELAYED_GCODE ID=CXM_ACCEL_RESTORE DURATION=0' in recover
+
     test_start=blocks['CXM_TEST_START']
-    assert '_CXM_STAGE_TEST Y={ns.highest_safe}' in test_start
+    assert '_CXM_STAGE_TEST Y={native.transfer_y|float}' in test_start
     assert 'selected dock safe-Y lines differ' not in test_start
     assert 'VARIABLE=tool_mask VALUE={mask}' in test_start
     assert 'ns.count*n*2>120' in test_start
@@ -125,29 +143,22 @@ def check():
     assert 'variable_batch_revision: 2' in blocks['_CXM_TEST_STATE']
     assert 'variable_tool_mask: 0' in blocks['_CXM_TEST_STATE']
     assert 'st.tool_mask|int' in blocks['CXM_NATIVE_TEST_STEP']
-    assert '_CXM_STAGE_TEST Y={dock_y+native.clearance_y|float} DOCK_Y={dock_y}' in blocks['CXM_NATIVE_TEST_STEP']
-    assert 'CX M' not in blocks['CXM_NATIVE_TEST_STEP']
+    assert '_CXM_STAGE_TEST Y={native.transfer_y|float}' in blocks['CXM_NATIVE_TEST_STEP']
     assert 'st.tool_count|int' in blocks['_CXM_TEST_ADVANCE']
-    assert '_CXM_STAGE_TEST' in blocks
     stage=blocks['_CXM_STAGE_TEST']
-    assert 'below dock mechanical clearance Y' not in stage
-    assert 'start on or above the clear staging line' not in stage
     assert 'G1 Y{target|round(5)} F6000' in stage
     assert 'SAVE_GCODE_STATE NAME=CXM_BATCH_STAGE' in stage
     assert 'RESTORE_GCODE_STATE NAME=CXM_BATCH_STAGE MOVE=0' in stage
     assert 'CXM_FAST_VERIFY EXPECT=RELEASED MIN_Y={target}' in stage
     assert '_CXM_PREPARE_CLEARANCE EXPECT=RELEASED' in test_start
-    assert '_CXM_PREPARE_CLEARANCE EXPECT={' in controller
-    assert '_CXM_PREPARE_CLEARANCE' in blocks
     assert 'CXM_DECLARE_CARRIAGE' in blocks
     lift=blocks['_CXM_PREPARE_CLEARANCE']
-    assert 'XYZ not homed; automatic clearance lift refused' in lift
-    assert 'carriage sensor disagrees' in lift
-    assert 'establish Z clearance of at least 25 mm' in lift
+    assert 'XYZ not homed' in lift and 'carriage sensor disagrees' in lift
     assert 'G1 ' not in lift and 'CXM_FAST_VERIFY EXPECT={expected}' in lift
+    # There is intentionally no bed-relative Z>=20/25 limit: docks move with gantry.
     declare=blocks['CXM_DECLARE_CARRIAGE']
-    assert declare.count('CXM_FAST_VERIFY EXPECT=RELEASED') == 4
-    assert declare.count('CXM_FAST_VERIFY EXPECT=PRESSED') == 4
+    assert declare.count('CXM_FAST_VERIFY EXPECT=RELEASED')==4
+    assert declare.count('CXM_FAST_VERIFY EXPECT=PRESSED')==4
     assert 'SET_GCODE_VARIABLE MACRO=_CXM_NATIVE VARIABLE=current_tool VALUE={t}' in declare
     assert 'CXM_DECLARE_CARRIAGE TOOL=-1' in blocks['CXM_CONFIRM_EMPTY']
     service=(ROOT/'server/cxm_service.py').read_text('utf8')

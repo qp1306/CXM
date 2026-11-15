@@ -23,6 +23,89 @@ panel.addEventListener('click',event=>{
 },true);
 const api='/cxm/api/v1/';
 let state=null,busy=false,previousSensor=null,previousTool=null;
+// Verification is a browser-orchestrated sequence using existing CXM camera API.
+// No new motion macros, clearance parameters or offset writes.
+let verifyRunning=false,verifyStopRequested=false,verifySelected=new Set(),verifyListInitialized=false;
+const verifyMessage=value=>{const el=$('cxmVerifyStatus');if(el)el.textContent=value;};
+function renderVerifyTools(){
+ const container=$('cxmVerifyTools');
+ if(!container)return;
+ const eligible=(state?.candidates||[]).filter(t=>t.eligible).map(t=>t.tool);
+ if(!verifyListInitialized && eligible.length){verifySelected=new Set(eligible);verifyListInitialized=true;}
+ for(const t of Array.from(verifySelected))if(!eligible.includes(t))verifySelected.delete(t);
+ container.replaceChildren();
+ for(const n of eligible){
+   const label=document.createElement('label');
+   label.style.cssText='display:inline-flex;align-items:center;gap:7px;padding:9px 13px;border:1px solid #52718f;border-radius:9px;cursor:pointer';
+   const cb=document.createElement('input');cb.type='checkbox';cb.checked=verifySelected.has(n);cb.disabled=verifyRunning;
+   cb.addEventListener('change',()=>{
+     if(cb.checked)verifySelected.add(n);else verifySelected.delete(n);
+     renderVerifyTools();
+   });
+   label.append(cb,document.createTextNode('T'+n));container.append(label);
+ }
+ $('cxmVerifyStart').disabled=verifyRunning||busy||!state||!verifySelected.size||!state.camera_reference?.[0];
+ $('cxmVerifyStop').disabled=!verifyRunning;
+ $('cxmVerifyAll').disabled=verifyRunning;
+}
+function verifySleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+async function runCameraVerification(){
+ if(verifyRunning||busy||!state||!state.camera_reference?.[0]||!verifySelected.size)return;
+ verifyRunning=true;verifyStopRequested=false;busy=true;
+ renderVerifyTools();controls();
+ const tools=[...verifySelected].sort((a,b)=>a-b);
+ let completed=0;
+ try{
+   const initial=await read();
+   const referenceToken=initial.camera_reference?.[0];
+   if(!referenceToken)throw Error('Capture the T0 camera reference first');
+   for(const tool of tools){
+     if(verifyStopRequested)break;
+     // Re-read the native identity and saved revision every time; never assume
+     // that a previous physical toolchange was completed merely by sending it.
+     const before=await read();
+     if(before.camera_reference?.[0]!==referenceToken)throw Error('T0 camera reference changed during verification');
+     verifyMessage('Moving T'+tool+' to camera ('+(completed+1)+' of '+tools.length+')…');
+     const response=await post('camera',{
+       action:'verify',token:referenceToken,tool,
+       mounted_tool:before.current_tool,expected_revision:before.revision
+     });
+     if(response.current_tool!==tool)throw Error('T'+tool+' toolchange did not confirm');
+     // Poll the native readback; movement API already confirms its command.
+     const after=await read();
+     if(after.current_tool!==tool)throw Error('Tool state changed after T'+tool+' return');
+     completed++;
+     verifyMessage('T'+tool+' over camera — 3 second check ('+completed+'/'+tools.length+')'+(response.xy_saved?' · saved XY applied':' · NO SAVED XY (zero offset)'));
+     for(let i=0;i<30 && !verifyStopRequested;i++)await verifySleep(100);
+   }
+   if(verifyStopRequested){
+     verifyMessage('Stopped after '+completed+' hotend(s). Last mounted hotend remains in place; use Unload when ready.');
+   }else{
+     verifyMessage('All '+completed+' hotends viewed. Unloading final hotend…');
+     const before=await read();
+     const reply=await post('simple-change',{
+       tool:-1,mounted_tool:before.current_tool,expected_revision:before.revision
+     });
+     if(reply.current_tool!==-1)throw Error('Final unload did not confirm');
+     verifyMessage('Verification complete: '+completed+' hotend(s) viewed for 3 seconds each. Carriage EMPTY. No offsets modified.');
+   }
+ }catch(e){
+   verifyMessage('Verification stopped: '+e.message+'. Check actual mounted tool before resuming; no offset was saved.');
+ }finally{
+   verifyRunning=false;verifyStopRequested=false;busy=false;
+   await refresh();renderVerifyTools();
+ }
+}
+$('cxmVerifyStart')?.addEventListener('click',runCameraVerification);
+$('cxmVerifyStop')?.addEventListener('click',()=>{
+ verifyStopRequested=true;
+ verifyMessage('Stop requested; finishing current tool movement…');
+});
+$('cxmVerifyAll')?.addEventListener('click',()=>{
+ verifySelected=new Set((state?.candidates||[]).filter(t=>t.eligible).map(t=>t.tool));
+ renderVerifyTools();
+});
+
 const text=(id,value)=>{$(id).textContent=value;if(id==='cxmChangeResult')$('cxmCameraResult').textContent=value;};
 async function read(){
  const r=await fetch(api+'native/status',{credentials:'same-origin',cache:'no-store'});
@@ -87,7 +170,7 @@ function cameraSteps({ref,ready,valid,current}){
  const needsSave=token&&current>0&&!savedTools.has(current);
  text('cxmCameraNext',!ref?'Checking camera reference availability…':!valid?'Confirm the physically fitted hotend above.':
    !token?(current===0?'1 · Centre and focus T0, then press Set T0 camera reference.':'1 · Press T0 to load the reference hotend.'):
-   needsSave?'3 · Centre T'+current+' on the crosshair, then select the next hotend to auto-save XY before changing.':
+   needsSave?'3 · Centre T'+current+' on the crosshair and click Save T'+current+' XY. Changing tools does not save offsets.':
    next?'2 · Press T'+next.tool+' to change tools and return to the crosshair.':
    'Alignment complete for the available hotends. End the camera session when finished.');
  text('cxmCameraCapture',current>0?'Save T'+current+' XY':'Save centred hotend XY');
@@ -128,6 +211,7 @@ function controls(){
  const active=!!ref?.[0];
  const ready=valid && state?.native_ready && !state?.fault && !state?.running && !busy;
  cameraSteps({ref,ready,valid,current});
+  renderVerifyTools();
  $('cxmCameraReference').disabled=!ready||current!==0||!ref;
  $('cxmCameraCapture').disabled=!ready||!active||!(current>0)||Number($('cxmAxisTool').value)!==current;
  $('cxmCameraEnd').disabled=busy||!active;
@@ -268,9 +352,12 @@ async function selectTool(tool){
  try{
    // The current hotend must be captured before its removal. A failed save
    // aborts the change, leaving the mounted hotend available for correction.
-   await autoSaveBeforeCameraChange(tool,mounted);
-   const useReference=!offsets.hidden && !!state.camera_reference?.[0];
-   const reply=useReference ? await post('camera',{action:'change',token:state.camera_reference[0],
+   // Unloading must never require an XY calibration save.
+   // XY offsets are saved only by explicit operator action.
+   // Normal unloading is independent of the camera session.
+   const useReference=tool>0 && !offsets.hidden &&
+   !!state.camera_reference?.[0];
+   const reply=useReference ? await post('camera',{action:'verify',token:state.camera_reference[0],
      tool,mounted_tool:mounted,expected_revision:state.revision}) : await post('simple-change',{tool,mounted_tool:mounted,
      expected_revision:state.revision});
    if(!offsets.hidden && tool>=0 && reply.current_tool===tool){
@@ -279,7 +366,7 @@ async function selectTool(tool){
      if(selector.value===String(tool))selector.dispatchEvent(new Event('change'));
    }
    text('cxmChangeResult',reply.already_empty?'Already empty':
-     reply.already_mounted?'Already mounted':useReference&&tool>=0?'T'+tool+' returned to T0 camera XYZ. Fine-jog to centre the nozzle.':'Toolchange completed. Check physical seating.');
+     reply.already_mounted?'Already mounted':useReference&&tool>=0?(reply.xy_saved ? 'T'+tool+' returned with saved XY correction. Fine-jog, then Save XY to overwrite.' : 'T'+tool+' returned to T0 camera XYZ (no saved XY offset). Centre and Save XY.'):'Toolchange completed. Check physical seating.');
  }catch(e){
    text('cxmChangeResult','Save or toolchange stopped: '+e.message+
      '. No further change command was sent after this error; check the actual carriage before retrying.');

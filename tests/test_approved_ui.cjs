@@ -5,7 +5,7 @@ const web=n=>fs.readFileSync(path.join(__dirname,'..','web',n),'utf8');
 const js=web('cxm-approved-v1.js'),css=web('cxm-approved-v1.css'),index=web('index.html'),z=web('cxm-z-auto.js');
 test('approved theme is added after existing UI; all 7 original page tabs retained',()=>{
  assert.match(index,/cxm-approved-v1\.css\?v=1\.4-compact-dock/);
- assert.match(index,/cxm-approved-v1\.js\?v=1\.4-compact-dock/);
+ assert.match(index,/cxm-approved-v1\.js\?v=1\.5-camera-verify/);
  for(const name of ['tools','calibration','offsets','z-calibration','tests','updates','settings'])
   assert.match(index,new RegExp(`data-panel="${name}"`));
 });
@@ -33,7 +33,7 @@ test('12 Tool Z slots visible but tool enablement remains guarded',()=>{
 });
 test('all workflows have numbered steps, but only status feedback can verify',()=>{
  for(const name of ['tools','calibration','offsets','tests','updates','settings'])
-  assert.match(js,new RegExp(`${name.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&')}:\\{title:`));
+  assert.match(js,new RegExp(`${name.replace(/[-/\^$*+?.()|[\]{}]/g,'\$&')}:\{title:`));
  assert.match(js,/const \{states\}=checkState\(name\)/);
  assert.match(js,/b\.dataset\.state=v/);
  assert.match(js,/current===String\(n\)/);

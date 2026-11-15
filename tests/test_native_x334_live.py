@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server'))
 import cxm_x334_live as x334
-SOURCE=Path(__file__).resolve().parents[1]/'vendor/cxm/cxm_native_toolchange.cfg'
+SOURCE=Path(__file__).resolve().parents[1]/'tests/fixtures/cxm_native_pre_y105_legacy.cfg'
 
 def old_source():
     fresh=SOURCE.read_text()

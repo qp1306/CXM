@@ -16,7 +16,7 @@ test('Dock XY visibly offers full reset and explicit consent',()=>{
  assert.match(approved,/const reset=\$\('cxmCommissionResetPanel'\)/);
  assert.match(approved,/const s6=p\.stage\(5,'Recovery \/ Reset'/);
  assert.match(html,/cxm-fresh-reset\.js\?v=1/);
- assert.match(html,/cxm-approved-v1\.js\?v=1\.4-compact-dock/);
+ assert.match(html,/cxm-approved-v1\.js\?v=1\.5-camera-verify/);
  assert.match(css,/\.cxm-fresh-start/);
 });
 test('UI confirms both physical EMPTY and server-side full readback',()=>{
@@ -48,8 +48,8 @@ test('Backend atomic backup and invalidated Klipper state required',()=>{
 test('Old T1 exact dock-position guard has been removed, other geometry gates remain',()=>{
  assert.doesNotMatch(macro,/T1 synchronized coordinates differ from the proven release point/);
  assert.doesNotMatch(macro,/t == 1 and \(\(x-264\.70\)/);
- assert.match(macro,/pos\.y < safe-0\.001/);
- assert.match(macro,/st\.shift_x\|float-4\.4/);
+ assert.match(macro,/pos\.y\|float < target - 0\.001/);
+ assert.match(macro,/x\+st\.shift_x\|float > h\.axis_maximum\.x\|float/);
  assert.match(macro,/CXM_FAST_VERIFY EXPECT=\{expect\}/);
 });
 test('Clear All errors remains independent and old accepted coordinates are not reused',()=>{

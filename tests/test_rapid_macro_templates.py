@@ -60,8 +60,8 @@ class MacroTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,"staging Y"):
             evaluate(status,Y="114")
         status["toolhead"]["position"][2]=19.9
-        with self.assertRaisesRegex(RuntimeError,"below 20"):
-            evaluate(status)
+        # The gantry-mounted docks do not impose a fixed bed-relative Z20 limit.
+        evaluate(status)
         status["toolhead"]["position"][2]=20
         status["gcode_move"]["gcode_position"]["x"]=300
         with self.assertRaisesRegex(RuntimeError,"XY origin"):

@@ -45,7 +45,7 @@
       clearCamera('Camera "'+entry.name+'" uses an external URL. Configure its stream behind the printer’s same-origin webcam proxy before viewing it here.');
       return;
     }
-    if(entry.service && !['mjpegstreamer','mjpgstreamer','ustreamer','camera-streamer'].includes(entry.service)) {
+    if(entry.service && !['mjpegstreamer','mjpegstreamer-adaptive','mjpgstreamer','ustreamer','camera-streamer'].includes(entry.service)) {
       clearCamera('This camera service may not provide an MJPEG image stream. Configure an MJPEG stream in Mainsail.');
       return;
     }
@@ -172,10 +172,45 @@
   el('cxmAxisTool').addEventListener('change',e=>{tool=Number(e.target.value);render();});
   el('cxmAxisZoom').addEventListener('input',e=>{
     const zoom=Number(e.target.value);
-    const img=el('cxmAxisImage');
-    img.style.transform='scale('+zoom.toFixed(2)+')';
     text('cxmAxisZoomLabel',Math.round(zoom*100)+'%');
+    updateOrientation();
   });
+
+  const orientationKey='CXM_AXIS_CAMERA_ORIENTATION_V1';
+
+  function updateOrientation(){
+    const h=el('cxmAxisFlipH').checked;
+    const v=el('cxmAxisFlipV').checked;
+    const r=Number(el('cxmAxisRotate').value);
+
+    const image=el('cxmAxisImage');
+    const zoom=Number(el('cxmAxisZoom').value);
+
+    image.style.transform=
+      `rotate(${r}deg) scale(${h?-zoom:zoom},${v?-zoom:zoom})`;
+
+    try {
+      localStorage.setItem(orientationKey,JSON.stringify({h,v,r,zoom}));
+    } catch {}
+  }
+
+  try {
+    const saved=JSON.parse(localStorage.getItem(orientationKey)||'{}');
+    el('cxmAxisFlipH').checked=saved.h===undefined?true:!!saved.h;
+    el('cxmAxisFlipV').checked=!!saved.v;
+    el('cxmAxisRotate').value=String([0,90,180,270].includes(saved.r)?saved.r:270);
+    el('cxmAxisZoom').value=String(
+      Number.isFinite(saved.zoom) && saved.zoom>=1 && saved.zoom<=2.5
+        ? saved.zoom : 1.6
+    );
+  } catch {}
+
+  ['cxmAxisFlipH','cxmAxisFlipV','cxmAxisRotate'].forEach(id=>
+    el(id).addEventListener('change',updateOrientation));
+
+
+  updateOrientation();
+
   el('cxmAxisReticle').addEventListener('change',e=>{
     el('cxmAxisFrame').classList.toggle('hide-reticle',!e.target.checked);
   });

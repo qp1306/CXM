@@ -8,7 +8,7 @@ test('Clear All is visible after load/unload with explicit physical removal note
   assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/Remove the hotend from the carriage and return it to its dock/);
  assert.match(approved,/fromId\('cxmClearAllBox'/);
- assert.match(html,/cxm-native-control\.js\?v=clear-all1/);
+ assert.match(html,/cxm-native-control\.js\?v=optical-v3-calibration-reload/);
 });
 test('client only posts guarded named recovery; never direct movement',()=>{
  assert.match(client,/post\('clear-all'/);

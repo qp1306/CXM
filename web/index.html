@@ -597,7 +597,17 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
 <article class="panel axis-workbench"><div class="panel-heading"><h3>Axiscope camera</h3><span class="panel-label" id="cxmAxisCameraCount">Checking cameras</span></div>
 <div class="axis-camera-settings">
 <div class="axis-row"><label for="cxmAxisCamera">Camera</label><select id="cxmAxisCamera" disabled></select><button class="btn" id="cxmAxisRefreshCameras">Refresh</button></div>
-<div class="axis-row"><label for="cxmAxisZoom">Visual zoom</label><input id="cxmAxisZoom" type="range" min="1" max="2.5" step="0.1" value="1"/><output id="cxmAxisZoomLabel">100%</output><label><input id="cxmAxisReticle" type="checkbox" checked> Crosshair</label></div>
+<div class="axis-row"><label for="cxmAxisZoom">Visual zoom</label><input id="cxmAxisZoom" type="range" min="1" max="2.5" step="0.1" value="1"/><output id="cxmAxisZoomLabel">100%</output><label><input id="cxmAxisReticle" type="checkbox" checked> Crosshair</label>
+<label><input id="cxmAxisFlipH" type="checkbox"> Flip horizontally</label>
+<label><input id="cxmAxisFlipV" type="checkbox"> Flip vertically</label>
+<label>Rotate camera
+<select id="cxmAxisRotate">
+<option value="0">0°</option>
+<option value="90">90°</option>
+<option value="180">180°</option>
+<option value="270">270°</option>
+</select>
+</label></div>
 <p id="cxmAxisOrientation" class="helper">Camera orientation not verified.</p>
 <div class="dock-warning">Crosshair is a visual reference only. Camera scale, orientation, parallax and T0 reference must be calibrated before pixel offsets can represent millimetres.</div>
 </div>
@@ -615,6 +625,17 @@ label.cxm-multi-speed:has(#cxmMultiFastTransfer),label.cxm-multi-speed:has(#cxmM
  </div>
  <p id="cxmCameraNext" role="status"></p>
 </fieldset>
+<section id="cxmVerifyPanel" class="camera-steps" aria-label="Camera verification cycle" style="margin:16px 0;padding:18px;border:1px solid #426889;border-radius:12px;background:#142d48">
+ <div class="panel-heading"><h3>Camera Verification</h3><span class="panel-label">Visual check · no offset changes</span></div>
+ <p class="helper">Cycle selected hotends over the saved T0 camera point. Hold each for 3 seconds, then change to the next. Select a hotend card above to recalibrate it separately.</p>
+ <div id="cxmVerifyTools" class="axis-row" style="display:flex;flex-wrap:wrap;gap:12px;margin:12px 0" aria-label="Select hotends for camera verification"></div>
+ <div class="buttons" style="display:flex;gap:10px;flex-wrap:wrap">
+  <button class="btn primary" id="cxmVerifyStart" type="button">Run verification</button>
+  <button class="btn" id="cxmVerifyStop" type="button" disabled>Stop after current movement</button>
+  <button class="btn" id="cxmVerifyAll" type="button">Select all available</button>
+ </div>
+ <p class="helper" id="cxmVerifyStatus" role="status" aria-live="polite">Ready to verify selected hotends.</p>
+</section>
 <div id="cxmAxisJog">
  <div class="cxm-step">
   <div class="panel-heading"><h3>Jog carriage</h3><span class="panel-label">XY 20 mm/s · Z 3 mm/s</span></div>
@@ -1092,18 +1113,18 @@ setInterval(()=>{if(!busy){loadPrinterStatus();if(document.querySelector('[data-
 
 
 <script src="cxm-multi.js?v=12tool-native-v2" defer></script>
-<script src="cxm-native-control.js?v=clear-all1" defer></script>
+<script src="cxm-native-control.js?v=optical-v3-calibration-reload" defer></script>
 <script src="cxm-dock-sync-diagnostics.js?v=1-read-only" defer></script>
 <script src="cxm-native-x334.js?v=4-t1-fallback-restart" defer></script>
 <script src="cxm-fresh-reset.js?v=1" defer></script>
-<script src="cxm-axiscope.js?v=4.2" defer></script><script src="cxm-offset-editor.js?v=4.2" defer></script>
+<script src="cxm-axiscope.js?v=4.5-camera-defaults" defer></script><script src="cxm-offset-editor.js?v=4.2" defer></script>
 <script src="cxm-z.js?v=0.9.3" defer></script>
 <script src="cxm-z-auto.js?v=2.3-arrow-steps" defer></script>
 
 <script src="cxm-testing.js?v=0.9.3" defer></script>
 
 <script src="cxm-ui-v2.js?v=20261112" defer></script>
-<script src="cxm-approved-v1.js?v=1.4-compact-dock" defer></script>
+<script src="cxm-approved-v1.js?v=1.5-camera-verify" defer></script>
 
 <script src="cxm-dock-simple.js?v=4-target-selection" defer></script>
 <script src="cxm-dock-batch.js?v=3-batch-twelve" defer></script>
