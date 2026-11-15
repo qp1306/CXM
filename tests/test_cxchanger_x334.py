@@ -29,8 +29,10 @@ class X334Tests(unittest.TestCase):
             plan({'config':self.config})
     def test_native_guards_match_python_validator(self):
         source=(ROOT/'vendor/cxm/cxm_native_toolchange.cfg').read_text()
-        self.assertIn('x+st.shift_x|float>334',source)
-        self.assertIn('pos.x > 334',source)
+        # The working native macro checks Klipper's configured travel limits,
+        # not historical hard-coded X325/X334 guard strings.
+        self.assertIn('x > h.axis_maximum.x|float',source)
+        self.assertIn('x+st.shift_x|float > h.axis_maximum.x|float',source)
         self.assertNotIn('x+st.shift_x|float>325',source)
         self.assertNotIn('pos.x > 325',source)
         self.assertNotIn('pos.x|float > 325.0',source)
