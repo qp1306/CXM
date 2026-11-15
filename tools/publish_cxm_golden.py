@@ -30,6 +30,10 @@ def main():
                 rel=pathlib.PurePosixPath(e.filename)
                 if rel.is_absolute() or ".." in rel.parts or rel.parts[0] not in {"server","web","scripts","tests","klipper"}:
                     sys.exit("STOP: invalid ZIP path: "+e.filename)
+                # Keep the updated GitHub regression tests rather than restore
+                # stale copies embedded in the November 15 source snapshot.
+                if rel.parts[0] == "tests":
+                    continue
                 f=dest.joinpath(*rel.parts)
                 f.parent.mkdir(parents=True,exist_ok=True)
                 f.write_bytes(z.read(e))
