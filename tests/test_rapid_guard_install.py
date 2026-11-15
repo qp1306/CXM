@@ -61,7 +61,7 @@ class InstallerTests(unittest.TestCase):
             self.assertIn(signal,raw)
         for check in ("homed_axes","stepper_enable.steppers","virtual_sdcard",
                       "pause_resume","gcode_button cxm_tool_detect",
-                      "position[2]","MIN_Y","cxm_rapid_protocol: 1"):
+                      "gm.gcode_position","MIN_Y","cxm_rapid_protocol: 1"):
             self.assertIn(check,raw)
         self.assertEqual(raw.count("[gcode_macro CXM_FAST_VERIFY]"),1)
 
