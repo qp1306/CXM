@@ -20,7 +20,7 @@ template = jinja2.Environment('{%', '%}', '{', '}').from_string(body)
 class CameraTests(TestCase):
     def render(self, action, mounted=0, token=7, pos=Point(200, 230, 32)):
         st = dict(camera_reference=[7, 200, 230, 32],ready=1,fault=0,current_tool=mounted,
-                  tool_count=2,t0_accepted=1,t1_accepted=1,t0_y=65,t1_y=66,clearance_y=100)
+                  tool_count=2,t0_accepted=1,t1_accepted=1,t0_x=324.9,t1_x=284.0,t0_y=65,t1_y=66,shift_x=-4.4,transfer_y=105,clearance_y=100)
         printer = {'gcode_macro _CXM_NATIVE':st,'gcode_macro _CXM_TEST_STATE':{'running':0},
                    'toolhead':dict(position=pos,axis_minimum=Point(0,0,0),axis_maximum=Point(350,350,350)),
                    'gcode_move':dict(gcode_position=pos)}
@@ -37,14 +37,15 @@ class CameraTests(TestCase):
     def test_lift_before_dock_then_verify_tool_before_return(self):
         change = self.render('CHANGE')
         self.assertLess(change.index('G1 Z37'),change.index('CXM_SELECT_TOOL TOOL=1'))
-        self.assertLess(change.index('CXM_SELECT_TOOL TOOL=1'),change.index('ACTION=RETURN'))
+        self.assertLess(change.index('CXM_SELECT_TOOL TOOL=1'),change.index('CXM_CAMERA_RETURN TOOL=1'))
         with self.assertRaisesRegex(ValueError,'unexpected fitted'):
             self.render('RETURN',mounted=0)
         cmd = self.render('RETURN',mounted=1,pos=Point(264,166,37))
-        self.assertLess(cmd.index('G1 X200 Y230'),cmd.index('G1 Z32 F60'))
+        self.assertLess(cmd.index('G1 Y230 F3000'),cmd.index('G1 X200 F3000'))
+        self.assertLess(cmd.index('G1 X200 F3000'),cmd.index('G1 Z32 F60'))
 
     def test_stale_or_obstructed_reference_blocks_motion(self):
-        for action,opts in [('CHANGE',dict(token=4)),('REFERENCE',dict(pos=Point(200,65,32))),
+        for action,opts in [('CHANGE',dict(token=4)),('REFERENCE',dict(pos=Point(-1,65,32))),
                             ('REFERENCE',dict(pos=Point(200,230,348))),('RETURN',dict(mounted=1))]:
             with self.subTest(action=action), self.assertRaises(ValueError):
                 self.render(action,**opts)
