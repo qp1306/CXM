@@ -16,7 +16,7 @@ test('Dock XY visibly offers full reset and explicit consent',()=>{
  assert.match(approved,/const reset=\$\('cxmCommissionResetPanel'\)/);
  assert.match(approved,/const s6=p\.stage\(5,'Recovery \/ Reset'/);
  assert.match(html,/cxm-fresh-reset\.js\?v=1/);
- assert.match(html,/cxm-approved-v1\\.js\\?v=1\\.5-camera-verify/);
+ assert.match(html,/cxm-approved-v1\.js\?v=1\.5-camera-verify/);
  assert.match(css,/\.cxm-fresh-start/);
 });
 test('UI confirms both physical EMPTY and server-side full readback',()=>{
