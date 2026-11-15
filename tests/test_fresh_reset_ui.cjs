@@ -49,7 +49,7 @@ test('Old T1 exact dock-position guard has been removed, other geometry gates re
  assert.doesNotMatch(macro,/T1 synchronized coordinates differ from the proven release point/);
  assert.doesNotMatch(macro,/t == 1 and \(\(x-264\.70\)/);
  assert.match(macro,/pos\.y\|float < target - 0\.001/);
- assert.match(macro,/st\.shift_x\|float-4\.4/);
+ assert.match(macro,/x\+st\.shift_x\|float > h\.axis_maximum\.x\|float/);
  assert.match(macro,/CXM_FAST_VERIFY EXPECT=\{expect\}/);
 });
 test('Clear All errors remains independent and old accepted coordinates are not reused',()=>{
