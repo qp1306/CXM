@@ -62,7 +62,7 @@ def main():
         _,stat=run(["git","diff","--cached","--stat"],dest)
         print("=== PROPOSED SOURCE CHANGES ===\n"+stat[-10000:])
         rc,out=run([sys.executable,"-m","unittest","discover","-s","tests","-p","test_*.py","-q"],dest)
-        print("=== TEST RESULTS ===\n"+"\n".join(out.splitlines()[-30:]))
+        print("=== COMPLETE TEST RESULTS ===\n"+out)
         if rc: sys.exit("STOP: regression tests failed, no GitHub changes")
         if not a.apply:
             print("PASS: preflight finished; GitHub and printer are unchanged")
